@@ -1,0 +1,40 @@
+name: EIA-860 official plant BA mapping
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia860-plant-ba.yml'
+      - 'src/energy_transition/eia860_capacity.py'
+      - 'src/energy_transition/eia860_plant_ba.py'
+      - 'src/energy_transition/ba_crosswalk.py'
+permissions:
+  contents: read
+jobs:
+  inventory-and-mapping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2023, 2024]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -e '.[dev]'
+      - name: Download and audit EIA-860 generator inventory
+        run: python -m energy_transition.eia860_capacity --year ${{ matrix.year }} --output outputs/eia860
+      - name: Extract reported plant BA and join operating generator capacities
+        run: |
+          python -m energy_transition.eia860_plant_ba \
+            --year ${{ matrix.year }} \
+            --generators outputs/eia860/western_state_generators_${{ matrix.year }}.csv \
+            --output outputs/eia860
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-plant-ba-${{ matrix.year }}
+          path: outputs/eia860/
+          retention-days: 90
