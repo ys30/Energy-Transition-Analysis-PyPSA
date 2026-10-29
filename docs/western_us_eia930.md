@@ -58,3 +58,37 @@ are independent historical dispatch runs, **not** investment periods.
 If `EIA_API_KEY` is missing or the EIA API cannot be reached, the command fails explicitly;
 it never silently fabricates data. This repository does not currently bundle
 redistributed third-party EIA data or present invented model results.
+
+
+## Seven-year automated historical input pipeline (2019–2025)
+
+GitHub Actions workflow: [eia930-multiyear.yml](../.github/workflows/eia930-multiyear.yml).
+It runs seven separate annual EIA-930 downloads and independent PyPSA dispatch
+optimizations using the repository's `EIA_API_KEY` Actions secret. Each year
+exports hourly observed-demand CSV, BA audit, representative snapshots, model
+NetCDF, and metrics JSON. A dependent aggregation job writes
+`yearly_summary.csv` and `ba_audit_all_years.csv` as a downloadable artifact.
+
+This workflow runs when its workflow file or the EIA module changes, and
+can also be launched via Actions > Western US multi-year EIA-930 PyPSA >
+Run workflow. The workflow must complete successfully before results can
+be described as verified. A failed year prevents aggregate publication.
+
+**Scope warning:** the eight selected balancing authorities are a *subset*,
+not all of WECC. Annual observations are historical demand, not measured
+generation mix. The generator fleet and its costs remain illustrative.
+The 288 representative hours per year smooth daily variation and cannot
+support resource adequacy, peak reliability, storage chronology, or extreme
+event conclusions. These are seven *independent* annual dispatch runs,
+not seven PyPSA investment periods. Do not describe them as capacity-expansion
+forecasts or a calibrated Western grid.
+
+### Acceptance checks
+
+- All seven annual jobs and the aggregation job pass.
+- Each BA-year has exactly 8760 hourly rows, or 8784 in leap years.
+- Every year contains all requested BAs; QC anomaly share stays within the
+  configured 1% threshold; missing long gaps are rejected.
+- The resulting yearly metrics have `solve_status=optimal`, and
+  `unserved_share` is reported, never hidden.
+- Downloaded CSVs and logs are retained as Actions artifacts for audit.
