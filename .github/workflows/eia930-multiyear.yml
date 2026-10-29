@@ -1,0 +1,90 @@
+name: Western US multi-year EIA-930 PyPSA
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: 'Space-separated complete historical years'
+        required: true
+        default: '2019 2020 2021 2022 2023 2024 2025'
+  schedule:
+    - cron: '0 9 1 2 *'
+permissions:
+  contents: read
+jobs:
+  yearly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2019, 2020, 2021, 2022, 2023, 2024, 2025]
+    env:
+      EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install PyPSA solver and package
+        run: python -m pip install -e '.[model,dev]'
+      - name: Validate secret
+        run: |
+          if [ -z "$EIA_API_KEY" ]; then
+            echo "::error::EIA_API_KEY repository secret is missing"
+            exit 1
+          fi
+      - name: Download, audit and solve one observed year
+        run: python -m energy_transition.eia930_west --years ${{ matrix.year }} --output outputs/eia930_west
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia930-west-${{ matrix.year }}
+          path: outputs/eia930_west/
+          retention-days: 30
+  aggregate:
+    needs: yearly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: eia930-west-*
+          path: yearly_artifacts
+      - name: Combine yearly metrics and input audits
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+          root = Path('yearly_artifacts')
+          rows = []
+          audits = []
+          for folder in sorted(root.glob('eia930-west-*')):
+              year = int(folder.name.rsplit('-', 1)[1])
+              metrics = folder / str(year) / 'metrics.json'
+              if not metrics.exists():
+                  raise FileNotFoundError(metrics)
+              row = json.loads(metrics.read_text())
+              rows.append({'year': year, **{k:v for k,v in row.items() if isinstance(v,(str,int,float))}})
+              audit = folder / f'ba_audit_{year}.csv'
+              if not audit.exists():
+                  raise FileNotFoundError(audit)
+              with audit.open(newline='') as f:
+                  audits.extend(csv.DictReader(f))
+          if len(rows) != 7:
+              raise RuntimeError(f'Expected 7 years, found {len(rows)}')
+          out = Path('multi_year_summary')
+          out.mkdir(exist_ok=True)
+          for name, data in [('yearly_summary.csv',rows),('ba_audit_all_years.csv',audits)]:
+              keys = list(dict.fromkeys(k for r in data for k in r))
+              with (out/name).open('w',newline='') as f:
+                  writer=csv.DictWriter(f,fieldnames=keys)
+                  writer.writeheader()
+                  writer.writerows(data)
+          (out/'README.txt').write_text('Observed input: EIA-930 BA hourly demand. Supply and costs are scenario assumptions. Independent annual dispatch, not multi-investment-period optimization.\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eia930-west-multi-year-summary
+          path: multi_year_summary/
+          retention-days: 90
