@@ -23,7 +23,8 @@ def download_official_eia923(url: str, destination: Path, *, year: int):
         raise ValueError("Credentials are not permitted in the EIA URL")
     request = urllib.request.Request(url, headers={"User-Agent": "energy-transition-research/0.3"})
     with urllib.request.urlopen(request, timeout=120) as response:
-        final = urllib.parse.urlparse(response.geturl())
+        resolved_url = response.geturl()
+        final = urllib.parse.urlparse(resolved_url)
         if final.scheme != "https" or final.hostname not in ("eia.gov", "www.eia.gov"):
             raise ValueError("EIA-923 download redirected outside official eia.gov")
         raw = response.read()
@@ -50,7 +51,7 @@ def download_official_eia923(url: str, destination: Path, *, year: int):
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(workbook)
     report = {
-        "source_url": url, "resolved_url": response.geturl(),
+        "source_url": url, "resolved_url": resolved_url,
         "report_year_requested": year, "bytes": len(workbook),
         "sha256": hashlib.sha256(workbook).hexdigest(),
         "file": destination.name, "archive_member": selected_member,
