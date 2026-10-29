@@ -65,6 +65,29 @@ def summarize_monthly(monthly,bas):
     totals=chosen.loc[~missing].groupby(["ba_code","fuel","month"],as_index=False).netgen_mwh.sum()
     return chosen,audit,totals
 
+def annual_reconciliation(chosen):
+    """Compare Page 1 annual reported totals to monthly cells by original row.
+
+    A nonnumeric monthly entry is not silently interpreted as zero; rows with
+    such entries cannot be certified as twelve-month-complete.
+    """
+    group_cols=["plant_id","state","fuel","ba_code","prime_mover","annual_reported_mwh"]
+    report=chosen.groupby(group_cols,dropna=False).agg(
+        months_observed=("netgen_mwh",lambda x:int(x.notna().sum())),
+        monthly_numeric_sum_mwh=("netgen_mwh","sum"),
+        missing_months=("netgen_mwh",lambda x:int(x.isna().sum()))
+    ).reset_index()
+    report["annual_delta_mwh"]=report.monthly_numeric_sum_mwh-report.annual_reported_mwh
+    report["fully_numeric"]=report.months_observed.eq(12)
+    report["reported_annual_available"]=report.annual_reported_mwh.notna()
+    report["reconciles"]=(
+       report.fully_numeric & report.reported_annual_available &
+       report.annual_delta_mwh.abs().le(
+           (report.annual_reported_mwh.abs()*1e-7).clip(lower=0.1)
+       )
+    )
+    return report
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--year",type=int,default=2024)
@@ -77,6 +100,8 @@ def main():
     original,monthly=extract_page1(archive)
     chosen,audit,totals=summarize_monthly(monthly,a.bas)
     chosen.to_csv(a.output/"page1_ba_fuel_monthly_record_audit.csv",index=False)
+    reconciliation=annual_reconciliation(chosen)
+    reconciliation.to_csv(a.output/"annual_monthly_reconciliation.csv",index=False)
     audit.to_csv(a.output/"ba_fuel_data_quality.csv",index=False)
     totals.to_csv(a.output/"ba_fuel_monthly_observed.csv",index=False)
     report={"year":a.year,"url":url,"source_sheet":"Page 1 Generation and Fuel Data",
@@ -84,6 +109,9 @@ def main():
       "source_rows":len(original),"selected_ba_monthly_rows":len(chosen),
       "missing_or_nonnumeric_cells":int(chosen.netgen_mwh.isna().sum()),
       "negative_generation_cells":int(chosen.netgen_mwh.lt(0).sum()),
+      "annual_reconciliation_total_records":len(reconciliation),
+      "annual_reconciliation_fully_numeric_records":int(reconciliation.fully_numeric.sum()),
+      "annual_reconciliation_matching_records":int(reconciliation.reconciles.sum()),
       "warnings":["Missing/nonnumeric monthly cells omitted from numerical totals and retained in audit.",
                   "Negative values preserved; may represent storage or reporting corrections.",
                   "Page 4 generator data NOT added; avoid duplicate generation.",
