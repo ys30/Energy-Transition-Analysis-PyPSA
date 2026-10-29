@@ -9,11 +9,16 @@ on:
         options:
           - '2024'
           - '2023'
+      official_xlsx_url:
+        description: 'Verified official eia.gov EIA-923 XLSX URL (optional; empty runs tests only)'
+        required: false
+        type: string
   push:
     paths:
       - '.github/workflows/eia923-validate.yml'
       - 'src/energy_transition/eia923_normalize.py'
       - 'src/energy_transition/eia923_validation.py'
+      - 'src/energy_transition/eia923_download.py'
       - 'tests/test_eia923_normalize.py'
       - 'tests/test_eia923_validation.py'
 permissions:
@@ -33,3 +38,34 @@ jobs:
   # The official annual EIA-923 workbook and matching solved model metrics
   # are required for empirical validation. The workflow intentionally does
   # not label unit tests as an observed-data validation.
+  official-download:
+    if: github.event_name == 'workflow_dispatch' && inputs.official_xlsx_url != ''
+    needs: validate-code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Download official EIA-923 workbook with SHA256 audit
+        env:
+          OFFICIAL_URL: ${{ inputs.official_xlsx_url }}
+          YEAR: ${{ inputs.year }}
+        run: |
+          python -m energy_transition.eia923_download \
+            --url "$OFFICIAL_URL" --year "$YEAR" \
+            --output "outputs/eia923/eia923_${YEAR}.xlsx"
+      - name: Normalize official EIA-923 workbook
+        env:
+          YEAR: ${{ inputs.year }}
+        run: |
+          python -m energy_transition.eia923_normalize \
+            --xlsx "outputs/eia923/eia923_${YEAR}.xlsx" \
+            --year "$YEAR" --output outputs/eia923
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia923-official-${{ inputs.year }}
+          path: outputs/eia923/
+          retention-days: 30
