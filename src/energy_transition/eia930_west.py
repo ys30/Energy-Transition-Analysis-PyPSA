@@ -258,6 +258,15 @@ def main():
             peak_mw=("value", "max"),
         ).reset_index()
         counts["year"] = year
+        counts["expected_hours"] = 8784 if calendar.isleap(year) else 8760
+        counts["coverage_fraction"] = counts["observations"] / counts["expected_hours"]
+        if "raw_value" in hourly:
+            raw_audit = hourly.groupby("respondent").agg(
+                raw_observed_energy_mwh=("raw_value", "sum"),
+                raw_nonpositive_or_missing_hours=("raw_value", lambda x: int((x.isna() | (x <= 0)).sum())),
+            )
+            counts["raw_observed_energy_mwh"] = counts.respondent.map(raw_audit.raw_observed_energy_mwh)
+            counts["raw_nonpositive_or_missing_hours"] = counts.respondent.map(raw_audit.raw_nonpositive_or_missing_hours)
         if "qc_flag" in hourly:
             bad = hourly.assign(interpolated=hourly.qc_flag.str.startswith(("interpolated_", "neighboring_day_"))).groupby("respondent").interpolated.sum()
             counts["interpolated_hours"] = counts.respondent.map(bad).fillna(0).astype(int)
@@ -266,6 +275,21 @@ def main():
             raise ValueError(f"BA year incomplete, expected {expected_hours} hourly records each: {counts.to_dict('records')}")
         counts.to_csv(args.output / f"ba_audit_{year}.csv", index=False)
         rep = representative_hours(hourly, year)
+        raw_energy = float(hourly["value"].sum())
+        represented_energy = float((rep["value"] * rep["weight_h"]).sum())
+        energy_audit = {
+            "year": year,
+            "balancing_authorities": sorted(hourly.respondent.unique().tolist()),
+            "hourly_rows": int(len(hourly)),
+            "raw_demand_mwh_after_qc": raw_energy,
+            "representative_demand_mwh": represented_energy,
+            "absolute_energy_difference_mwh": abs(raw_energy - represented_energy),
+            "relative_energy_difference": abs(raw_energy - represented_energy) / raw_energy,
+            "peak_observed_mw": float(hourly.groupby("period")["value"].sum().max()),
+            "peak_representative_mw": float(rep["value"].max()),
+            "peak_information_loss_warning": "Representative hours smooth observed peaks; do not use for adequacy or extreme-weather claims.",
+        }
+        (args.output / f"energy_audit_{year}.json").write_text(json.dumps(energy_audit, indent=2))
         rep.to_csv(args.output / f"representative_hours_{year}.csv", index=False)
         result = build_and_solve(rep, args.output / str(year))
         results.append({"year": year, **{k: v for k, v in result.items() if isinstance(v, (int, float, str))}})
