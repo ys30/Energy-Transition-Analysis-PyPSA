@@ -45,8 +45,15 @@ def read_operable_inventory(archive: bytes, year: int):
     if fuel_col is None:
         raise ValueError("Primary fuel column not identified; cannot map technologies")
     status_col = next((v for k,v in columns.items() if k in ("status", "operational status")), None)
-    result = candidate[[state_col, fuel_col, nameplate] + ([status_col] if status_col else [])].copy()
-    result.columns = ["state", "fuel", "capacity_mw"] + (["status"] if status_col else [])
+    plant_col = next((v for k,v in columns.items() if k in ("plant code", "plant id", "plant id number")), None)
+    gen_col = next((v for k,v in columns.items() if k in ("generator id", "generator id number")), None)
+    id_columns = ([plant_col] if plant_col else []) + ([gen_col] if gen_col else [])
+    result = candidate[id_columns + [state_col, fuel_col, nameplate] + ([status_col] if status_col else [])].copy()
+    result.columns = (["plant_id"] if plant_col else []) + (["generator_id"] if gen_col else []) + ["state", "fuel", "capacity_mw"] + (["status"] if status_col else [])
+    if "plant_id" not in result or "generator_id" not in result:
+        raise ValueError("Plant and generator identifiers must be retained for BA crosswalk; inspect EIA-860 workbook schema")
+    if result[["plant_id", "generator_id"]].isna().any().any():
+        raise ValueError("Missing plant or generator identifiers; cannot safely create geographic crosswalk")
     result["capacity_mw"] = pd.to_numeric(result.capacity_mw, errors="coerce")
     result["state"] = result.state.astype(str).str.strip().str.upper()
     result["fuel"] = result.fuel.astype(str).str.strip()
