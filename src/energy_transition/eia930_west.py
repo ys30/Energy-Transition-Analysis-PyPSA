@@ -281,7 +281,7 @@ def representative_hours(observations: pd.DataFrame, year: int):
         raise ValueError("Representative-hour energy conservation failed")
     return rep
 
-def load_ba_capacity(path: Path, bas, *, minimum_coverage=0.95):
+def load_ba_capacity(path: Path, bas, *, year=None, minimum_coverage=0.95):
     """Load audited EIA-860 BA nameplate capacities as an explicit scenario.
 
     Requires a manifest from eia860_plant_ba and a same-year CSV.
@@ -310,6 +310,11 @@ def load_ba_capacity(path: Path, bas, *, minimum_coverage=0.95):
     if not manifest.is_file():
         raise FileNotFoundError(f"Required crosswalk provenance missing: {manifest}")
     provenance = json.loads(manifest.read_text())
+    if year is not None and provenance.get("year") != year:
+        raise ValueError(
+            f"EIA-860 capacity vintage mismatch: requested {year}, "
+            f"manifest reports {provenance.get('year')}"
+        )
     coverage = float(provenance.get("operating_nameplate_mapping_fraction", 0))
     if coverage < minimum_coverage:
         raise ValueError(f"Insufficient EIA-860 plant BA mapping coverage: {coverage:.2%}")
@@ -377,7 +382,15 @@ def main():
     p.add_argument("--eia860-capacity", type=Path,
                    help="Optional audited BA-fuel capacity CSV; only supported carriers allowed")
     args = p.parse_args()
-    capacities = load_ba_capacity(args.eia860_capacity, args.bas) if args.eia860_capacity else None
+    if args.eia860_capacity and len(args.years) != 1:
+        raise ValueError(
+            "EIA-860 BA capacity is year-specific; run exactly one --years value "
+            "per capacity file. Do not reuse a single inventory across years."
+        )
+    capacities = (
+        load_ba_capacity(args.eia860_capacity, args.bas, year=args.years[0])
+        if args.eia860_capacity else None
+    )
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = {"source": "EIA-930 region-data hourly actual demand, type D",
                 "source_url": API, "respondents": args.bas,
