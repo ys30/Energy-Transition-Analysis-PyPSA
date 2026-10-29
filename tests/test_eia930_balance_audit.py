@@ -18,3 +18,17 @@ def test_eia930_balance_keeps_missing_hours_and_both_signs():
     assert row.accounting_gate=="review_required"
     assert row.official_balance_residual_mwh==40
     assert row.official_balance_mae_mw==40
+
+def test_monthly_residual_uses_only_complete_triples():
+    from energy_transition.eia930_balance_audit import monthly_balance_audit
+    hours=pd.date_range("2024-01-01",periods=2,freq="h",tz="UTC")
+    frame=pd.DataFrame({
+        "respondent":["BPAT","BPAT"],"period":hours,
+        "demand":[100.,200.],"generation":[80.,None],"interchange":[-20.,-30.],
+        "residual_d_minus_ng_plus_ti":[0.,None]
+    })
+    monthly=monthly_balance_audit(frame)
+    assert monthly.iloc[0].common_hours==1
+    assert monthly.iloc[0].missing_triples==1
+    assert monthly.iloc[0].official_residual_mwh==0
+    assert monthly.iloc[0].quality_flag=="review_required"
