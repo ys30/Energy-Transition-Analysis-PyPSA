@@ -35,7 +35,26 @@ jobs:
             exit 1
           fi
       - name: Download, audit and solve one observed year
-        run: python -m energy_transition.eia930_west --years ${{ matrix.year }} --output outputs/eia930_west
+        shell: bash
+        run: |
+          mkdir -p outputs/eia930_west
+          set +e
+          python -m energy_transition.eia930_west --years ${{ matrix.year }} --output outputs/eia930_west > outputs/eia930_west/run.log 2>&1
+          result=$?
+          cat outputs/eia930_west/run.log
+          YEAR=${{ matrix.year }} EXIT_CODE="$result" python - <<'PY'
+          import json, os
+          from pathlib import Path
+          log = Path("outputs/eia930_west/run.log").read_text()
+          errors = [line.strip() for line in log.splitlines()
+                    if line.startswith(("ValueError:", "TypeError:", "RuntimeError:", "HTTPError:"))]
+          Path("outputs/eia930_west/year_run_status.json").write_text(
+              json.dumps({"year": int(os.environ["YEAR"]),
+                          "exit_code": int(os.environ["EXIT_CODE"]),
+                          "last_error": errors[-1][:1200] if errors else "",
+                          "status": "success" if int(os.environ["EXIT_CODE"]) == 0 else "failed"}, indent=2))
+          PY
+          exit "$result"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
