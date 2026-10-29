@@ -14,6 +14,7 @@ on:
     paths:
       - '.github/workflows/eia930-west.yml'
       - 'src/energy_transition/eia930_west.py'
+      - 'tests/test_eia930_west.py'
 jobs:
   empirical_dispatch:
     runs-on: ubuntu-latest
