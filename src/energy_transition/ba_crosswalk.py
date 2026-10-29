@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 
 def normalize_plant_id(series):
-    return series.astype("string").str.strip().str.replace(r"\\.0$", "", regex=True)
+    return series.astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
 
 def join_verified_crosswalk(generators, crosswalk):
     needed_gen = {"plant_id", "generator_id", "capacity_mw", "status"}
