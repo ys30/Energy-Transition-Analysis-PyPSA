@@ -362,7 +362,7 @@ def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
     n.snapshot_weightings.loc[:, ["objective", "generators", "stores"]] = reps.weight_h.to_numpy()[:, None]
     n.add("Load", "eia930_observed_demand", bus="western_subset", p_set=reps.value.to_numpy())
     scenario_carriers = capacities if capacities is not None else {
-        k: v["p_nom"] for k, v in CARRIERS.items()
+        k: v["p_nom"] for k, v in CARRIERS.items() if v["p_nom"] > 0
     }
     for carrier, nameplate in scenario_carriers.items():
         cfg = CARRIERS[carrier]
