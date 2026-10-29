@@ -1,0 +1,43 @@
+name: EIA-923 vs PyPSA historical generation comparison
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia923-pypsa-comparison.yml'
+      - 'src/energy_transition/eia923_pypsa_comparison.py'
+jobs:
+  comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[model,dev]' openpyxl xlrd
+      - name: Download verified EIA-923 2024 results
+        uses: actions/download-artifact@v4
+        with:
+          name: eia923-ba-fuel-generation-2024
+          path: inputs/eia923
+          github-token: ${{ github.token }}
+          run-id: 40937912804
+      - name: Download solved historical PyPSA network
+        uses: actions/download-artifact@v4
+        with:
+          name: real-ba-dispatch-2024
+          path: inputs/pypsa
+          github-token: ${{ github.token }}
+          run-id: 40925504246
+      - name: Compare qualified observed generation with modeled dispatch
+        run: |
+          python -m energy_transition.eia923_pypsa_comparison --qualification inputs/eia923/generation_qualified_ba_fuel.csv --network inputs/pypsa/solved_network.nc --output outputs/ba_calibration
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia923-pypsa-generation-comparison
+          path: outputs/ba_calibration/
+          retention-days: 60
