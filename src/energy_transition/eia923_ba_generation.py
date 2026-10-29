@@ -40,11 +40,12 @@ def extract_page1(archive:bytes):
               "balancing authority code","reported prime mover","net generation (megawatthours)")]
               +list(month_cols.values())].copy()
     base.columns=["plant_id","state","fuel","ba_code","prime_mover","annual_reported_mwh"]+list(MONTHS)
+    base["source_row_id"]=range(len(base))
     base["plant_id"]=base.plant_id.astype("string").str.strip().str.replace(r"\.0$","",regex=True)
     for field in ("state","fuel","ba_code","prime_mover"):
         base[field]=base[field].astype("string").str.strip().str.upper()
     base["annual_reported_mwh"]=pd.to_numeric(base.annual_reported_mwh,errors="coerce")
-    monthly=base.melt(id_vars=["plant_id","state","fuel","ba_code","prime_mover","annual_reported_mwh"],
+    monthly=base.melt(id_vars=["source_row_id","plant_id","state","fuel","ba_code","prime_mover","annual_reported_mwh"],
                      value_vars=list(MONTHS),var_name="month_name",value_name="source_netgen")
     monthly["month"]=monthly.month_name.map({m:i+1 for i,m in enumerate(MONTHS)})
     monthly["netgen_mwh"]=pd.to_numeric(monthly.source_netgen,errors="coerce")
@@ -71,7 +72,7 @@ def annual_reconciliation(chosen):
     A nonnumeric monthly entry is not silently interpreted as zero; rows with
     such entries cannot be certified as twelve-month-complete.
     """
-    group_cols=["plant_id","state","fuel","ba_code","prime_mover","annual_reported_mwh"]
+    group_cols=["source_row_id","plant_id","state","fuel","ba_code","prime_mover","annual_reported_mwh"]
     report=chosen.groupby(group_cols,dropna=False).agg(
         months_observed=("netgen_mwh",lambda x:int(x.notna().sum())),
         monthly_numeric_sum_mwh=("netgen_mwh","sum"),
