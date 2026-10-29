@@ -53,7 +53,13 @@ def normalize_schedule3(frame: pd.DataFrame, year: int, *, allow_incomplete=Fals
     numeric = pd.to_numeric(raw, errors="coerce")
     invalid = raw.notna() & raw.ne("") & numeric.isna()
     if invalid.any() and not allow_incomplete:
-        raise ValueError(f"Non-numeric EIA-923 Netgen cells: {int(invalid.sum())}")
+        tokens = raw.loc[invalid].value_counts().head(20).to_dict()
+        examples = long.loc[invalid, ["plant_id", "fuel_code", "month_name"]].head(15).copy()
+        examples["raw_value"] = raw.loc[invalid].head(15).tolist()
+        raise ValueError(
+            f"Non-numeric EIA-923 Netgen cells: {int(invalid.sum())}; "
+            f"top tokens: {tokens}; examples: {examples.to_dict(orient='records')}"
+        )
     if (long.fuel.isna() & numeric.notna() & numeric.ne(0)).any():
         codes = sorted(long.loc[long.fuel.isna() & numeric.notna() & numeric.ne(0), "fuel_code"].dropna().unique())
         raise ValueError(f"Unmapped EIA-923 fuel codes with generation: {codes}")
