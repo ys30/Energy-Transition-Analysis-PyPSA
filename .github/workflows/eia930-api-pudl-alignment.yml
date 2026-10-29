@@ -1,0 +1,31 @@
+name: EIA-930 API PUDL same-hour alignment
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia930-api-pudl-alignment.yml'
+      - 'src/energy_transition/eia930_api_pudl_alignment.py'
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]' duckdb
+      - name: Compare matched UTC observations
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        run: |
+          test -n "$EIA_API_KEY"
+          python -m energy_transition.eia930_api_pudl_alignment --year 2024 --bas BPAT CISO --output outputs/pudl_api_alignment
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia930-api-pudl-hour-alignment-2024
+          path: outputs/pudl_api_alignment/
+          retention-days: 60
