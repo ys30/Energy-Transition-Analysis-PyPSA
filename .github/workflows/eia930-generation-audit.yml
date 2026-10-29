@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/eia930-generation-audit.yml'
       - 'src/energy_transition/eia930_generation_audit.py'
+      - 'src/energy_transition/generation_calibration_gate.py'
 jobs:
   audit:
     runs-on: ubuntu-latest
@@ -23,6 +24,9 @@ jobs:
         run: |
           test -n "$EIA_API_KEY"
           python -m energy_transition.eia930_generation_audit --year 2024 --bas CISO BPAT --output outputs/ba_generation_audit
+      - name: Mark incomplete annual BA observations in calibration readiness report
+        run: |
+          python -m energy_transition.generation_calibration_gate --audit outputs/ba_generation_audit/net_generation_audit.csv --bas CISO BPAT --output outputs/ba_generation_audit
       - uses: actions/upload-artifact@v4
         if: always()
         with:
