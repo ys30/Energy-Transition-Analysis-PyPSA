@@ -12,6 +12,7 @@ from pathlib import Path
 import urllib.parse
 import urllib.request
 import zipfile
+import io
 
 
 def download_official_eia923(url: str, destination: Path, *, year: int):
@@ -26,9 +27,9 @@ def download_official_eia923(url: str, destination: Path, *, year: int):
         if final.scheme != "https" or final.hostname not in ("eia.gov", "www.eia.gov"):
             raise ValueError("EIA-923 download redirected outside official eia.gov")
         raw = response.read()
-    if not zipfile.is_zipfile(__import__("io").BytesIO(raw)):
+    if not zipfile.is_zipfile(io.BytesIO(raw)):
         raise ValueError("Downloaded EIA-923 file is not a valid XLSX/ZIP archive")
-    with zipfile.ZipFile(__import__("io").BytesIO(raw)) as archive:
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         names = archive.namelist()
         if "[Content_Types].xml" not in names or not any(n.startswith("xl/") for n in names):
             raise ValueError("Downloaded file is not an XLSX workbook")
