@@ -52,8 +52,14 @@ def read_operable_inventory(archive: bytes, year: int):
     result.columns = (["plant_id"] if plant_col else []) + (["generator_id"] if gen_col else []) + ["state", "fuel", "capacity_mw"] + (["status"] if status_col else [])
     if "plant_id" not in result or "generator_id" not in result:
         raise ValueError("Plant and generator identifiers must be retained for BA crosswalk; inspect EIA-860 workbook schema")
-    if result[["plant_id", "generator_id"]].isna().any().any():
-        raise ValueError("Missing plant or generator identifiers; cannot safely create geographic crosswalk")
+    # The published workbook may contain blank/footnote rows. Preserve these for
+    # audit rather than confusing them with valid generator records.
+    result["id_qc"] = "valid"
+    missing_id = result[["plant_id", "generator_id"]].isna().any(axis=1)
+    result.loc[missing_id, "id_qc"] = "missing_identifier"
+    result["plant_id"] = result["plant_id"].astype("string").str.strip().str.replace(r"\\.0$", "", regex=True)
+    result["generator_id"] = result["generator_id"].astype("string").str.strip()
+    result.loc[result.plant_id.eq("") | result.generator_id.eq(""), "id_qc"] = "missing_identifier"
     result["capacity_mw"] = pd.to_numeric(result.capacity_mw, errors="coerce")
     result["state"] = result.state.astype(str).str.strip().str.upper()
     result["fuel"] = result.fuel.astype(str).str.strip()
@@ -85,7 +91,9 @@ def main():
     western.to_csv(args.output / f"western_state_generators_raw_{args.year}.csv", index=False)
     anomalies = western.loc[western.capacity_qc.ne("valid")].copy()
     anomalies.to_csv(args.output / f"western_capacity_anomalies_{args.year}.csv", index=False)
-    valid = western.loc[western.capacity_qc.eq("valid")].copy()
+    invalid_ids = western.loc[western.id_qc.ne("valid")].copy()
+    invalid_ids.to_csv(args.output / f"western_identifier_anomalies_{args.year}.csv", index=False)
+    valid = western.loc[western.capacity_qc.eq("valid") & western.id_qc.eq("valid")].copy()
     if valid.empty:
         raise ValueError("No valid Western nameplate capacity rows")
     valid.to_csv(args.output / f"western_state_generators_{args.year}.csv", index=False)
@@ -99,6 +107,7 @@ def main():
         "capacity_mw_total_valid_rows_only": float(valid.capacity_mw.sum()),
         "raw_rows": int(len(western)), "valid_rows": int(len(valid)),
         "excluded_missing_or_negative_capacity_rows": int(len(anomalies)),
+        "excluded_missing_identifier_rows": int(len(invalid_ids)),
         "capacity_completeness_fraction": float(len(valid) / len(western)),
         "limitations": "Operable inventory includes standby/out-of-service categories; does not imply available capacity. EIA-930 BA load cannot be matched directly to state-based capacity. No claim of dispatch calibration."
     }
