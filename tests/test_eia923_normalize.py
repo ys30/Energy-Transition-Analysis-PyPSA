@@ -57,3 +57,14 @@ def test_schedule3_accepts_official_multiline_fuel_header():
     result = normalize_schedule3(frame, 2024)
     assert len(result) == 12
     assert result.net_generation_mwh.sum() == 120
+
+
+def test_schedule3_accepts_multiline_official_netgen_columns():
+    frame = _schedule().rename(columns={
+        "Plant Id": "Plant\nId",
+        "Reported Fuel Type Code": "Reported\nFuel Type Code",
+        **{f"Netgen {m.title()}": f"Netgen\n{m.title()}" for m in MONTHS},
+    })
+    out = normalize_schedule3(frame, 2024)
+    assert len(out) == 12
+    assert out.net_generation_mwh.sum() == 120
