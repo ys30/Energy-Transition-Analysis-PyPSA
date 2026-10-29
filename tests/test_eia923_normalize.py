@@ -31,3 +31,10 @@ def test_schedule3_rejects_nonnumeric_observation():
 def test_schedule3_preserves_negative_generation():
     result = normalize_schedule3(_schedule(value=-2), 2024)
     assert result.net_generation_mwh.sum() == -24
+
+
+def test_schedule3_rejects_missing_month_without_zero_imputation():
+    frame = _schedule()
+    frame.loc[0, "Netgen February"] = None
+    with pytest.raises(ValueError, match="Missing EIA-923 monthly"):
+        normalize_schedule3(frame, 2024)
