@@ -50,8 +50,10 @@ def read_operable_inventory(archive: bytes, year: int):
     result["capacity_mw"] = pd.to_numeric(result.capacity_mw, errors="coerce")
     result["state"] = result.state.astype(str).str.strip().str.upper()
     result["fuel"] = result.fuel.astype(str).str.strip()
-    if result.capacity_mw.isna().any() or (result.capacity_mw < 0).any():
-        raise ValueError("Missing or negative nameplate values; no silent zero imputation")
+    # Retain anomalous raw rows for audit; never count unknown nameplate as zero.
+    result["capacity_qc"] = "valid"
+    result.loc[result.capacity_mw.isna(), "capacity_qc"] = "missing_or_nonnumeric"
+    result.loc[result.capacity_mw < 0, "capacity_qc"] = "negative"
     return result.assign(report_year=year)
 
 
@@ -73,15 +75,24 @@ def main():
     western = df.loc[df.state.isin(WESTERN_STATES)].copy()
     if western.empty:
         raise ValueError("No selected Western-state operable generator rows")
-    western.to_csv(args.output / f"western_state_generators_{args.year}.csv", index=False)
-    grouped = western.groupby(["state", "fuel"], as_index=False).agg(
+    western.to_csv(args.output / f"western_state_generators_raw_{args.year}.csv", index=False)
+    anomalies = western.loc[western.capacity_qc.ne("valid")].copy()
+    anomalies.to_csv(args.output / f"western_capacity_anomalies_{args.year}.csv", index=False)
+    valid = western.loc[western.capacity_qc.eq("valid")].copy()
+    if valid.empty:
+        raise ValueError("No valid Western nameplate capacity rows")
+    valid.to_csv(args.output / f"western_state_generators_{args.year}.csv", index=False)
+    grouped = valid.groupby(["state", "fuel"], as_index=False).agg(
         generator_count=("capacity_mw", "size"), nameplate_mw=("capacity_mw", "sum"))
     grouped.to_csv(args.output / f"western_state_capacity_{args.year}.csv", index=False)
     manifest = {
         "source": url, "reported_year": args.year, "metric": "nameplate MW",
         "geography": "selected Western states, NOT WECC and NOT EIA-930 balancing authorities",
         "western_states": sorted(WESTERN_STATES),
-        "capacity_mw_total": float(western.capacity_mw.sum()),
+        "capacity_mw_total_valid_rows_only": float(valid.capacity_mw.sum()),
+        "raw_rows": int(len(western)), "valid_rows": int(len(valid)),
+        "excluded_missing_or_negative_capacity_rows": int(len(anomalies)),
+        "capacity_completeness_fraction": float(len(valid) / len(western)),
         "limitations": "Operable inventory includes standby/out-of-service categories; does not imply available capacity. EIA-930 BA load cannot be matched directly to state-based capacity. No claim of dispatch calibration."
     }
     (args.output / "provenance.json").write_text(json.dumps(manifest, indent=2))
