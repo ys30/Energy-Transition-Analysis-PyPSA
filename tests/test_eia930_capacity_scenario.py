@@ -15,15 +15,16 @@ def _input(tmp_path, rows, coverage=0.98):
     return path
 
 
-def test_reject_unsupported_fuels_instead_of_silent_omission(tmp_path):
+def test_hydro_capacity_is_retained_instead_of_silent_omission(tmp_path):
     p = _input(tmp_path, [
         {"ba_code": "CISO", "fuel": "NG", "capacity_mw": 100},
         {"ba_code": "CISO", "fuel": "WND", "capacity_mw": 20},
         {"ba_code": "CISO", "fuel": "SUN", "capacity_mw": 30},
         {"ba_code": "CISO", "fuel": "WAT", "capacity_mw": 40},
     ])
-    with pytest.raises(ValueError, match="nonzero hydro"):
-        load_ba_capacity(p, ["CISO"])
+    capacity = load_ba_capacity(p, ["CISO"])
+    assert capacity["hydro"] == 40
+    assert capacity["gas"] == 100
 
 
 def test_supported_capacity_scenario(tmp_path):
@@ -56,3 +57,11 @@ def test_capacity_vintage_must_match_requested_year(tmp_path):
     with pytest.raises(ValueError, match="vintage mismatch"):
         load_ba_capacity(p, ["CISO"], year=2023)
     assert load_ba_capacity(p, ["CISO"], year=2024)["gas"] == 100
+
+
+def test_unknown_nonzero_fuel_is_rejected(tmp_path):
+    p = _input(tmp_path, [
+        {"ba_code": "CISO", "fuel": "UNRECOGNIZED", "capacity_mw": 12},
+    ])
+    with pytest.raises(ValueError, match="Unsupported nonzero"):
+        load_ba_capacity(p, ["CISO"])
