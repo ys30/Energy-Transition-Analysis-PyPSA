@@ -153,31 +153,44 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
 
 
 def representative_hours(observations: pd.DataFrame, year: int):
-    """Observed BA loads averaged by UTC month and hour; every 24h block represents its month.
+    """Compress a fully observed BA-year to 288 UTC month-hour snapshots.
 
-    Weight is number of calendar days represented. Full calendar year must be present.
-    This compresses variation and must NOT be used for reliability or adequacy analysis.
+    For each month and UTC hour, average the summed hourly BA demand over all
+    calendar days. Snapshot weights equal calendar days, so annual weighted
+    MWh exactly preserves the input annual MWh (up to floating-point error).
+    These snapshots cannot reproduce hourly extremes or chronological storage.
     """
-    d = observations.copy()
-    d["period"] = pd.to_datetime(d["period"], utc=True)
-    d["month"] = d.period.dt.month
-    d["hour"] = d.period.dt.hour
-    # All 12 months and each hour of each month are required.
-    counts = d.groupby(["month", "hour"]).period.nunique()
-    if len(counts) != 288 or counts.min() < 20:
-        raise ValueError("Incomplete year/month/hour demand input")
-    d = d.groupby(["month", "hour"], as_index=False)["value"].sum()
-    d = d.groupby(["month", "hour"], as_index=False)["value"].mean()
-    # The first grouping sums BA demand per month/hour; divide by observed number of days.
-    days_seen = observations.assign(month=lambda x: pd.to_datetime(x.period, utc=True).dt.month,
-                                    hour=lambda x: pd.to_datetime(x.period, utc=True).dt.hour)
-    n_days = days_seen.groupby(["month", "hour"]).period.nunique()
-    d["value"] = [v / n_days.loc[m, h] for m, h, v in d[["month", "hour", "value"]].itertuples(index=False, name=None)]
-    # Use fixed representative timestamps for every month: UTC 15th.
-    d["snapshot"] = pd.to_datetime([f"{year}-{m:02d}-15 {h:02d}:00" for m, h in zip(d.month, d.hour)])
-    d["weight_h"] = [calendar.monthrange(year, m)[1] for m in d.month]
-    return d[["snapshot", "value", "weight_h"]].sort_values("snapshot").reset_index(drop=True)
-
+    d = observations[["period", "respondent", "value"]].copy()
+    d["period"] = pd.to_datetime(d["period"], utc=True, errors="raise")
+    d["value"] = pd.to_numeric(d["value"], errors="raise")
+    if d.empty or d["value"].isna().any() or (d["value"] <= 0).any():
+        raise ValueError("Missing or nonpositive hourly demand")
+    if d.duplicated(["period", "respondent"]).any():
+        raise ValueError("Duplicate BA-hour demand observations")
+    if not d["period"].dt.year.eq(year).all():
+        raise ValueError("Input contains timestamps outside requested year")
+    bas = d["respondent"].unique()
+    expected = pd.date_range(f"{year}-01-01", f"{year+1}-01-01",
+                             freq="h", inclusive="left", tz="UTC")
+    if len(d) != len(expected) * len(bas):
+        raise ValueError("Incomplete year: incorrect BA-hour observation count")
+    for ba, part in d.groupby("respondent"):
+        if not pd.DatetimeIndex(part["period"]).sort_values().equals(expected):
+            raise ValueError(f"Incomplete year or missing hourly timestamps for BA {ba}")
+    hourly = d.groupby("period", sort=True)["value"].sum()
+    grouped = hourly.groupby([hourly.index.month, hourly.index.hour]).mean()
+    rows = []
+    for month in range(1, 13):
+        days = calendar.monthrange(year, month)[1]
+        for hour in range(24):
+            rows.append((pd.Timestamp(year=year, month=month, day=15, hour=hour),
+                         float(grouped.loc[(month, hour)]), days))
+    rep = pd.DataFrame(rows, columns=["snapshot", "value", "weight_h"])
+    raw_mwh = float(d["value"].sum())
+    weighted_mwh = float((rep["value"] * rep["weight_h"]).sum())
+    if abs(raw_mwh - weighted_mwh) > max(1e-5, abs(raw_mwh) * 1e-10):
+        raise ValueError("Representative-hour energy conservation failed")
+    return rep
 
 def build_and_solve(reps: pd.DataFrame, output: Path):
     import pypsa
