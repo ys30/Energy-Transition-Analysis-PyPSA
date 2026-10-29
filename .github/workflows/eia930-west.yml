@@ -1,0 +1,57 @@
+name: Western US EIA-930 PyPSA empirical pilot
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: 'Historical complete years (space separated)'
+        required: true
+        default: '2023'
+      bas:
+        description: 'EIA balancing authorities (space separated); CISO for first smoke test'
+        required: true
+        default: 'CISO'
+  push:
+    paths:
+      - '.github/workflows/eia930-west.yml'
+jobs:
+  empirical_dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install model + tests
+        run: python -m pip install -e '.[model,dev]'
+      - name: Test input and representative-hour logic
+        run: python -m pytest -q
+      - name: Verify EIA secret is configured
+        shell: bash
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        run: |
+          if [ -z "$EIA_API_KEY" ]; then
+            echo "::error::EIA_API_KEY repository secret is missing"
+            exit 1
+          fi
+          echo "EIA key is set (contents not printed)."
+      - name: Download real EIA demand and optimize with HiGHS
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+          YEARS: ${{ inputs.years || '2023' }}
+          BAS: ${{ inputs.bas || 'CISO' }}
+        shell: bash
+        run: |
+          read -r -a year_args <<< "$YEARS"
+          read -r -a ba_args <<< "$BAS"
+          python -m energy_transition.eia930_west --years "${year_args[@]}" --bas "${ba_args[@]}" --output outputs/eia930_west
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: western-us-eia930-pilot
+          path: outputs/eia930_west/
+          retention-days: 30
