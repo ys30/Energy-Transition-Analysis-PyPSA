@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/planning-sensitivity.yml'
       - 'src/energy_transition/planning_sensitivity.py'
+      - 'src/energy_transition/carbon_scenario_comparison.py'
 jobs:
   planning:
     runs-on: ubuntu-latest
@@ -23,6 +24,9 @@ jobs:
         run: |
           test -n "$EIA_API_KEY"
           python -m energy_transition.planning_sensitivity --output outputs/planning_sensitivity
+      - name: Verify carbon cap and compare model abatement costs
+        run: |
+          python -m energy_transition.carbon_scenario_comparison --summary outputs/planning_sensitivity/scenario_summary.csv --output outputs/planning_sensitivity
       - uses: actions/upload-artifact@v4
         if: always()
         with:
