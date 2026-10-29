@@ -69,16 +69,16 @@ def compare_generation(
     if target.empty:
         raise ValueError("No EIA-923 plant generation mapped to selected BAs")
     mapped = target.loc[target._merge.eq("both")].copy()
-    # Coverage is calculated over plants represented in the selected BA subset
-    # plus unmapped plants; ambiguous unmapped geography prevents a defensible
-    # coverage percentage. Reject any unmapped plants unless audited upstream.
-    if joined._merge.eq("left_only").any():
-        raise ValueError("Unmapped EIA-923 plants: cannot establish BA-specific coverage")
-    gross_abs = float(target.net_generation_mwh.abs().sum())
-    mapped_abs = float(mapped.net_generation_mwh.abs().sum())
-    coverage = mapped_abs / gross_abs if gross_abs else 0
-    if coverage < min_mapped_generation_fraction:
-        raise ValueError(f"EIA-923 mapped generation coverage {coverage:.2%} below threshold")
+    # The national EIA-923 file necessarily contains plants outside the
+    # western EIA-860 crosswalk. Do not treat them as BA mapping failures,
+    # but do not claim full selected-BA coverage either: their BA is unknown.
+    # Explicitly report unmapped national generation as an unresolved pool.
+    unmapped = joined.loc[joined._merge.eq("left_only")]
+    unmapped_abs = float(unmapped.net_generation_mwh.abs().sum())
+    mapped_abs = float(joined.loc[joined._merge.eq("both"), "net_generation_mwh"].abs().sum())
+    coverage = mapped_abs / (mapped_abs + unmapped_abs) if mapped_abs + unmapped_abs else 0
+    # This is a national plant-ID match rate, NOT BA-specific coverage.
+    # It cannot be used to certify the completeness of selected BA totals.
     observed_by_fuel = mapped.groupby("fuel").net_generation_mwh.sum().to_dict()
     modeled = model_metrics.get("dispatch_mwh_by_carrier")
     if not isinstance(modeled, dict) or not modeled:
@@ -102,7 +102,10 @@ def compare_generation(
         "year": year, "bas": list(bas),
         "observed_source": "EIA-923 plant-month net generation, normalized",
         "crosswalk_source": "same-year EIA-860 reported plant BA code",
-        "mapped_generation_fraction_abs": coverage,
+        "national_plant_id_match_fraction_abs_not_ba_coverage": coverage,
+        "unmapped_national_generation_abs_mwh": unmapped_abs,
+        "unmapped_national_plant_count": int(unmapped.plant_id.nunique()),
+        "selected_ba_completeness": "unverified; unmapped national plants may include selected BAs",
         "negative_net_generation_rows": int(observed.net_generation_mwh.lt(0).sum()),
         "interpretation": "Diagnostic comparison only; no parameter fitting or hourly validation.",
     }
