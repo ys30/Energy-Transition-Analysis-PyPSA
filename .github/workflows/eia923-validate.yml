@@ -1,4 +1,4 @@
-name: EIA-923 observed generation validation
+name: EIA-923 data normalization and validation tests
 on:
   workflow_dispatch:
     inputs:
@@ -10,7 +10,7 @@ on:
           - '2024'
           - '2023'
       official_xlsx_url:
-        description: 'Verified official eia.gov EIA-923 XLSX URL (optional; empty runs tests only)'
+        description: 'Optional official eia.gov EIA-923 ZIP URL (defaults to EIA annual archive)'
         required: false
         type: string
   push:
@@ -39,7 +39,7 @@ jobs:
   # are required for empirical validation. The workflow intentionally does
   # not label unit tests as an observed-data validation.
   official-download:
-    if: github.event_name == 'workflow_dispatch' && inputs.official_xlsx_url != ''
+    if: github.event_name == 'workflow_dispatch'
     needs: validate-code
     runs-on: ubuntu-latest
     steps:
@@ -53,6 +53,9 @@ jobs:
           OFFICIAL_URL: ${{ inputs.official_xlsx_url }}
           YEAR: ${{ inputs.year }}
         run: |
+          if [ -z "$OFFICIAL_URL" ]; then
+            OFFICIAL_URL="https://www.eia.gov/electricity/data/eia923/archive/xls/f923_${YEAR}.zip"
+          fi
           python -m energy_transition.eia923_download \
             --url "$OFFICIAL_URL" --year "$YEAR" \
             --output "outputs/eia923/eia923_${YEAR}.xlsx"
