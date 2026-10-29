@@ -24,7 +24,7 @@ MONTHS = ["january", "february", "march", "april", "may", "june",
 def normalize_schedule3(frame: pd.DataFrame, year: int):
     cols = {str(c).strip().lower(): c for c in frame.columns}
     plant = next((v for k, v in cols.items() if k in ("plant id", "plant code")), None)
-    fuel = next((v for k, v in cols.items() if k in ("reported fuel type code", "energy source")), None)
+    fuel = next((v for k, v in cols.items() if k in ("reported fuel type code", "energy source", "reported fuel type code (eia-923)")), None)
     if not plant or not fuel:
         raise ValueError("Cannot identify official EIA-923 Plant Id and Reported Fuel Type Code")
     month_columns = {}
@@ -56,7 +56,12 @@ def normalize_schedule3(frame: pd.DataFrame, year: int):
         codes = sorted(long.loc[long.fuel.isna() & numeric.notna() & numeric.ne(0), "fuel_code"].dropna().unique())
         raise ValueError(f"Unmapped EIA-923 fuel codes with generation: {codes}")
     long["net_generation_mwh"] = numeric
-    long = long.dropna(subset=["net_generation_mwh", "fuel"])
+    # Missing monthly values are not zeros. Reject incomplete nonempty
+    # plant/fuel records rather than biasing annual totals downward.
+    missing = long.net_generation_mwh.isna()
+    if missing.any():
+        raise ValueError(f"Missing EIA-923 monthly net generation: {int(missing.sum())} cells")
+    long = long.dropna(subset=["fuel"])
     long["report_year"] = year
     return long[["plant_id", "report_year", "month", "fuel", "net_generation_mwh"]].groupby(
         ["plant_id", "report_year", "month", "fuel"], as_index=False
