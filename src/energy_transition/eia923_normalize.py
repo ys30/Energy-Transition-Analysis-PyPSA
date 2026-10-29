@@ -88,12 +88,16 @@ def main():
         sheets = list(book.sheet_names)
     for sheet in sheets:
         inspected[sheet] = []
-        for header in range(0, 12):
+        # EIA workbooks can contain short notes or cover sheets. Read only
+        # the first 12 rows once, and never request a header beyond EOF.
+        preview = pd.read_excel(book, sheet_name=sheet, header=None, nrows=12)
+        for header in range(len(preview)):
             # Inspect headers only; the full EIA-923 sheet is large.
-            header_frame = pd.read_excel(book, sheet_name=sheet, header=header, nrows=0)
-            columns = {str(c).strip().lower() for c in header_frame.columns}
+            labels = [str(v).strip() if pd.notna(v) else ""
+                      for v in preview.iloc[header].tolist()]
+            columns = {label.lower() for label in labels}
             inspected[sheet].append({"header_row_zero_based": header,
-                                      "first_columns": list(map(str, header_frame.columns[:30]))})
+                                      "first_columns": labels[:30]})
             has_plant = bool(columns & {"plant id", "plant code", "plant id number"})
             has_fuel = any("reported fuel type code" in c or c == "energy source" for c in columns)
             has_netgen = any(c.startswith("netgen") for c in columns)
