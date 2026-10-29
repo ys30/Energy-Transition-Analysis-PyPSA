@@ -13,3 +13,6 @@ def test_eia930_balance_keeps_missing_hours_and_both_signs():
     assert row.missing_generation==8783
     assert row.mae_d_minus_ng_minus_ti==0
     assert row.mae_d_minus_ng_plus_ti==40
+    assert row.complete_triple_share==1/8784
+    assert row.common_residual_plus_mwh==40
+    assert row.accounting_gate=="review_required"
