@@ -41,3 +41,8 @@ Replace illustrative annual generation with a **versioned PyPSA output adapter**
 ## Interpretation
 
 Figures are examples of **how** transition results can be communicated, not evidence of an actual transition forecast.
+
+
+## New: Western US EIA-930 demand-driven PyPSA workflow (experimental)
+
+See [the Western US EIA-930 study guide](docs/western_us_eia930.md) for download and optimization commands, geographic coverage, assumptions, and evidence limits. This workflow has **not** yet produced a verified EIA-based optimization result; it does not supersede the synthetic plots described above.
