@@ -23,8 +23,8 @@ MONTHS = ["january", "february", "march", "april", "may", "june",
 
 def normalize_schedule3(frame: pd.DataFrame, year: int):
     cols = {str(c).strip().lower(): c for c in frame.columns}
-    plant = next((v for k, v in cols.items() if k in ("plant id", "plant code")), None)
-    fuel = next((v for k, v in cols.items() if k in ("reported fuel type code", "energy source", "reported fuel type code (eia-923)")), None)
+    plant = next((v for k, v in cols.items() if k in ("plant id", "plant code", "plant id number")), None)
+    fuel = next((v for k, v in cols.items() if ("reported fuel type code" in k or k == "energy source")), None)
     if not plant or not fuel:
         raise ValueError("Cannot identify official EIA-923 Plant Id and Reported Fuel Type Code")
     month_columns = {}
@@ -76,24 +76,41 @@ def main():
     p.add_argument("--output", type=Path, default=Path("outputs/eia923"))
     a = p.parse_args()
     book = pd.ExcelFile(a.xlsx)
-    if a.sheet not in book.sheet_names:
-        raise ValueError(f"EIA-923 sheet {a.sheet!r} not found; available: {book.sheet_names}")
     result = None
-    for header in (5, 4, 0, 1, 2, 3, 6):
-        frame = pd.read_excel(book, sheet_name=a.sheet, header=header)
-        columns = {str(c).strip().lower() for c in frame.columns}
-        if not (
-            ("plant id" in columns or "plant code" in columns)
-            and ("reported fuel type code" in columns or "energy source" in columns)
-            and any(c.startswith("netgen") for c in columns)
-        ):
-            continue
-        # Once schema is identified, propagate data-quality failures.
-        # Never skip bad rows by trying a different header offset.
-        result = normalize_schedule3(frame, a.year)
-        break
+    inspected = {}
+    # EIA changes worksheet titles and number of metadata rows between releases.
+    sheets = ([a.sheet] if a.sheet in book.sheet_names else []) + [
+        name for name in book.sheet_names if name != a.sheet
+        and ("generation" in name.lower() or "page 1" in name.lower())
+    ]
+    if not sheets:
+        sheets = list(book.sheet_names)
+    for sheet in sheets:
+        inspected[sheet] = []
+        for header in range(0, 12):
+            frame = pd.read_excel(book, sheet_name=sheet, header=header)
+            columns = {str(c).strip().lower() for c in frame.columns}
+            inspected[sheet].append({"header_row_zero_based": header,
+                                      "first_columns": list(map(str, frame.columns[:12]))})
+            has_plant = bool(columns & {"plant id", "plant code", "plant id number"})
+            has_fuel = any("reported fuel type code" in c or c == "energy source" for c in columns)
+            has_netgen = any(c.startswith("netgen") for c in columns)
+            if not (has_plant and has_fuel and has_netgen):
+                continue
+            # Identified header: preserve any subsequent data-quality exception.
+            result = normalize_schedule3(frame, a.year)
+            break
+        if result is not None:
+            break
     if result is None:
-        raise ValueError("EIA-923 workbook schema not recognized; inspect source workbook")
+        a.output.mkdir(parents=True, exist_ok=True)
+        diagnostic = {"year": a.year, "workbook_sheets": book.sheet_names,
+                      "inspected_headers": inspected,
+                      "error": "No recognized EIA-923 Schedule 3 header; do not fabricate generation"}
+        (a.output / f"eia923_schema_diagnostic_{a.year}.json").write_text(
+            json.dumps(diagnostic, indent=2))
+        raise ValueError("EIA-923 workbook schema not recognized; "
+                         f"see eia923_schema_diagnostic_{a.year}.json")
     a.output.mkdir(parents=True, exist_ok=True)
     result.to_csv(a.output / f"eia923_normalized_{a.year}.csv", index=False)
     (a.output / f"eia923_source_{a.year}.json").write_text(json.dumps({
