@@ -6,6 +6,7 @@ on:
       - '.github/workflows/eia930-balance-audit.yml'
       - 'src/energy_transition/eia930_balance_audit.py'
       - 'src/energy_transition/interchange_calibration_gate.py'
+      - 'src/energy_transition/interchange_diagnostics.py'
 jobs:
   audit:
     runs-on: ubuntu-latest
@@ -30,6 +31,9 @@ jobs:
             --summary outputs/eia930_balance/ba_balance_summary.csv \
             --monthly outputs/eia930_balance/monthly_balance_audit.csv \
             --output outputs/eia930_balance
+      - name: Diagnose common-hour monthly residual direction and magnitude
+        run: |
+          python -m energy_transition.interchange_diagnostics --hourly outputs/eia930_balance/hourly_balance_audit.csv --output outputs/eia930_balance
       - uses: actions/upload-artifact@v4
         if: always()
         with:
