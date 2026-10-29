@@ -11,6 +11,8 @@ on:
       - '.github/workflows/eia860-capacity.yml'
       - 'src/energy_transition/eia860_capacity.py'
       - 'src/energy_transition/eia860_technology.py'
+      - 'src/energy_transition/eia860_plant_ba.py'
+      - 'src/energy_transition/ba_crosswalk.py'
 jobs:
   inventory:
     runs-on: ubuntu-latest
@@ -31,6 +33,11 @@ jobs:
         env:
           YEAR: ${{ inputs.year || '2024' }}
         run: python -m energy_transition.eia860_technology --year "$YEAR" --output outputs/eia860
+      - name: Match generators to officially reported plant BA
+        env:
+          YEAR: ${{ inputs.year || '2024' }}
+        run: |
+          python -m energy_transition.eia860_plant_ba --year "$YEAR" --generators "outputs/eia860/western_state_generators_${YEAR}.csv" --output outputs/eia860
       - uses: actions/upload-artifact@v4
         if: always()
         with:
