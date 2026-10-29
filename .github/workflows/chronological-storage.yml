@@ -1,0 +1,41 @@
+name: Chronological storage PyPSA pilot
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/chronological-storage.yml'
+      - 'src/energy_transition/chronological_storage_pilot.py'
+      - 'tests/test_chronological_storage_pilot.py'
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[model,dev]'
+      - name: Test chronology validation
+        run: python -m pytest -q tests/test_chronological_storage_pilot.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia930-west-2024
+          run-id: 40935909190
+          github-token: ${{ github.token }}
+          path: inputs/eia930_2024
+      - name: Solve continuous observed 2024 week with assumed 4-hour battery
+        run: |
+          python -m energy_transition.chronological_storage_pilot \
+            --hourly inputs/eia930_2024/eia930_demand_2024.csv \
+            --start 2024-01-08T00:00:00Z \
+            --output outputs/chronological_storage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chronological-storage-observed-demand-pilot
+          path: outputs/chronological_storage/
+          retention-days: 30
