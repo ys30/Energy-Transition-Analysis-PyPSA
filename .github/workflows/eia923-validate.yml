@@ -18,6 +18,7 @@ on:
       - '.github/workflows/eia923-validate.yml'
       - 'src/energy_transition/eia923_normalize.py'
       - 'src/energy_transition/eia923_validation.py'
+      - 'src/energy_transition/eia860_supported_subset.py'
       - 'src/energy_transition/eia923_download.py'
       - 'tests/test_eia923_download.py'
       - 'tests/test_eia923_normalize.py'
@@ -118,12 +119,17 @@ jobs:
             --year "$YEAR" \
             --generators "outputs/eia860/western_state_generators_${YEAR}.csv" \
             --output outputs/eia860
-      - name: Solve PyPSA with observed demand and EIA-860 nameplate
+      - name: Audit EIA-860 storage and unsupported technologies outside limited PyPSA model
+        run: |
+          python -m energy_transition.eia860_supported_subset \
+            --capacity "outputs/eia860/ba_operating_nameplate_by_fuel_${YEAR}.csv" \
+            --bas CISO BPAT --output outputs/eia860_model_subset
+      - name: Solve PyPSA with observed demand and explicitly limited EIA-860 carriers
         run: |
           python -m energy_transition.eia930_west \
             --years "$YEAR" \
             --bas CISO BPAT \
-            --eia860-capacity "outputs/eia860/ba_operating_nameplate_by_fuel_${YEAR}.csv" \
+            --eia860-capacity "outputs/eia860_model_subset/ba_operating_nameplate_by_fuel_${YEAR}.csv" \
             --output outputs/eia930_west
       - name: Compare observed EIA-923 generation against PyPSA dispatch
         run: |
@@ -141,5 +147,6 @@ jobs:
           path: |
             outputs/eia923_validation/
             outputs/eia860/
+            outputs/eia860_model_subset/
             outputs/eia930_west/
           retention-days: 30
