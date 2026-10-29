@@ -38,3 +38,13 @@ def test_schedule3_rejects_missing_month_without_zero_imputation():
     frame.loc[0, "Netgen February"] = None
     with pytest.raises(ValueError, match="Missing EIA-923 monthly"):
         normalize_schedule3(frame, 2024)
+
+
+def test_schedule3_accepts_plant_id_number_and_annotated_fuel_header():
+    frame = _schedule()
+    frame = frame.rename(columns={
+        "Plant Id": "Plant Id Number",
+        "Reported Fuel Type Code": "Reported Fuel Type Code (EIA-923)",
+    })
+    result = normalize_schedule3(frame, 2024)
+    assert result.net_generation_mwh.sum() == 120
