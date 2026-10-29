@@ -281,6 +281,13 @@ def main():
             peak_mw=("value", "max"),
         ).reset_index()
         counts["year"] = year
+        requested = set(args.bas)
+        observed = set(counts["respondent"])
+        if observed != requested:
+            raise ValueError(
+                f"BA coverage mismatch for {year}: missing={sorted(requested-observed)}, "
+                f"unexpected={sorted(observed-requested)}"
+            )
         counts["input_source"] = "EIA-930 hourly reported demand, type D"
         counts["observed_energy_units"] = "MWh"
         counts["peak_units"] = "MW"
