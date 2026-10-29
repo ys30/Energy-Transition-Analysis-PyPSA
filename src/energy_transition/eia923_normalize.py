@@ -78,6 +78,7 @@ def main():
     book = pd.ExcelFile(a.xlsx)
     result = None
     inspected = {}
+    selected_sheet = None
     # EIA changes worksheet titles and number of metadata rows between releases.
     sheets = ([a.sheet] if a.sheet in book.sheet_names else []) + [
         name for name in book.sheet_names if name != a.sheet
@@ -88,17 +89,20 @@ def main():
     for sheet in sheets:
         inspected[sheet] = []
         for header in range(0, 12):
-            frame = pd.read_excel(book, sheet_name=sheet, header=header)
-            columns = {str(c).strip().lower() for c in frame.columns}
+            # Inspect headers only; the full EIA-923 sheet is large.
+            header_frame = pd.read_excel(book, sheet_name=sheet, header=header, nrows=0)
+            columns = {str(c).strip().lower() for c in header_frame.columns}
             inspected[sheet].append({"header_row_zero_based": header,
-                                      "first_columns": list(map(str, frame.columns[:12]))})
+                                      "first_columns": list(map(str, header_frame.columns[:30]))})
             has_plant = bool(columns & {"plant id", "plant code", "plant id number"})
             has_fuel = any("reported fuel type code" in c or c == "energy source" for c in columns)
             has_netgen = any(c.startswith("netgen") for c in columns)
             if not (has_plant and has_fuel and has_netgen):
                 continue
             # Identified header: preserve any subsequent data-quality exception.
+            frame = pd.read_excel(book, sheet_name=sheet, header=header)
             result = normalize_schedule3(frame, a.year)
+            selected_sheet = sheet
             break
         if result is not None:
             break
@@ -114,7 +118,7 @@ def main():
     a.output.mkdir(parents=True, exist_ok=True)
     result.to_csv(a.output / f"eia923_normalized_{a.year}.csv", index=False)
     (a.output / f"eia923_source_{a.year}.json").write_text(json.dumps({
-        "year": a.year, "input_file": a.xlsx.name, "sheet": a.sheet,
+        "year": a.year, "input_file": a.xlsx.name, "sheet": selected_sheet,
         "observations": len(result), "units": "net generation MWh",
         "warning": "Normalized official plant-month data; not automatically verified against EIA-930 BA totals."
     }, indent=2))
