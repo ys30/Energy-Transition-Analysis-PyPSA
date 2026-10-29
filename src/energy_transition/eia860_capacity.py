@@ -100,6 +100,23 @@ def main():
     grouped = valid.groupby(["state", "fuel"], as_index=False).agg(
         generator_count=("capacity_mw", "size"), nameplate_mw=("capacity_mw", "sum"))
     grouped.to_csv(args.output / f"western_state_capacity_{args.year}.csv", index=False)
+    # The Operable worksheet includes more than currently operating units.
+    # Publish a separate, conservative OP-only table when status is available.
+    if "status" in valid.columns:
+        status_counts = valid.groupby("status", dropna=False).agg(
+            generator_count=("generator_id", "size"),
+            nameplate_mw=("capacity_mw", "sum")
+        ).reset_index()
+        status_counts.to_csv(args.output / f"western_operable_status_{args.year}.csv", index=False)
+        operating = valid.loc[valid["status"].astype("string").str.strip().str.upper().eq("OP")].copy()
+        if operating.empty:
+            raise ValueError("No status=OP generators; inspect EIA-860 status coding before calibration")
+        operating.groupby(["state", "fuel"], as_index=False).agg(
+            generator_count=("capacity_mw", "size"),
+            nameplate_mw=("capacity_mw", "sum")
+        ).to_csv(args.output / f"western_state_operating_capacity_{args.year}.csv", index=False)
+    else:
+        operating = None
     manifest = {
         "source": url, "reported_year": args.year, "metric": "nameplate MW",
         "geography": "selected Western states, NOT WECC and NOT EIA-930 balancing authorities",
@@ -109,6 +126,9 @@ def main():
         "excluded_missing_or_negative_capacity_rows": int(len(anomalies)),
         "excluded_missing_identifier_rows": int(len(invalid_ids)),
         "capacity_completeness_fraction": float(len(valid) / len(western)),
+        "operating_op_only_generators": int(len(operating)) if operating is not None else None,
+        "operating_op_only_nameplate_mw": float(operating.capacity_mw.sum()) if operating is not None else None,
+        "operating_capacity_output": "western_state_operating_capacity_YEAR.csv when status exists",
         "limitations": "Operable inventory includes standby/out-of-service categories; does not imply available capacity. EIA-930 BA load cannot be matched directly to state-based capacity. No claim of dispatch calibration."
     }
     (args.output / "provenance.json").write_text(json.dumps(manifest, indent=2))
