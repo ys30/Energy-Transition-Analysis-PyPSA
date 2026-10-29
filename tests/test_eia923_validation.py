@@ -45,8 +45,10 @@ def test_eia923_audits_unmapped_national_plant():
     assert result.set_index("carrier").loc["gas", "observed_eia923_net_generation_mwh"] == 95
 
 
-def test_eia923_rejects_unharmonized_fuel():
+def test_eia923_audits_observed_only_fuel_without_false_zero_comparison():
     g, x, m = _fixtures()
-    g.loc[0, "fuel"] = "NG"
-    with pytest.raises(ValueError, match="Unrecognized EIA-923 carriers"):
-        compare_generation(g, x, m, year=2024, bas=("CISO",))
+    g.loc[0, "fuel"] = "biomass"
+    result, audit = compare_generation(g, x, m, year=2024, bas=("CISO",))
+    assert "biomass" not in result.carrier.tolist()
+    assert audit["observed_only_fuels_excluded_from_comparison_mwh"] == {"biomass": 100.0}
+    assert "gas" in result.carrier.tolist()
