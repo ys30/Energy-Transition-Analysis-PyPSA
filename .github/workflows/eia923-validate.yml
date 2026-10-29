@@ -67,6 +67,21 @@ jobs:
           python -m energy_transition.eia923_normalize \
             --xlsx "outputs/eia923/eia923_${YEAR}.xlsx" \
             --year "$YEAR" --output outputs/eia923
+      - name: Show EIA-923 schema diagnostics if normalization failed
+        if: failure()
+        run: |
+          if ls outputs/eia923/eia923_schema_diagnostic_*.json >/dev/null 2>&1; then
+            python - <<'PY'
+          import glob, json
+          for name in glob.glob("outputs/eia923/eia923_schema_diagnostic_*.json"):
+              data = json.load(open(name))
+              print("Sheets:", data["workbook_sheets"])
+              for sheet, inspected in data["inspected_headers"].items():
+                  print("Sheet:", sheet)
+                  for entry in inspected:
+                      print("Row:", entry["header_row_zero_based"], "columns:", entry["first_columns"])
+          PY
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
