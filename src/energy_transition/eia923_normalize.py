@@ -22,7 +22,7 @@ MONTHS = ["january", "february", "march", "april", "may", "june",
           "july", "august", "september", "october", "november", "december"]
 
 
-def normalize_schedule3(frame: pd.DataFrame, year: int):
+def normalize_schedule3(frame: pd.DataFrame, year: int, *, allow_incomplete=False):
     cols = {re.sub(r"\s+", " ", str(c)).strip().lower(): c for c in frame.columns}
     plant = next((v for k, v in cols.items() if k in ("plant id", "plant code", "plant id number")), None)
     fuel = next((v for k, v in cols.items() if ("reported fuel type code" in k or k == "energy source")), None)
@@ -42,7 +42,8 @@ def normalize_schedule3(frame: pd.DataFrame, year: int):
     wide = wide.loc[wide.plant_id.notna() & wide.plant_id.ne("")].copy()
     if wide.empty:
         raise ValueError("No EIA-923 plant records")
-    long = wide.melt(id_vars=["plant_id", "fuel_code"], value_vars=MONTHS,
+    wide["source_row_id"] = range(len(wide))
+    long = wide.melt(id_vars=["source_row_id", "plant_id", "fuel_code"], value_vars=MONTHS,
                      var_name="month_name", value_name="net_generation_mwh")
     long["month"] = long.month_name.map({m: i + 1 for i, m in enumerate(MONTHS)})
     long["fuel"] = long.fuel_code.map(FUEL)
@@ -51,7 +52,7 @@ def normalize_schedule3(frame: pd.DataFrame, year: int):
     # Preserve an audit; never reinterpret such cells as zero.
     numeric = pd.to_numeric(raw, errors="coerce")
     invalid = raw.notna() & raw.ne("") & numeric.isna()
-    if invalid.any():
+    if invalid.any() and not allow_incomplete:
         raise ValueError(f"Non-numeric EIA-923 Netgen cells: {int(invalid.sum())}")
     if (long.fuel.isna() & numeric.notna() & numeric.ne(0)).any():
         codes = sorted(long.loc[long.fuel.isna() & numeric.notna() & numeric.ne(0), "fuel_code"].dropna().unique())
@@ -60,13 +61,23 @@ def normalize_schedule3(frame: pd.DataFrame, year: int):
     # Missing monthly values are not zeros. Reject incomplete nonempty
     # plant/fuel records rather than biasing annual totals downward.
     missing = long.net_generation_mwh.isna()
-    if missing.any():
+    if missing.any() and not allow_incomplete:
         raise ValueError(f"Missing EIA-923 monthly net generation: {int(missing.sum())} cells")
+    if allow_incomplete:
+        # Exclude an entire source record if ANY of its twelve months is not numeric.
+        # Preserve the original offending cells for a separate CSV audit.
+        long.attrs["excluded_cells"] = long.loc[missing, ["source_row_id", "plant_id", "fuel_code", "month", "net_generation_mwh"]].copy()
+        complete_ids = long.groupby("source_row_id").net_generation_mwh.transform(lambda x: x.notna().all())
+        long = long.loc[complete_ids].copy()
+    excluded_cells = long.attrs.get("excluded_cells")
     long = long.dropna(subset=["fuel"])
     long["report_year"] = year
-    return long[["plant_id", "report_year", "month", "fuel", "net_generation_mwh"]].groupby(
+    result = long[["plant_id", "report_year", "month", "fuel", "net_generation_mwh"]].groupby(
         ["plant_id", "report_year", "month", "fuel"], as_index=False
     ).net_generation_mwh.sum()
+    if allow_incomplete:
+        result.attrs["excluded_cells"] = excluded_cells
+    return result
 
 
 def main():
@@ -74,6 +85,7 @@ def main():
     p.add_argument("--xlsx", type=Path, required=True)
     p.add_argument("--year", type=int, required=True)
     p.add_argument("--sheet", default="Page 1 Generation and Fuel Data")
+    p.add_argument("--allow-incomplete", action="store_true", help="Exclude entire incomplete source rows and publish excluded cell audit")
     p.add_argument("--output", type=Path, default=Path("outputs/eia923"))
     a = p.parse_args()
     book = pd.ExcelFile(a.xlsx)
@@ -106,7 +118,7 @@ def main():
                 continue
             # Identified header: preserve any subsequent data-quality exception.
             frame = pd.read_excel(book, sheet_name=sheet, header=header)
-            result = normalize_schedule3(frame, a.year)
+            result = normalize_schedule3(frame, a.year, allow_incomplete=a.allow_incomplete)
             selected_sheet = sheet
             break
         if result is not None:
@@ -121,10 +133,15 @@ def main():
         raise ValueError("EIA-923 workbook schema not recognized; "
                          f"see eia923_schema_diagnostic_{a.year}.json")
     a.output.mkdir(parents=True, exist_ok=True)
+    excluded = result.attrs.get("excluded_cells")
+    if a.allow_incomplete:
+        excluded.to_csv(a.output / f"eia923_excluded_monthly_cells_{a.year}.csv", index=False)
     result.to_csv(a.output / f"eia923_normalized_{a.year}.csv", index=False)
     (a.output / f"eia923_source_{a.year}.json").write_text(json.dumps({
         "year": a.year, "input_file": a.xlsx.name, "sheet": selected_sheet,
         "observations": len(result), "units": "net generation MWh",
+        "strict_source_record_exclusion": a.allow_incomplete,
+        "excluded_monthly_cells": len(excluded) if excluded is not None else 0,
         "warning": "Normalized official plant-month data; not automatically verified against EIA-930 BA totals."
     }, indent=2))
 
