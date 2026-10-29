@@ -59,3 +59,14 @@ def test_duplicate_ba_hour_rejected():
     df = pd.concat([df, df.iloc[[0]]], ignore_index=True)
     with pytest.raises(ValueError, match="Duplicate"):
         representative_hours(df, 2023)
+
+
+def test_missing_shared_hour_rejected():
+    dates = pd.date_range("2023-01-01", "2024-01-01",
+                          freq="h", inclusive="left", tz="UTC")
+    a = pd.DataFrame({"period": dates, "respondent": "A", "value": 100.0})
+    b = pd.DataFrame({"period": dates, "respondent": "B", "value": 200.0})
+    both = pd.concat([a, b], ignore_index=True)
+    both = both.loc[both.period != dates[1234]]
+    with pytest.raises(ValueError, match="Incomplete"):
+        representative_hours(both, 2023)
