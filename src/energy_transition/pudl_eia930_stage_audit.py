@@ -35,11 +35,11 @@ def evaluate(df, bas=("BPAT", "CISO"), year=2024):
             rows.append({
               "ba_code":ba,"stage":stage,"year":year,
               "source_hours":len(b),"complete_hours":len(valid),
-              "residual_sum_mwh":float(residual.sum()),
+              "residual_sum_mwh":float(residual.sum()) if len(residual) else None,
               "residual_mae_mw":float(residual.abs().mean()) if len(residual) else None,
               "residual_median_mw":float(residual.median()) if len(residual) else None,
               "positive_residual_share":float(residual.gt(0).mean()) if len(residual) else None,
-              "status":"descriptive_report_stage_comparison_not_line_capacity",
+              "status":"no_complete_triplets" if not len(valid) else "descriptive_report_stage_comparison_not_line_capacity",
             })
     return pd.DataFrame(rows)
 
