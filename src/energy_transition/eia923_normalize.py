@@ -60,10 +60,14 @@ def normalize_schedule3(frame: pd.DataFrame, year: int, *, allow_incomplete=Fals
             f"Non-numeric EIA-923 Netgen cells: {int(invalid.sum())}; "
             f"top tokens: {tokens}; examples: {examples.to_dict(orient='records')}"
         )
-    if (long.fuel.isna() & numeric.notna() & numeric.ne(0)).any():
-        codes = sorted(long.loc[long.fuel.isna() & numeric.notna() & numeric.ne(0), "fuel_code"].dropna().unique())
+    unknown = long.fuel.isna() & numeric.notna() & numeric.ne(0)
+    if unknown.any() and not allow_incomplete:
+        codes = sorted(long.loc[unknown, "fuel_code"].dropna().unique())
         raise ValueError(f"Unmapped EIA-923 fuel codes with generation: {codes}")
     long["net_generation_mwh"] = numeric
+    if allow_incomplete:
+        long.attrs["unmapped_fuel_cells"] = long.loc[long.fuel.isna(),
+            ["source_row_id", "plant_id", "fuel_code", "month", "net_generation_mwh"]].copy()
     # Missing monthly values are not zeros. Reject incomplete nonempty
     # plant/fuel records rather than biasing annual totals downward.
     missing = long.net_generation_mwh.isna()
@@ -76,6 +80,7 @@ def normalize_schedule3(frame: pd.DataFrame, year: int, *, allow_incomplete=Fals
         complete_ids = long.groupby("source_row_id").net_generation_mwh.transform(lambda x: x.notna().all())
         long = long.loc[complete_ids].copy()
     excluded_cells = long.attrs.get("excluded_cells")
+    unmapped_fuel_cells = long.attrs.get("unmapped_fuel_cells")
     long = long.dropna(subset=["fuel"])
     long["report_year"] = year
     result = long[["plant_id", "report_year", "month", "fuel", "net_generation_mwh"]].groupby(
@@ -83,6 +88,7 @@ def normalize_schedule3(frame: pd.DataFrame, year: int, *, allow_incomplete=Fals
     ).net_generation_mwh.sum()
     if allow_incomplete:
         result.attrs["excluded_cells"] = excluded_cells
+        result.attrs["unmapped_fuel_cells"] = unmapped_fuel_cells
     return result
 
 
@@ -140,14 +146,18 @@ def main():
                          f"see eia923_schema_diagnostic_{a.year}.json")
     a.output.mkdir(parents=True, exist_ok=True)
     excluded = result.attrs.get("excluded_cells")
+    unmapped = result.attrs.get("unmapped_fuel_cells")
     if a.allow_incomplete:
         excluded.to_csv(a.output / f"eia923_excluded_monthly_cells_{a.year}.csv", index=False)
+        unmapped.to_csv(a.output / f"eia923_unmapped_fuel_cells_{a.year}.csv", index=False)
     result.to_csv(a.output / f"eia923_normalized_{a.year}.csv", index=False)
     (a.output / f"eia923_source_{a.year}.json").write_text(json.dumps({
         "year": a.year, "input_file": a.xlsx.name, "sheet": selected_sheet,
         "observations": len(result), "units": "net generation MWh",
         "strict_source_record_exclusion": a.allow_incomplete,
         "excluded_monthly_cells": len(excluded) if excluded is not None else 0,
+        "unmapped_fuel_cells": len(unmapped) if unmapped is not None else 0,
+        "selected_fuel_coverage": "partial; unmapped codes withheld and audited",
         "warning": "Normalized official plant-month data; not automatically verified against EIA-930 BA totals."
     }, indent=2))
 
