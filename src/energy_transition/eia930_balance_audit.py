@@ -79,6 +79,32 @@ def balance_audit(demand,generation,interchange,bas,year):
         else "screening_only_not_verified",axis=1)
     return merged,audit
 
+def monthly_balance_audit(frame):
+    """Summarize official residuals only over the same valid hourly triples."""
+    x=frame.copy()
+    x["month"]=pd.to_datetime(x["period"],utc=True).dt.strftime("%Y-%m")
+    x["complete_triple"]=x[["demand","generation","interchange"]].notna().all(axis=1)
+    valid=x[x.complete_triple].copy()
+    monthly=valid.groupby(["respondent","month"],as_index=False).agg(
+        common_hours=("period","size"),
+        demand_mwh=("demand","sum"),
+        generation_mwh=("generation","sum"),
+        interchange_mwh=("interchange","sum"),
+        official_residual_mwh=("residual_d_minus_ng_plus_ti","sum"),
+        official_mae_mw=("residual_d_minus_ng_plus_ti",lambda v:float(v.abs().mean()))
+    )
+    expected=x.groupby(["respondent","month"]).size().rename("expected_hours").reset_index()
+    monthly=expected.merge(monthly,on=["respondent","month"],how="left")
+    monthly["missing_triples"]=monthly.expected_hours-monthly.common_hours.fillna(0)
+    monthly["coverage"]=monthly.common_hours/monthly.expected_hours
+    monthly["residual_share_of_demand"]=monthly.official_residual_mwh/monthly.demand_mwh
+    monthly["quality_flag"]=monthly.apply(
+        lambda row:"review_required" if row.coverage<0.99 or
+            abs(row.residual_share_of_demand)>0.10 else "screening_only_not_verified",
+        axis=1)
+    return monthly
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--year",type=int,default=2024)
@@ -91,6 +117,7 @@ def main():
     frame,audit=balance_audit(d,ng,ti,a.bas,a.year)
     frame.to_csv(a.output/"hourly_balance_audit.csv",index=False)
     audit.to_csv(a.output/"ba_balance_summary.csv",index=False)
+    monthly_balance_audit(frame).to_csv(a.output/"monthly_balance_audit.csv",index=False)
     (a.output/"provenance.json").write_text(json.dumps({
       "source":API,"types":["D","NG","TI"],
       "official_identity":"Demand = Net Generation - Total Interchange; positive TI is net exports and negative TI is net imports.",
