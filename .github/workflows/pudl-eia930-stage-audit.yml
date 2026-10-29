@@ -1,0 +1,27 @@
+name: BPAT PUDL EIA-930 reported adjusted imputed stages
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/pudl-eia930-stage-audit.yml'
+      - 'src/energy_transition/pudl_eia930_stage_audit.py'
+jobs:
+  stages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]' duckdb
+      - name: Compare EIA-930 reported adjusted and imputed BA accounting
+        run: python -m energy_transition.pudl_eia930_stage_audit --year 2024 --bas BPAT CISO --output outputs/pudl_ba_stage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pudl-eia930-stage-comparison-2024
+          path: outputs/pudl_ba_stage/
+          retention-days: 60
