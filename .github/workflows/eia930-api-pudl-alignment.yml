@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/eia930-api-pudl-alignment.yml'
       - 'src/energy_transition/eia930_api_pudl_alignment.py'
+      - 'src/energy_transition/eia930_source_alignment_gate.py'
 jobs:
   align:
     runs-on: ubuntu-latest
@@ -23,6 +24,9 @@ jobs:
         run: |
           test -n "$EIA_API_KEY"
           python -m energy_transition.eia930_api_pudl_alignment --year 2024 --bas BPAT CISO --output outputs/pudl_api_alignment
+      - name: Audit source alignment and zero-hour agreement
+        run: |
+          python -m energy_transition.eia930_source_alignment_gate --comparison outputs/pudl_api_alignment/api_pudl_same_hour_comparison.csv --output outputs/pudl_api_alignment
       - uses: actions/upload-artifact@v4
         if: always()
         with:
