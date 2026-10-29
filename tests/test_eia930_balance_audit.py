@@ -16,3 +16,5 @@ def test_eia930_balance_keeps_missing_hours_and_both_signs():
     assert row.complete_triple_share==1/8784
     assert row.common_residual_plus_mwh==40
     assert row.accounting_gate=="review_required"
+    assert row.official_balance_residual_mwh==40
+    assert row.official_balance_mae_mw==40
