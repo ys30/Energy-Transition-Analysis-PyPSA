@@ -75,11 +75,18 @@ def main():
         raise ValueError(f"EIA-923 sheet {a.sheet!r} not found; available: {book.sheet_names}")
     result = None
     for header in (5, 4, 0, 1, 2, 3, 6):
-        try:
-            result = normalize_schedule3(pd.read_excel(book, sheet_name=a.sheet, header=header), a.year)
-            break
-        except ValueError:
+        frame = pd.read_excel(book, sheet_name=a.sheet, header=header)
+        columns = {str(c).strip().lower() for c in frame.columns}
+        if not (
+            ("plant id" in columns or "plant code" in columns)
+            and ("reported fuel type code" in columns or "energy source" in columns)
+            and any(c.startswith("netgen") for c in columns)
+        ):
             continue
+        # Once schema is identified, propagate data-quality failures.
+        # Never skip bad rows by trying a different header offset.
+        result = normalize_schedule3(frame, a.year)
+        break
     if result is None:
         raise ValueError("EIA-923 workbook schema not recognized; inspect source workbook")
     a.output.mkdir(parents=True, exist_ok=True)
