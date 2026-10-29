@@ -82,3 +82,15 @@ def test_official_incomplete_row_exclusion_does_not_zero_fill():
     audit = result.attrs["excluded_cells"]
     assert len(audit) == 1
     assert str(audit.iloc[0].plant_id) == "999"
+
+
+def test_unknown_fuel_kept_in_separate_audit_with_partial_mode():
+    known = _schedule(fuel="NG", value=10)
+    unknown = _schedule(fuel="UNLISTED", value=50)
+    unknown["Plant Id"] = 888
+    result = normalize_schedule3(pd.concat([known, unknown], ignore_index=True),
+                                 2024, allow_incomplete=True)
+    assert result.net_generation_mwh.sum() == 120
+    excluded = result.attrs["unmapped_fuel_cells"]
+    assert len(excluded) == 12
+    assert set(excluded.fuel_code) == {"UNLISTED"}
