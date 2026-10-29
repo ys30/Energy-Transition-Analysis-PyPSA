@@ -14,7 +14,7 @@ TOL=1e-5
 def compare_scenarios(frame: pd.DataFrame) -> pd.DataFrame:
     required={"planning_year","scenario","operational_emissions_tco2_assumed",
               "objective_assumed_usd","co2_cap_tco2","load_mwh","unserved_mwh",
-              "new_solar_mw","solver_status"}
+              "new_solar_mw","new_wind_mw","new_gas_mw","solver_status"}
     missing=required-set(frame.columns)
     if missing: raise ValueError(f"Missing planning results: {sorted(missing)}")
     if frame.duplicated(["scenario","planning_year"]).any():
@@ -48,6 +48,8 @@ def compare_scenarios(frame: pd.DataFrame) -> pd.DataFrame:
             "model_objective_premium_fraction":extra/float(ref.objective_assumed_usd),
             "incremental_model_usd_per_tco2_avoided":extra/removed,
             "additional_new_solar_mw":float(cap.new_solar_mw)-float(ref.new_solar_mw),
+            "additional_new_wind_mw":float(cap.new_wind_mw)-float(ref.new_wind_mw),
+            "additional_new_gas_mw":float(cap.new_gas_mw)-float(ref.new_gas_mw),
             "reference_unserved_mwh":float(ref.unserved_mwh),
             "capped_unserved_mwh":float(cap.unserved_mwh),
         })
