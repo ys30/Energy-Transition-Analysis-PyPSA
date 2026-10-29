@@ -28,18 +28,33 @@ def download_official_eia923(url: str, destination: Path, *, year: int):
             raise ValueError("EIA-923 download redirected outside official eia.gov")
         raw = response.read()
     if not zipfile.is_zipfile(io.BytesIO(raw)):
-        raise ValueError("Downloaded EIA-923 file is not a valid XLSX/ZIP archive")
+        raise ValueError("Downloaded EIA-923 file is not a valid ZIP archive")
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         names = archive.namelist()
-        if "[Content_Types].xml" not in names or not any(n.startswith("xl/") for n in names):
-            raise ValueError("Downloaded file is not an XLSX workbook")
+        is_xlsx = "[Content_Types].xml" in names and any(n.startswith("xl/") for n in names)
+        if is_xlsx:
+            workbook = raw
+            selected_member = None
+        else:
+            # Official EIA-923 yearly releases are ZIP files containing
+            # multiple schedules. Select Schedule 3 explicitly by filename.
+            candidates = [n for n in names if n.lower().endswith(".xlsx")
+                          and ("2_3_4_5" in n.lower() or "schedule_3" in n.lower()
+                               or "page_1" in n.lower()) and not n.startswith("__MACOSX/")]
+            if len(candidates) != 1:
+                raise ValueError(f"Expected exactly one EIA-923 generation workbook in ZIP; found {candidates}")
+            selected_member = candidates[0]
+            workbook = archive.read(selected_member)
+            if not zipfile.is_zipfile(io.BytesIO(workbook)):
+                raise ValueError("EIA-923 selected workbook is not valid XLSX")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(raw)
+    destination.write_bytes(workbook)
     report = {
         "source_url": url, "resolved_url": response.geturl(),
-        "report_year_requested": year, "bytes": len(raw),
-        "sha256": hashlib.sha256(raw).hexdigest(),
-        "file": destination.name,
+        "report_year_requested": year, "bytes": len(workbook),
+        "sha256": hashlib.sha256(workbook).hexdigest(),
+        "file": destination.name, "archive_member": selected_member,
+        "archive_sha256": hashlib.sha256(raw).hexdigest(),
         "caution": "Workbook report year must still be independently checked against source metadata."
     }
     destination.with_suffix(".provenance.json").write_text(json.dumps(report, indent=2))
@@ -48,7 +63,7 @@ def download_official_eia923(url: str, destination: Path, *, year: int):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--url", required=True, help="Verified official EIA-923 XLSX URL")
+    p.add_argument("--url", required=True, help="Verified official EIA-923 ZIP or XLSX URL")
     p.add_argument("--year", type=int, required=True)
     p.add_argument("--output", type=Path, required=True)
     args = p.parse_args()
