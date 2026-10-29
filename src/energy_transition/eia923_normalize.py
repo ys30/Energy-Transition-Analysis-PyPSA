@@ -1,0 +1,95 @@
+"""Normalize the official EIA-923 monthly generation-and-fuel workbook.
+
+Uses Schedule 3 monthly generation columns (Netgen January...December).
+Source must be a user-supplied official EIA-923 XLSX; no fabricated observations.
+Unknown energy-source codes are rejected, not silently discarded.
+"""
+from __future__ import annotations
+import argparse
+import json
+from pathlib import Path
+import pandas as pd
+
+FUEL = {
+    "NG": "gas", "BFG": "gas", "OG": "gas",
+    "WND": "wind", "SUN": "solar", "WAT": "hydro", "NUC": "nuclear",
+    "BIT": "coal", "SUB": "coal", "LIG": "coal", "WC": "coal",
+    "DFO": "oil", "RFO": "oil", "JF": "oil", "KER": "oil",
+    "GEO": "geothermal",
+}
+MONTHS = ["january", "february", "march", "april", "may", "june",
+          "july", "august", "september", "october", "november", "december"]
+
+
+def normalize_schedule3(frame: pd.DataFrame, year: int):
+    cols = {str(c).strip().lower(): c for c in frame.columns}
+    plant = next((v for k, v in cols.items() if k in ("plant id", "plant code")), None)
+    fuel = next((v for k, v in cols.items() if k in ("reported fuel type code", "energy source")), None)
+    if not plant or not fuel:
+        raise ValueError("Cannot identify official EIA-923 Plant Id and Reported Fuel Type Code")
+    month_columns = {}
+    for month in MONTHS:
+        matches = [v for k, v in cols.items()
+                   if k.startswith("netgen") and month in k]
+        if len(matches) != 1:
+            raise ValueError(f"Missing or ambiguous EIA-923 Netgen {month} column")
+        month_columns[month] = matches[0]
+    wide = frame[[plant, fuel, *month_columns.values()]].copy()
+    wide.columns = ["plant_id", "fuel_code", *MONTHS]
+    wide["plant_id"] = wide.plant_id.astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
+    wide["fuel_code"] = wide.fuel_code.astype("string").str.strip().str.upper()
+    wide = wide.loc[wide.plant_id.notna() & wide.plant_id.ne("")].copy()
+    if wide.empty:
+        raise ValueError("No EIA-923 plant records")
+    long = wide.melt(id_vars=["plant_id", "fuel_code"], value_vars=MONTHS,
+                     var_name="month_name", value_name="net_generation_mwh")
+    long["month"] = long.month_name.map({m: i + 1 for i, m in enumerate(MONTHS)})
+    long["fuel"] = long.fuel_code.map(FUEL)
+    raw = long.net_generation_mwh.astype("string").str.strip()
+    # Official spreadsheets can contain "." or other nondisclosure codes.
+    # Preserve an audit; never reinterpret such cells as zero.
+    numeric = pd.to_numeric(raw, errors="coerce")
+    invalid = raw.notna() & raw.ne("") & numeric.isna()
+    if invalid.any():
+        raise ValueError(f"Non-numeric EIA-923 Netgen cells: {int(invalid.sum())}")
+    if (long.fuel.isna() & numeric.notna() & numeric.ne(0)).any():
+        codes = sorted(long.loc[long.fuel.isna() & numeric.notna() & numeric.ne(0), "fuel_code"].dropna().unique())
+        raise ValueError(f"Unmapped EIA-923 fuel codes with generation: {codes}")
+    long["net_generation_mwh"] = numeric
+    long = long.dropna(subset=["net_generation_mwh", "fuel"])
+    long["report_year"] = year
+    return long[["plant_id", "report_year", "month", "fuel", "net_generation_mwh"]].groupby(
+        ["plant_id", "report_year", "month", "fuel"], as_index=False
+    ).net_generation_mwh.sum()
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--xlsx", type=Path, required=True)
+    p.add_argument("--year", type=int, required=True)
+    p.add_argument("--sheet", default="Page 1 Generation and Fuel Data")
+    p.add_argument("--output", type=Path, default=Path("outputs/eia923"))
+    a = p.parse_args()
+    book = pd.ExcelFile(a.xlsx)
+    if a.sheet not in book.sheet_names:
+        raise ValueError(f"EIA-923 sheet {a.sheet!r} not found; available: {book.sheet_names}")
+    result = None
+    for header in (5, 4, 0, 1, 2, 3, 6):
+        try:
+            result = normalize_schedule3(pd.read_excel(book, sheet_name=a.sheet, header=header), a.year)
+            break
+        except ValueError:
+            continue
+    if result is None:
+        raise ValueError("EIA-923 workbook schema not recognized; inspect source workbook")
+    a.output.mkdir(parents=True, exist_ok=True)
+    result.to_csv(a.output / f"eia923_normalized_{a.year}.csv", index=False)
+    (a.output / f"eia923_source_{a.year}.json").write_text(json.dumps({
+        "year": a.year, "input_file": a.xlsx.name, "sheet": a.sheet,
+        "observations": len(result), "units": "net generation MWh",
+        "warning": "Normalized official plant-month data; not automatically verified against EIA-930 BA totals."
+    }, indent=2))
+
+
+if __name__ == "__main__":
+    main()
