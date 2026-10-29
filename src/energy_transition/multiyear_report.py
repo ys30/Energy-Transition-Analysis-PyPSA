@@ -10,16 +10,20 @@ import json
 from pathlib import Path
 
 
-def aggregate(root: Path, output: Path, years=range(2019, 2026)):
+def aggregate(root: Path, output: Path, years=range(2019, 2026), allow_partial=False):
     rows, audits, energy_audits = [], [], []
+    excluded = []
     for year in years:
         folder = root / f"eia930-west-{year}"
         metrics_path = folder / str(year) / "metrics.json"
         audit_path = folder / f"ba_audit_{year}.csv"
         energy_path = folder / f"energy_audit_{year}.json"
-        for path in (metrics_path, audit_path, energy_path):
-            if not path.is_file():
-                raise FileNotFoundError(f"Required verified artifact missing: {path}")
+        missing = [path for path in (metrics_path, audit_path, energy_path) if not path.is_file()]
+        if missing:
+            if not allow_partial:
+                raise FileNotFoundError(f"Required verified artifact missing: {missing[0]}")
+            excluded.append({"year": year, "reason": "missing_or_failed_yearly_artifact", "missing_paths": [str(p) for p in missing]})
+            continue
         metrics = json.loads(metrics_path.read_text())
         energy = json.loads(energy_path.read_text())
         if metrics.get("solve_status") != "optimal":
@@ -57,6 +61,8 @@ def aggregate(root: Path, output: Path, years=range(2019, 2026)):
             **{f"dispatch_{k}_mwh": v for k, v in sorted(generation.items())},
         })
         energy_audits.append(energy)
+    if not rows:
+        raise ValueError("No independently verified successful annual artifacts")
     output.mkdir(parents=True, exist_ok=True)
     for filename, data in (("yearly_summary.csv", rows), ("ba_audit_all_years.csv", audits)):
         with (output / filename).open("w", newline="") as f:
@@ -64,6 +70,7 @@ def aggregate(root: Path, output: Path, years=range(2019, 2026)):
             writer.writeheader()
             writer.writerows(data)
     (output / "energy_audit_all_years.json").write_text(json.dumps(energy_audits, indent=2))
+    (output / "year_coverage_manifest.json").write_text(json.dumps({"verified_years": [r["year"] for r in rows], "excluded_years": excluded, "all_requested_years_validated": not excluded, "policy": "Missing yearly artifacts are excluded and explicitly reported, never estimated."}, indent=2))
     (output / "README.txt").write_text(
         "Observed input: EIA-930 hourly BA demand, 2019-2025. "
         "Generator fleet, costs and emissions are scenario assumptions. "
@@ -77,8 +84,9 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--artifacts", type=Path, default=Path("yearly_artifacts"))
     p.add_argument("--output", type=Path, default=Path("multi_year_summary"))
+    p.add_argument("--allow-partial", action="store_true")
     args = p.parse_args()
-    aggregate(args.artifacts, args.output)
+    aggregate(args.artifacts, args.output, allow_partial=args.allow_partial)
 
 
 if __name__ == "__main__":
