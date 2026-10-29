@@ -145,6 +145,15 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
     data.attrs["qc_fraction"] = n_bad / len(data)
     if n_bad / len(data) > 0.01:
         raise ValueError(f"Too many EIA anomalies: {n_bad}/{len(data)} > 1% QC limit")
+    # A pooled threshold alone could conceal severe corruption in one small BA.
+    by_ba = data.groupby("respondent").agg(
+        rows=("value", "size"),
+        anomalies=("qc_flag", lambda flags: int((flags != "observed").sum())),
+    )
+    by_ba["anomaly_share"] = by_ba.anomalies / by_ba.rows
+    failed = by_ba.loc[by_ba.anomaly_share > 0.01]
+    if not failed.empty:
+        raise ValueError(f"BA-specific EIA QC anomaly rate > 1%: {failed.to_dict('index')}")
     present = set(data.respondent)
     if set(bas) - present:
         raise ValueError(f"Missing balancing authorities: {set(bas) - present}")
@@ -272,6 +281,9 @@ def main():
             peak_mw=("value", "max"),
         ).reset_index()
         counts["year"] = year
+        counts["input_source"] = "EIA-930 hourly reported demand, type D"
+        counts["observed_energy_units"] = "MWh"
+        counts["peak_units"] = "MW"
         counts["expected_hours"] = 8784 if calendar.isleap(year) else 8760
         counts["coverage_fraction"] = counts["observations"] / counts["expected_hours"]
         if "raw_value" in hourly:
@@ -284,6 +296,7 @@ def main():
         if "qc_flag" in hourly:
             bad = hourly.assign(interpolated=hourly.qc_flag.str.startswith(("interpolated_", "neighboring_day_"))).groupby("respondent").interpolated.sum()
             counts["interpolated_hours"] = counts.respondent.map(bad).fillna(0).astype(int)
+            counts["imputation_share"] = counts["interpolated_hours"] / counts["expected_hours"]
         expected_hours = 8784 if calendar.isleap(year) else 8760
         if (counts.observations != expected_hours).any():
             raise ValueError(f"BA year incomplete, expected {expected_hours} hourly records each: {counts.to_dict('records')}")
