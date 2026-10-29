@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/eia923-ba-generation.yml'
       - 'src/energy_transition/eia923_ba_generation.py'
+      - 'src/energy_transition/eia923_qualification.py'
 jobs:
   generation:
     runs-on: ubuntu-latest
@@ -19,6 +20,9 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - name: Extract official EIA-923 2024 plant fuel and BA generation
         run: python -m energy_transition.eia923_ba_generation --year 2024 --bas CISO BPAT --output outputs/eia923_generation
+      - name: Qualify reconciled annual generation and report withheld rows
+        run: |
+          python -m energy_transition.eia923_qualification --reconciliation outputs/eia923_generation/annual_monthly_reconciliation.csv --output outputs/eia923_generation
       - uses: actions/upload-artifact@v4
         if: always()
         with:
