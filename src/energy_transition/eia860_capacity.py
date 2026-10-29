@@ -57,7 +57,7 @@ def read_operable_inventory(archive: bytes, year: int):
     result["id_qc"] = "valid"
     missing_id = result[["plant_id", "generator_id"]].isna().any(axis=1)
     result.loc[missing_id, "id_qc"] = "missing_identifier"
-    result["plant_id"] = result["plant_id"].astype("string").str.strip().str.replace(r"\\.0$", "", regex=True)
+    result["plant_id"] = result["plant_id"].astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
     result["generator_id"] = result["generator_id"].astype("string").str.strip()
     result.loc[result.plant_id.eq("") | result.generator_id.eq(""), "id_qc"] = "missing_identifier"
     result["capacity_mw"] = pd.to_numeric(result.capacity_mw, errors="coerce")
