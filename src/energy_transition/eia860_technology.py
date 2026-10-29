@@ -16,6 +16,8 @@ FUEL_TO_TECH = {
     "DFO": "oil", "RFO": "oil", "JF": "oil", "KER": "oil", "PC": "oil", "WO": "oil",
     "AB": "biomass", "MSW": "biomass", "OBG": "biomass", "OBL": "biomass",
     "OBS": "biomass", "WDS": "biomass", "BLQ": "biomass", "LFG": "biomass",
+    "WDL": "biomass", "SLW": "biomass",
+    "WH": "waste_heat", "OTH": "other_unknown",
     "PUR": "storage", "MWH": "storage",
 }
 # Some codes have mixed meanings by EIA reporting vintage. Exclude unmapped
