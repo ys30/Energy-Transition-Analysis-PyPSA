@@ -1,11 +1,6 @@
 name: Western US multi-year EIA-930 PyPSA
 on:
   workflow_dispatch:
-    inputs:
-      years:
-        description: 'Space-separated complete historical years'
-        required: true
-        default: '2019 2020 2021 2022 2023 2024 2025'
   schedule:
     - cron: '0 9 1 2 *'
 permissions:
