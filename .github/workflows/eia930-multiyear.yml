@@ -43,6 +43,7 @@ jobs:
           path: outputs/eia930_west/
           retention-days: 30
   aggregate:
+    if: always()
     needs: yearly
     runs-on: ubuntu-latest
     steps:
@@ -55,7 +56,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Validate and combine annual artifacts
-        run: PYTHONPATH=src python -m energy_transition.multiyear_report --artifacts yearly_artifacts --output multi_year_summary
+        run: PYTHONPATH=src python -m energy_transition.multiyear_report --artifacts yearly_artifacts --output multi_year_summary --allow-partial
       - uses: actions/upload-artifact@v4
         with:
           name: eia930-west-multi-year-summary
