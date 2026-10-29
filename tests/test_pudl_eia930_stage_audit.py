@@ -22,3 +22,17 @@ def test_pudl_stage_balance_preserves_distinct_series_and_missingness():
 def test_pudl_stage_rejects_missing_field():
     with pytest.raises(ValueError,match="missing columns"):
         evaluate(pd.DataFrame({"datetime_utc":[],"balancing_authority_code_eia":[]}))
+
+def test_no_complete_imputed_triplets_are_not_zero_residual():
+    data={"datetime_utc":pd.to_datetime(["2024-01-01T00:00:00Z"]),
+          "balancing_authority_code_eia":["BPAT"]}
+    for stage in STAGES:
+        data[f"demand_{stage}_mwh"]=[100.]
+        data[f"net_generation_{stage}_mwh"]=[90.]
+        data[f"interchange_{stage}_mwh"]=[-10.]
+    data["interchange_imputed_eia_mwh"]=[None]
+    result=evaluate(pd.DataFrame(data),bas=["BPAT"])
+    row=result[result.stage.eq("imputed_eia")].iloc[0]
+    assert row.complete_hours==0
+    assert pd.isna(row.residual_sum_mwh)
+    assert row.status=="no_complete_triplets"
