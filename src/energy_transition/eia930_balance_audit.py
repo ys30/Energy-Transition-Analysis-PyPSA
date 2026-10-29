@@ -54,6 +54,27 @@ def balance_audit(demand,generation,interchange,bas,year):
       mae_d_minus_ng_minus_ti=("residual_d_minus_ng_minus_ti",lambda v:float(v.abs().mean())),
       mae_d_minus_ng_plus_ti=("residual_d_minus_ng_plus_ti",lambda v:float(v.abs().mean()))
     ).reset_index()
+    # Signed interchange differs across reporting contexts; quantify both
+    # residuals on common complete hours, never sum independently incomplete
+    # annual series into an alleged energy-balance identity.
+    valid=merged.dropna(subset=["demand","generation","interchange"])
+    common=valid.groupby("respondent").agg(
+        common_demand_mwh=("demand","sum"),
+        common_generation_mwh=("generation","sum"),
+        common_interchange_mwh=("interchange","sum"),
+        common_residual_minus_mwh=("residual_d_minus_ng_minus_ti","sum"),
+        common_residual_plus_mwh=("residual_d_minus_ng_plus_ti","sum"))
+    audit=audit.merge(common.reset_index(),on="respondent",how="left")
+    audit["complete_triple_share"]=audit.complete_triples/audit.expected_hours
+    audit["candidate_plus_mae_share_of_load"]=audit.mae_d_minus_ng_plus_ti/(
+        audit.common_demand_mwh/audit.complete_triples)
+    audit["candidate_minus_mae_share_of_load"]=audit.mae_d_minus_ng_minus_ti/(
+        audit.common_demand_mwh/audit.complete_triples)
+    audit["accounting_gate"]=audit.apply(
+        lambda r: "review_required" if r.complete_triple_share < 0.99 or
+        min(r.candidate_plus_mae_share_of_load,
+            r.candidate_minus_mae_share_of_load)>0.10
+        else "screening_only_not_verified",axis=1)
     return merged,audit
 
 def main():
