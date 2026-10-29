@@ -76,7 +76,7 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
         raise ValueError(f"Missing fields: {require - set(data.columns)}")
     data = data[["period", "respondent", "value"]].copy()
     data["period"] = pd.to_datetime(data["period"], utc=True, errors="raise")
-    data["value"] = pd.to_numeric(data["value"], errors="coerce")
+    data["value"] = pd.to_numeric(data["value"], errors="coerce").astype("float64")
     if data.duplicated(["period", "respondent"]).any():
         raise ValueError("Duplicate balancing authority-hour rows")
     # EIA publishes BA-level reported values as received, including anomalies.
