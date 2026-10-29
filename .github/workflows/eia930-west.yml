@@ -5,11 +5,11 @@ on:
       years:
         description: 'Historical complete years (space separated)'
         required: true
-        default: '2023'
+        default: '2023 2024'
       bas:
         description: 'EIA balancing authorities (space separated); CISO for first smoke test'
         required: true
-        default: 'CISO'
+        default: 'CISO BPAT'
   push:
     paths:
       - '.github/workflows/eia930-west.yml'
@@ -43,8 +43,8 @@ jobs:
       - name: Download real EIA demand and optimize with HiGHS
         env:
           EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
-          YEARS: ${{ inputs.years || '2023' }}
-          BAS: ${{ inputs.bas || 'CISO' }}
+          YEARS: ${{ inputs.years || '2023 2024' }}
+          BAS: ${{ inputs.bas || 'CISO BPAT' }}
         shell: bash
         run: |
           read -r -a year_args <<< "$YEARS"
