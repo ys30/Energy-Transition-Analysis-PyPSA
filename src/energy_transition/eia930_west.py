@@ -24,8 +24,19 @@ CARRIERS = {
     "wind": dict(p_nom=24000, marginal_cost=2, co2_emissions=0),
     "solar": dict(p_nom=26000, marginal_cost=2, co2_emissions=0),
 }
+# Additional stylized dispatch parameters. These are scenario assumptions,
+# not EIA-923 observed generation, heat rates or plant-specific profiles.
+CARRIERS.update({
+    "hydro": dict(p_nom=0, marginal_cost=8, co2_emissions=0),
+    "nuclear": dict(p_nom=0, marginal_cost=15, co2_emissions=0),
+    "coal": dict(p_nom=0, marginal_cost=45, co2_emissions=0.95),
+    "oil": dict(p_nom=0, marginal_cost=110, co2_emissions=0.75),
+    "geothermal": dict(p_nom=0, marginal_cost=18, co2_emissions=0.05),
+})
 # Explicit *scenario assumptions*, not reported generation capacity or renewable resource data.
-AVAILABILITY = {"gas": 1.0, "wind": 0.35, "solar": 0.26}
+AVAILABILITY = {"gas": 1.0, "wind": 0.35, "solar": 0.26,
+                "hydro": 0.45, "nuclear": 0.9, "coal": 0.85,
+                "oil": 0.9, "geothermal": 0.9}
 
 
 def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
@@ -318,20 +329,28 @@ def load_ba_capacity(path: Path, bas, *, year=None, minimum_coverage=0.95):
     coverage = float(provenance.get("operating_nameplate_mapping_fraction", 0))
     if coverage < minimum_coverage:
         raise ValueError(f"Insufficient EIA-860 plant BA mapping coverage: {coverage:.2%}")
+    # EIA-860 primary energy-source codes are more granular than our
+    # simplified dispatch carriers. Map known fuels explicitly; unknown
+    # nonzero capacity remains a hard error rather than disappearing.
     fuel_map = {
-        "NG": "gas", "WND": "wind", "SUN": "solar",
+        "NG": "gas", "BFG": "gas", "OG": "gas",
+        "WND": "wind", "SUN": "solar",
+        "WAT": "hydro", "NUC": "nuclear",
+        "BIT": "coal", "SUB": "coal", "LIG": "coal", "WC": "coal",
+        "DFO": "oil", "RFO": "oil", "JF": "oil", "KER": "oil",
+        "GEO": "geothermal",
     }
-    frame["carrier"] = frame.fuel.map(fuel_map)
+    frame["carrier"] = frame.fuel.astype("string").str.upper().map(fuel_map)
     unsupported = frame.loc[frame.carrier.isna() & frame.capacity_mw.gt(0)]
     if not unsupported.empty:
         raise ValueError(
-            "EIA-860 contains nonzero hydro/coal/nuclear/other fuels not represented "
-            "in the three-carrier dispatch; refusing silent capacity omission"
+            "Unsupported nonzero EIA-860 fuel codes: "
+            + ", ".join(sorted(unsupported.fuel.astype(str).unique()))
         )
-    cap = frame.groupby("carrier").capacity_mw.sum().to_dict()
-    if not all(cap.get(c, 0) > 0 for c in CARRIERS):
-        raise ValueError("Missing positive gas, wind or solar capacity in EIA-860 input")
-    return {k: float(cap[k]) for k in CARRIERS}
+    cap = frame.dropna(subset=["carrier"]).groupby("carrier").capacity_mw.sum().to_dict()
+    if not cap or sum(cap.values()) <= 0:
+        raise ValueError("No positive recognized EIA-860 nameplate capacity")
+    return {k: float(v) for k, v in cap.items() if v > 0}
 
 
 def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
@@ -342,11 +361,14 @@ def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
     n.set_snapshots(snapshots)
     n.snapshot_weightings.loc[:, ["objective", "generators", "stores"]] = reps.weight_h.to_numpy()[:, None]
     n.add("Load", "eia930_observed_demand", bus="western_subset", p_set=reps.value.to_numpy())
-    for carrier, cfg in CARRIERS.items():
+    scenario_carriers = capacities if capacities is not None else {
+        k: v["p_nom"] for k, v in CARRIERS.items()
+    }
+    for carrier, nameplate in scenario_carriers.items():
+        cfg = CARRIERS[carrier]
         n.add("Carrier", carrier, co2_emissions=cfg["co2_emissions"])
         n.add("Generator", carrier, bus="western_subset", carrier=carrier,
-              p_nom=(capacities[carrier] if capacities is not None else cfg["p_nom"]),
-              marginal_cost=cfg["marginal_cost"],
+              p_nom=nameplate, marginal_cost=cfg["marginal_cost"],
               p_max_pu=AVAILABILITY[carrier])
     # Load shedding makes infeasibility visible; it must never be mistaken for physical generation.
     n.add("Generator", "unserved", bus="western_subset", p_nom=1e7,
@@ -360,10 +382,10 @@ def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
     result = {
         "solve_status": condition, "observed_demand_mwh": total_mwh,
         "capacity_basis": "audited_EIA860_nameplate_scenario" if capacities is not None else "assumed_capacity_scenario",
-        "generator_nameplate_mw": {k: float(capacities[k] if capacities is not None else CARRIERS[k]["p_nom"]) for k in CARRIERS},
+        "generator_nameplate_mw": {k: float(v) for k, v in scenario_carriers.items()},
         "unserved_mwh": unserved_mwh, "unserved_share": unserved_mwh / total_mwh,
-        "dispatch_mwh_by_carrier": {k: float(generation[k]) for k in CARRIERS},
-        "operational_tco2_assumed": float(sum(generation[k] * CARRIERS[k]["co2_emissions"] for k in CARRIERS)),
+        "dispatch_mwh_by_carrier": {k: float(generation[k]) for k in scenario_carriers},
+        "operational_tco2_assumed": float(sum(generation[k] * CARRIERS[k]["co2_emissions"] for k in scenario_carriers)),
         "objective_usd_assumed": float(n.objective),
         "evidence_boundary": "Observed EIA-930 BA demand; assumed technology supply, prices and emissions; no network constraints or investment optimization."
     }
