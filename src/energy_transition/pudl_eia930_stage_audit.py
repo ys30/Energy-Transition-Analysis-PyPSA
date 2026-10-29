@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import pandas as pd
 
-PARQUET = "https://pudl.catalyst.coop/nightly/core_eia930__hourly_operations.parquet"
+PARQUET = "s3://pudl.catalyst.coop/nightly/core_eia930__hourly_operations.parquet"
 STAGES = ("reported", "adjusted", "imputed_eia")
 FIELDS = ("demand", "net_generation", "interchange")
 
@@ -48,6 +48,7 @@ def fetch(year, bas):
     import duckdb
     con=duckdb.connect()
     con.execute("INSTALL httpfs; LOAD httpfs;")
+    con.execute("CREATE SECRET pudl_public (TYPE s3, PROVIDER config, REGION 'us-west-2', URL_STYLE 'path');")
     cols=["datetime_utc","balancing_authority_code_eia"] + [
       f"{name}_{stage}_mwh" for stage in STAGES for name in FIELDS
     ]
