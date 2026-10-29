@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/eia930-balance-audit.yml'
       - 'src/energy_transition/eia930_balance_audit.py'
+      - 'src/energy_transition/interchange_calibration_gate.py'
 jobs:
   audit:
     runs-on: ubuntu-latest
@@ -23,6 +24,12 @@ jobs:
         run: |
           test -n "$EIA_API_KEY"
           python -m energy_transition.eia930_balance_audit --year 2024 --bas CISO BPAT --output outputs/eia930_balance
+      - name: Evaluate BA interchange calibration eligibility
+        run: |
+          python -m energy_transition.interchange_calibration_gate \
+            --summary outputs/eia930_balance/ba_balance_summary.csv \
+            --monthly outputs/eia930_balance/monthly_balance_audit.csv \
+            --output outputs/eia930_balance
       - uses: actions/upload-artifact@v4
         if: always()
         with:
