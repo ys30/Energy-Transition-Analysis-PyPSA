@@ -56,7 +56,7 @@ def test_extract_official_schedule_zip_and_provenance(tmp_path):
 
 
 def test_reject_non_official_source(tmp_path):
-    with pytest.raises(ValueError, match="official"):
+    with pytest.raises(ValueError, match="Official EIA-923 source"):
         download_official_eia923("https://example.com/file.zip", tmp_path / "file.xlsx", year=2024)
 
 
