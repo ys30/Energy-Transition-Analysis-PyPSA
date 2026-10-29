@@ -1,6 +1,10 @@
 name: Western US multi-year EIA-930 PyPSA
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia930-multiyear.yml'
+      - 'src/energy_transition/eia930_west.py'
   schedule:
     - cron: '0 9 1 2 *'
 permissions:
