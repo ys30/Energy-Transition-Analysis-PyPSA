@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/planning-sensitivity.yml'
       - 'src/energy_transition/planning_sensitivity.py'
+      - 'src/energy_transition/solar_availability.py'
       - 'src/energy_transition/carbon_scenario_comparison.py'
 jobs:
   planning:
