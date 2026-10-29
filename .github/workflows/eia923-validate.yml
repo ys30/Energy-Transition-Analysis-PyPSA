@@ -88,7 +88,6 @@ jobs:
           path: outputs/eia923/
           retention-days: 30
   observed-versus-model:
-    if: github.event_name == 'workflow_dispatch'
     needs: official-download
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -123,6 +122,7 @@ jobs:
         run: |
           python -m energy_transition.eia930_west \
             --years "$YEAR" \
+            --bas CISO BPAT \
             --eia860-capacity "outputs/eia860/ba_operating_nameplate_by_fuel_${YEAR}.csv" \
             --output outputs/eia930_west
       - name: Compare observed EIA-923 generation against PyPSA dispatch
@@ -132,7 +132,7 @@ jobs:
             --crosswalk "outputs/eia860/plant_ba_crosswalk_${YEAR}.csv" \
             --metrics "outputs/eia930_west/${YEAR}/metrics.json" \
             --year "$YEAR" \
-            --bas CISO BPAT PACE PACW AZPS NEVP PNM IPCO \
+            --bas CISO BPAT \
             --output outputs/eia923_validation
       - uses: actions/upload-artifact@v4
         if: always()
