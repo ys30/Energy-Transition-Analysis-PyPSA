@@ -74,6 +74,7 @@ def test_official_incomplete_row_exclusion_does_not_zero_fill():
     frame = _schedule()
     second = _schedule(value=7)
     second["Plant Id"] = 999
+    second["Netgen February"] = second["Netgen February"].astype(object)
     second.loc[0, "Netgen February"] = "not reported"
     data = pd.concat([frame, second], ignore_index=True)
     result = normalize_schedule3(data, 2024, allow_incomplete=True)
