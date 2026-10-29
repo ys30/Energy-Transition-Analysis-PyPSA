@@ -17,6 +17,16 @@ FUEL = {
     "BIT": "coal", "SUB": "coal", "LIG": "coal", "WC": "coal",
     "DFO": "oil", "RFO": "oil", "JF": "oil", "KER": "oil",
     "GEO": "geothermal",
+    # Additional EIA-reported sources are preserved as separately labeled
+    # categories. These are observational categories, not modeled PyPSA fuels.
+    "AB": "biomass", "BLQ": "biomass", "LFG": "biomass",
+    "MSB": "biomass", "MSN": "waste", "OBG": "biomass",
+    "OBL": "biomass", "OBS": "biomass", "SLW": "waste",
+    "WDL": "biomass", "WDS": "biomass",
+    "PC": "coal", "RC": "coal", "SGC": "coal",
+    "PG": "oil", "PUR": "oil", "TDF": "waste",
+    "WH": "other", "WO": "oil", "OTH": "other",
+    "MWH": "storage",
 }
 MONTHS = ["january", "february", "march", "april", "may", "june",
           "july", "august", "september", "october", "november", "december"]
@@ -157,7 +167,7 @@ def main():
         "strict_source_record_exclusion": a.allow_incomplete,
         "excluded_monthly_cells": len(excluded) if excluded is not None else 0,
         "unmapped_fuel_cells": len(unmapped) if unmapped is not None else 0,
-        "selected_fuel_coverage": "partial; unmapped codes withheld and audited",
+        "selected_fuel_coverage": "unmapped official source codes withheld and audited; extended observed-only fuel groups do not imply PyPSA carrier support",
         "warning": "Normalized official plant-month data; not automatically verified against EIA-930 BA totals."
     }, indent=2))
 
