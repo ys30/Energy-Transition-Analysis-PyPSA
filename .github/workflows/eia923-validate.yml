@@ -40,7 +40,6 @@ jobs:
   # are required for empirical validation. The workflow intentionally does
   # not label unit tests as an observed-data validation.
   official-download:
-    if: github.event_name == 'workflow_dispatch'
     needs: validate-code
     runs-on: ubuntu-latest
     steps:
@@ -52,7 +51,7 @@ jobs:
       - name: Download official EIA-923 workbook with SHA256 audit
         env:
           OFFICIAL_URL: ${{ inputs.official_xlsx_url }}
-          YEAR: ${{ inputs.year }}
+          YEAR: ${{ inputs.year || '2024' }}
         run: |
           if [ -z "$OFFICIAL_URL" ]; then
             OFFICIAL_URL="https://www.eia.gov/electricity/data/eia923/archive/xls/f923_${YEAR}.zip"
@@ -85,7 +84,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: eia923-official-${{ inputs.year }}
+          name: eia923-official-${{ inputs.year || '2024' }}
           path: outputs/eia923/
           retention-days: 30
   observed-versus-model:
