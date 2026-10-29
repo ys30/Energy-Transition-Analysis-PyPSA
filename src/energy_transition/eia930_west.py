@@ -40,6 +40,7 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
         ("facets[type][]", "D"), ("start", f"{year}-01-01T00"),
         ("end", f"{year}-12-31T23"), ("length", str(length)),
         ("sort[0][column]", "period"), ("sort[0][direction]", "asc"),
+        ("sort[1][column]", "respondent"), ("sort[1][direction]", "asc"),
     ]
     params += [("facets[respondent][]", ba) for ba in bas]
     offset = 0
@@ -147,7 +148,20 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
     present = set(data.respondent)
     if set(bas) - present:
         raise ValueError(f"Missing balancing authorities: {set(bas) - present}")
-    if data.groupby("period").respondent.nunique().min() != len(bas):
+    # Verify full UTC hourly coverage, including absent timestamps shared by all BAs.
+    expected = pd.date_range(f"{year}-01-01", f"{year+1}-01-01",
+                             freq="h", inclusive="left", tz="UTC")
+    actual = pd.DatetimeIndex(data["period"].unique()).sort_values()
+    if not actual.equals(expected):
+        missing = expected.difference(actual)
+        unexpected = actual.difference(expected)
+        raise ValueError(
+            f"Incomplete hourly timestamp coverage for {year}: "
+            f"missing={len(missing)}, unexpected={len(unexpected)}; "
+            f"examples={list(missing[:5])}"
+        )
+    coverage = data.groupby("period").respondent.nunique()
+    if len(coverage) != len(expected) or coverage.min() != len(bas):
         raise ValueError("Incomplete BA coverage in at least one hourly snapshot")
     return data.sort_values(["period", "respondent"]).reset_index(drop=True)
 
