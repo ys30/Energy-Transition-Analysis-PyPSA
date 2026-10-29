@@ -49,12 +49,20 @@ def summarize_net_generation(generation, year, bas):
     for ba in bas:
         subset=g[g.respondent.eq(ba)].copy()
         valid=subset.value.notna()
+        expected_index=pd.date_range(f"{year}-01-01",f"{year+1}-01-01",freq="h",inclusive="left",tz="UTC")
+        observed_index=pd.DatetimeIndex(subset.period)
+        missing_times=expected_index.difference(observed_index)
+        extra_times=observed_index.difference(expected_index)
         records.append({
           "year":year,"ba_code":ba,"received_hours":len(subset),
           "expected_hours":expected,"missing_value_hours":int((~valid).sum()),
+          "missing_timestamp_hours":len(missing_times),
+          "first_missing_timestamp_utc":missing_times.min().isoformat() if len(missing_times) else "",
+          "last_missing_timestamp_utc":missing_times.max().isoformat() if len(missing_times) else "",
+          "outside_year_hours":len(extra_times),
           "negative_value_hours":int((subset.value<0).sum()),
           "reported_net_generation_mwh_nonmissing_only":float(subset.loc[valid,"value"].sum()),
-          "complete":bool(len(subset)==expected and valid.all())
+          "complete":bool(len(subset)==expected and valid.all() and not len(missing_times) and not len(extra_times))
         })
     return pd.DataFrame(records)
 
@@ -69,6 +77,14 @@ def main():
     df.to_csv(args.output/"eia930_net_generation_hourly.csv",index=False)
     audit=summarize_net_generation(df,args.year,args.bas)
     audit.to_csv(args.output/"net_generation_audit.csv",index=False)
+    # Preserve all missing timestamps for direct investigation of source coverage.
+    missing=[]
+    expected_index=pd.date_range(f"{args.year}-01-01",f"{args.year+1}-01-01",freq="h",inclusive="left",tz="UTC")
+    for ba in args.bas:
+        got=pd.DatetimeIndex(df.loc[df.respondent.eq(ba),"period"])
+        for ts in expected_index.difference(got):
+            missing.append({"ba_code":ba,"timestamp_utc":ts.isoformat()})
+    pd.DataFrame(missing,columns=["ba_code","timestamp_utc"]).to_csv(args.output/"missing_timestamps.csv",index=False)
     manifest={
      "source":API,"source_type":"NG","units":"MW reported at hourly frequency",
      "boundary":"EIA-930 balancing authority total net generation, NOT plant/fuel-specific EIA-923 generation",
