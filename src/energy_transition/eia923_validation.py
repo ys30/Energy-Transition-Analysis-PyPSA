@@ -42,6 +42,8 @@ def compare_generation(
     observed["report_year"] = pd.to_numeric(observed.report_year, errors="raise")
     observed["month"] = pd.to_numeric(observed.month, errors="raise")
     x["mapping_year"] = pd.to_numeric(x.mapping_year, errors="raise")
+    if observed.empty or x.empty:
+        raise ValueError("EIA-923 observations and crosswalk must not be empty")
     if not observed.report_year.eq(year).all() or not x.mapping_year.eq(year).all():
         raise ValueError("EIA-923 generation and BA crosswalk must match analysis year")
     if not observed.month.between(1, 12).all():
@@ -57,7 +59,7 @@ def compare_generation(
     if observed.fuel.isna().any():
         raise ValueError("Missing EIA-923 fuel")
     observed["net_generation_mwh"] = pd.to_numeric(observed.net_generation_mwh, errors="raise")
-    if observed.net_generation_mwh.isna().any():
+    if not observed.net_generation_mwh.map(lambda v: bool(pd.notna(v) and abs(v) != float("inf"))).all():
         raise ValueError("Invalid EIA-923 generation")
     # Negative EIA-923 net generation can occur (e.g., station service).
     # Preserve it rather than clipping to zero or changing its sign.
@@ -118,6 +120,15 @@ def main():
     a = p.parse_args()
     eia = pd.read_csv(a.eia923, dtype={"plant_id": "string"})
     x = pd.read_csv(a.crosswalk, dtype={"plant_id": "string"})
+    # The EIA-860 extractor publishes plant_id/ba_code without a year column.
+    # The year is supplied by the verified year-specific filename, not guessed.
+    if "mapping_year" not in x:
+        expected_name = f"plant_ba_crosswalk_{a.year}.csv"
+        if a.crosswalk.name != expected_name:
+            raise ValueError(
+                f"Yearless BA crosswalk requires official extractor filename {expected_name}"
+            )
+        x["mapping_year"] = a.year
     metrics = json.loads(a.metrics.read_text())
     comparison, audit = compare_generation(eia, x, metrics, year=a.year, bas=tuple(a.bas))
     a.output.mkdir(parents=True, exist_ok=True)
