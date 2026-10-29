@@ -1,0 +1,34 @@
+name: EIA-860 Western generator inventory
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: 'EIA-860 annual vintage'
+        required: true
+        default: '2024'
+  push:
+    paths:
+      - '.github/workflows/eia860-capacity.yml'
+      - 'src/energy_transition/eia860_capacity.py'
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]' openpyxl xlrd
+      - name: Download and validate official EIA-860 annual inventory
+        env:
+          YEAR: ${{ inputs.year || '2024' }}
+        run: python -m energy_transition.eia860_capacity --year "$YEAR" --output outputs/eia860
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: western-eia860-capacity
+          path: outputs/eia860/
+          retention-days: 30
