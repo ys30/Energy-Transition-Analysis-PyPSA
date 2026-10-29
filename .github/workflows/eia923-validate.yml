@@ -72,3 +72,59 @@ jobs:
           name: eia923-official-${{ inputs.year }}
           path: outputs/eia923/
           retention-days: 30
+  observed-versus-model:
+    if: github.event_name == 'workflow_dispatch'
+    needs: official-download
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+      YEAR: ${{ inputs.year }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -e '.[model,dev]'
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia923-official-${{ inputs.year }}
+          path: outputs/eia923
+      - name: Check EIA API secret
+        run: |
+          if [ -z "$EIA_API_KEY" ]; then
+            echo "::error::EIA_API_KEY secret required for observed EIA-930 demand"
+            exit 1
+          fi
+      - name: Download and audit same-year EIA-860 operating generators
+        run: |
+          python -m energy_transition.eia860_capacity --year "$YEAR" --output outputs/eia860
+          python -m energy_transition.eia860_plant_ba \
+            --year "$YEAR" \
+            --generators "outputs/eia860/western_state_generators_${YEAR}.csv" \
+            --output outputs/eia860
+      - name: Solve PyPSA with observed demand and EIA-860 nameplate
+        run: |
+          python -m energy_transition.eia930_west \
+            --years "$YEAR" \
+            --eia860-capacity "outputs/eia860/ba_operating_nameplate_by_fuel_${YEAR}.csv" \
+            --output outputs/eia930_west
+      - name: Compare observed EIA-923 generation against PyPSA dispatch
+        run: |
+          python -m energy_transition.eia923_validation \
+            --eia923 "outputs/eia923/eia923_normalized_${YEAR}.csv" \
+            --crosswalk "outputs/eia860/plant_ba_crosswalk_${YEAR}.csv" \
+            --metrics "outputs/eia930_west/${YEAR}/metrics.json" \
+            --year "$YEAR" \
+            --bas CISO BPAT PACE PACW AZPS NEVP PNM IPCO \
+            --output outputs/eia923_validation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia923-vs-pypsa-${{ inputs.year }}
+          path: |
+            outputs/eia923_validation/
+            outputs/eia860/
+            outputs/eia930_west/
+          retention-days: 30
