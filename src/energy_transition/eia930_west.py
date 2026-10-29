@@ -197,6 +197,21 @@ def main():
         else:
             hourly = fetch_eia_demand(year, args.bas)
             hourly.to_csv(raw, index=False)
+        # Region-specific observed-demand audit, before aggregation into one model bus.
+        hourly["period"] = pd.to_datetime(hourly["period"], utc=True)
+        counts = hourly.groupby("respondent").agg(
+            observations=("value", "size"),
+            observed_energy_mwh=("value", "sum"),
+            peak_mw=("value", "max"),
+        ).reset_index()
+        counts["year"] = year
+        if "qc_flag" in hourly:
+            bad = hourly.assign(interpolated=hourly.qc_flag.eq("interpolated_max_3h")).groupby("respondent").interpolated.sum()
+            counts["interpolated_hours"] = counts.respondent.map(bad).fillna(0).astype(int)
+        expected_hours = 8784 if calendar.isleap(year) else 8760
+        if (counts.observations != expected_hours).any():
+            raise ValueError(f"BA year incomplete, expected {expected_hours} hourly records each: {counts.to_dict('records')}")
+        counts.to_csv(args.output / f"ba_audit_{year}.csv", index=False)
         rep = representative_hours(hourly, year)
         rep.to_csv(args.output / f"representative_hours_{year}.csv", index=False)
         result = build_and_solve(rep, args.output / str(year))
