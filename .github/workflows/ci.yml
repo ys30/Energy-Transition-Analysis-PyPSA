@@ -12,6 +12,8 @@ jobs:
           python-version: '3.11'
       - run: python -m pip install -e '.[dev]'
       - run: python -m pytest -q
+      - name: Validate historical EIA model module syntax
+        run: python -m compileall -q src/energy_transition
       - run: python -m energy_transition --output outputs
       - uses: actions/upload-artifact@v4
         with:
