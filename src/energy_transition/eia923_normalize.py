@@ -7,6 +7,7 @@ Unknown energy-source codes are rejected, not silently discarded.
 from __future__ import annotations
 import argparse
 import json
+import re
 from pathlib import Path
 import pandas as pd
 
@@ -22,7 +23,7 @@ MONTHS = ["january", "february", "march", "april", "may", "june",
 
 
 def normalize_schedule3(frame: pd.DataFrame, year: int):
-    cols = {str(c).strip().lower(): c for c in frame.columns}
+    cols = {re.sub(r"\\s+", " ", str(c)).strip().lower(): c for c in frame.columns}
     plant = next((v for k, v in cols.items() if k in ("plant id", "plant code", "plant id number")), None)
     fuel = next((v for k, v in cols.items() if ("reported fuel type code" in k or k == "energy source")), None)
     if not plant or not fuel:
@@ -95,7 +96,7 @@ def main():
             # Inspect headers only; the full EIA-923 sheet is large.
             labels = [str(v).strip() if pd.notna(v) else ""
                       for v in preview.iloc[header].tolist()]
-            columns = {label.lower() for label in labels}
+            columns = {re.sub(r"\\s+", " ", label).lower() for label in labels}
             inspected[sheet].append({"header_row_zero_based": header,
                                       "first_columns": labels[:30]})
             has_plant = bool(columns & {"plant id", "plant code", "plant id number"})
