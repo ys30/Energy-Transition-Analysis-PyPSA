@@ -85,6 +85,12 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
     bad = data["value"].isna() | (data["value"] <= 0)
     data["raw_value"] = data["value"]
     data["qc_flag"] = bad.map({True: "missing_or_nonpositive", False: "observed"})
+    # Enforce the QC threshold for EACH BA before attempting any imputation.
+    # A concentrated failure must not be hidden by a pooled low anomaly rate.
+    by_ba = data.assign(_bad=bad).groupby("respondent")["_bad"].agg(["sum", "count"])
+    excessive = by_ba[by_ba["sum"] / by_ba["count"] > 0.01]
+    if not excessive.empty:
+        raise ValueError("BA-specific EIA demand QC exceeds 1%: " + excessive.to_json())
     n_bad = int(bad.sum())
     if n_bad:
         print(f"EIA demand QC: {n_bad} missing/nonpositive observations among {len(data)}", flush=True)
