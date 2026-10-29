@@ -82,6 +82,14 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
     # EIA publishes BA-level reported values as received, including anomalies.
     # Preserve observations and audit any replacement. Do not silently set negatives to zero.
     data = data.sort_values(["respondent", "period"]).reset_index(drop=True)
+    # Reject concentrated nonpositive/missing values in reported rows before
+    # creating the full-year grid. This also yields the correct diagnostic
+    # for partial-year API fixtures with a known BA-specific anomaly.
+    raw_bad = data["value"].isna() | data["value"].le(0)
+    raw_rates = data.assign(_bad=raw_bad).groupby("respondent")["_bad"].agg(["sum","count"])
+    excessive_raw = raw_rates[raw_rates["sum"] / raw_rates["count"] > 0.01]
+    if not excessive_raw.empty:
+        raise ValueError("BA-specific EIA demand QC exceeds 1%: " + excessive_raw.to_json())
     # EIA-930 can omit individual BA-hour records entirely. Materialize those
     # as missing observations so the same audited short-gap rules apply.
     # Never invent a value or silently substitute another balancing authority.
