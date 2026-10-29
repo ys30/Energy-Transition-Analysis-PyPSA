@@ -85,10 +85,12 @@ def compare_generation(
         raise ValueError("Missing model dispatch_mwh_by_carrier")
     # EIA-923 primary fuel codes are not the same as PyPSA carrier labels.
     # The caller must normalize fuel to the model's carrier names.
-    if set(observed_by_fuel) - set(modeled):
-        raise ValueError(f"Unrecognized EIA-923 carriers: {sorted(set(observed_by_fuel)-set(modeled))}")
+    # Retain observed-only fuels in the audit, but never compare them with
+    # a fictitious zero-MWh PyPSA carrier.
+    observed_only = {k: float(v) for k, v in observed_by_fuel.items()
+                     if k not in modeled}
     rows = []
-    for carrier in sorted(set(observed_by_fuel) | set(modeled)):
+    for carrier in sorted(set(observed_by_fuel) & set(modeled)):
         obs = float(observed_by_fuel.get(carrier, 0))
         pred = float(modeled.get(carrier, 0))
         rows.append({
@@ -107,6 +109,11 @@ def compare_generation(
         "unmapped_national_plant_count": int(unmapped.plant_id.nunique()),
         "selected_ba_completeness": "unverified; unmapped national plants may include selected BAs",
         "negative_net_generation_rows": int(observed.net_generation_mwh.lt(0).sum()),
+        "observed_only_fuels_excluded_from_comparison_mwh": observed_only,
+        "observed_only_fuels_net_generation_mwh": float(sum(observed_only.values())),
+        "modeled_only_carriers_not_comparable": sorted(set(modeled) - set(observed_by_fuel)),
+        "comparison_carriers": sorted(set(observed_by_fuel) & set(modeled)),
+        "comparison_scope": "Only fuel categories common to both datasets; omitted fuels are not modeled as zero.",
         "interpretation": "Diagnostic comparison only; no parameter fitting or hourly validation.",
     }
     return pd.DataFrame(rows), audit
