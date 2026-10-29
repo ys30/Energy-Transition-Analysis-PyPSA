@@ -118,6 +118,13 @@ def compare_generation(
         "observed_only_fuels_net_generation_mwh": float(sum(observed_only.values())),
         "modeled_only_carriers_not_comparable": sorted(set(modeled) - set(observed_by_fuel)),
         "comparison_carriers": comparable,
+        "selected_ba_observed_net_generation_all_fuels_mwh": float(sum(observed_by_fuel.values())),
+        "selected_ba_observed_net_generation_comparable_fuels_mwh": float(sum(observed_by_fuel[k] for k in comparable)),
+        "selected_ba_observed_generation_comparable_fraction_abs": (
+            float(sum(abs(observed_by_fuel[k]) for k in comparable)) /
+            float(sum(abs(v) for v in observed_by_fuel.values()))
+            if sum(abs(v) for v in observed_by_fuel.values()) else None
+        ),
         "comparison_scope": "Only fuel categories common to both datasets; omitted fuels are not modeled as zero.",
         "interpretation": "Diagnostic comparison only; no parameter fitting or hourly validation.",
     }
