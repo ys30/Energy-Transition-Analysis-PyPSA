@@ -70,3 +70,32 @@ def test_missing_shared_hour_rejected():
     both = both.loc[both.period != dates[1234]]
     with pytest.raises(ValueError, match="Incomplete"):
         representative_hours(both, 2023)
+
+
+def test_eia_api_rejects_concentrated_ba_anomalies(monkeypatch):
+    """A BA with >1% bad demand cannot hide under a low pooled QC rate."""
+    import json
+    from energy_transition import eia930_west
+
+    class Response:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, *args):
+            return self.payload
+        payload = b""
+
+    dates = pd.date_range("2023-01-01", periods=1000, freq="h", tz="UTC")
+    rows = []
+    for ba in ("A", "B"):
+        for i, dt in enumerate(dates):
+            value = -1 if ba == "A" and 10 <= i < 22 else 100
+            rows.append({"period": dt.strftime("%Y-%m-%dT%H"),
+                         "respondent": ba, "value": value})
+    # 12 bad rows out of 2000 is 0.6% overall, but 1.2% for BA A.
+    payload = json.dumps({"response": {"data": rows, "total": len(rows)}}).encode()
+    Response.payload = payload
+    monkeypatch.setattr(eia930_west.urllib.request, "urlopen", lambda *args, **kwargs: Response())
+    with pytest.raises(ValueError, match="BA-specific"):
+        eia930_west.fetch_eia_demand(2023, bas=("A", "B"), api_key="test", length=3000)
