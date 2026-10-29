@@ -37,10 +37,12 @@ def test_eia923_rejects_wrong_crosswalk_year():
         compare_generation(g, x, m, year=2024, bas=("CISO",))
 
 
-def test_eia923_rejects_unmapped_plant():
+def test_eia923_audits_unmapped_national_plant():
     g, x, m = _fixtures()
-    with pytest.raises(ValueError, match="Unmapped EIA-923"):
-        compare_generation(g, x.iloc[:1], m, year=2024, bas=("CISO",))
+    result, audit = compare_generation(g, x.iloc[:1], m, year=2024, bas=("CISO",))
+    assert audit["unmapped_national_plant_count"] == 1
+    assert audit["selected_ba_completeness"].startswith("unverified")
+    assert result.set_index("carrier").loc["gas", "observed_eia923_net_generation_mwh"] == 95
 
 
 def test_eia923_rejects_unharmonized_fuel():
