@@ -59,10 +59,15 @@ def read_operable_inventory(archive: bytes, year: int):
     result.loc[missing_id, "id_qc"] = "missing_identifier"
     result["plant_id"] = result["plant_id"].astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
     result["generator_id"] = result["generator_id"].astype("string").str.strip()
-    result.loc[result.plant_id.eq("") | result.generator_id.eq(""), "id_qc"] = "missing_identifier"
+    invalid_ids = (
+        result["plant_id"].isna() | result["generator_id"].isna()
+        | result["plant_id"].eq("").fillna(True)
+        | result["generator_id"].eq("").fillna(True)
+    )
+    result.loc[invalid_ids, "id_qc"] = "missing_identifier"
     result["capacity_mw"] = pd.to_numeric(result.capacity_mw, errors="coerce")
-    result["state"] = result.state.astype(str).str.strip().str.upper()
-    result["fuel"] = result.fuel.astype(str).str.strip()
+    result["state"] = result.state.astype("string").str.strip().str.upper()
+    result["fuel"] = result.fuel.astype("string").str.strip()
     # Retain anomalous raw rows for audit; never count unknown nameplate as zero.
     result["capacity_qc"] = "valid"
     result.loc[result.capacity_mw.isna(), "capacity_qc"] = "missing_or_nonnumeric"
