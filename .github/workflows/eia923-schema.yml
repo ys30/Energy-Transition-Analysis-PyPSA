@@ -1,0 +1,27 @@
+name: EIA-923 official generation schema audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia923-schema.yml'
+      - 'src/energy_transition/eia923_schema_audit.py'
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Inspect official EIA-923 2024 workbook schema
+        run: python -m energy_transition.eia923_schema_audit --year 2024 --output outputs/eia923_schema
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia923-official-schema-2024
+          path: outputs/eia923_schema/
+          retention-days: 30
