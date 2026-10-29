@@ -1,0 +1,27 @@
+name: EIA-923 actual BA fuel generation 2024
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia923-ba-generation.yml'
+      - 'src/energy_transition/eia923_ba_generation.py'
+jobs:
+  generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Extract official EIA-923 2024 plant fuel and BA generation
+        run: python -m energy_transition.eia923_ba_generation --year 2024 --bas CISO BPAT --output outputs/eia923_generation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia923-ba-fuel-generation-2024
+          path: outputs/eia923_generation/
+          retention-days: 30
