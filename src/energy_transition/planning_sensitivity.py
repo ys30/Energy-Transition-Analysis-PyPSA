@@ -16,7 +16,6 @@ NEW_BUILD={"gas":(90000,65,1.0,0.4),"wind":(120000,2,0.35,0.0),
            "solar":(80000,2,0.26,0.0)}
 SCENARIOS={
     "reference":{"growth":0.012,"co2_cap_fraction":None},
-    "decarbonization":{"growth":0.012,"co2_cap_fraction":0.55},
     "high_electrification":{"growth":0.025,"co2_cap_fraction":None},
 }
 
@@ -59,13 +58,6 @@ def run(output,year_baseline=2024,bas=("CISO","BPAT")):
     for scenario in SCENARIOS:
         for year in PERIODS:
             n,reps=prepare(year,scenario,caps,observed)
-            # A reference unconstrained optimal emissions value is required to
-            # enforce a calibrated baseline-relative budget; until available,
-            # do NOT pretend 55% is an enforced CO2 constraint.
-            if SCENARIOS[scenario]["co2_cap_fraction"] is not None:
-                # Budget benchmark derived from observed fossil nameplate only is
-                # not a valid emissions baseline. Keep this scenario separate.
-                pass
             status,termination=n.optimize(solver_name="highs")
             if (status,termination)!=("ok","optimal"):
                 raise RuntimeError(f"Optimization failure {scenario}/{year}: {status}, {termination}")
@@ -81,7 +73,7 @@ def run(output,year_baseline=2024,bas=("CISO","BPAT")):
     (output/"assumptions.json").write_text(json.dumps({
        "source_eia860_year":year_baseline,"source_eia930_year":year_baseline,"planning_years":PERIODS,
        "scenarios":SCENARIOS,"new_build_parameters_capital_usd_per_mw_year_marginal_usd_per_mwh_availability_and_tco2_per_mwh":NEW_BUILD,
-       "warning":"Each year solved independently, no chronological transmission or storage, no enforced CO2 budgets; decarbonization scenario currently shares reference constraints. Not a forecast or integrated multi-period investment solution."
+       "warning":"Each year solved independently, no chronological transmission or storage, no enforced CO2 budgets; scenarios differ only by explicitly assumed demand growth. Not a forecast or integrated multi-period investment solution."
     },indent=2))
     return rows
 
