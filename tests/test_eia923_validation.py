@@ -52,3 +52,17 @@ def test_eia923_audits_observed_only_fuel_without_false_zero_comparison():
     assert "biomass" not in result.carrier.tolist()
     assert audit["observed_only_fuels_excluded_from_comparison_mwh"] == {"biomass": 100.0}
     assert "gas" in result.carrier.tolist()
+
+
+def test_reject_duplicate_plant_month_fuel():
+    g, x, m = _fixtures()
+    repeated = pd.concat([g, g.iloc[[0]]], ignore_index=True)
+    with pytest.raises(ValueError, match='Duplicate normalized'):
+        compare_generation(repeated, x, m, year=2024, bas=('CISO',))
+
+
+def test_reject_no_common_model_fuel():
+    g, x, m = _fixtures()
+    g['fuel'] = 'biomass'
+    with pytest.raises(ValueError, match='No common observed/model carriers'):
+        compare_generation(g, x, m, year=2024, bas=('CISO',))
