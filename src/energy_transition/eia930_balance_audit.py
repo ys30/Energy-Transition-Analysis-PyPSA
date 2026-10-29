@@ -1,8 +1,8 @@
 """Audit observed EIA-930 BA interchange and accounting balance (2024).
 
 Official EIA-930 series D=reported demand, NG=net generation, TI=total interchange.
-Sign convention is not imposed: report both accounting residual alternatives
-and observed correlations until independently verified.
+Positive TI denotes net exports and negative TI net imports. The usual
+EIA identity is D = NG - TI, but processing stages may not be consistent.
 """
 import argparse,json
 from pathlib import Path
@@ -54,8 +54,8 @@ def balance_audit(demand,generation,interchange,bas,year):
       mae_d_minus_ng_minus_ti=("residual_d_minus_ng_minus_ti",lambda v:float(v.abs().mean())),
       mae_d_minus_ng_plus_ti=("residual_d_minus_ng_plus_ti",lambda v:float(v.abs().mean()))
     ).reset_index()
-    # Signed interchange differs across reporting contexts; quantify both
-    # residuals on common complete hours, never sum independently incomplete
+    # Quantify official and opposite-sign diagnostic residuals on common complete
+    # hours, never sum independently incomplete
     # annual series into an alleged energy-balance identity.
     valid=merged.dropna(subset=["demand","generation","interchange"])
     common=valid.groupby("respondent").agg(
@@ -122,7 +122,7 @@ def main():
       "source":API,"types":["D","NG","TI"],
       "official_identity":"Demand = Net Generation - Total Interchange; positive TI is net exports and negative TI is net imports.",
       "official_definition":"https://www.eia.gov/electricity/930-content/about.html",
-      "warning":"Demand may include audited imputations; NG/TI incomplete hours retained. Official identity is assessed only on common nonmissing hours.",
+      "warning":"Demand may include audited imputations; NG/TI incomplete hours retained. Official identity is assessed only on common nonmissing hours. Processing stages of D, NG and TI require independent reconciliation.",
       "interpretation":"D - NG + TI is the official EIA-930 accounting residual. Anomalies may reflect data reporting, pseudo-ties or dynamic schedules; do not infer transmission capacity."
     },indent=2))
     print(audit.to_string(index=False))
