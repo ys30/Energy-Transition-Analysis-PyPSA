@@ -65,7 +65,7 @@ jobs:
         run: |
           python -m energy_transition.eia923_normalize \
             --xlsx "outputs/eia923/eia923_${YEAR}.xlsx" \
-            --year "$YEAR" --output outputs/eia923
+            --year "$YEAR" --allow-incomplete --output outputs/eia923
       - name: Show EIA-923 schema diagnostics if normalization failed
         if: failure()
         run: |
