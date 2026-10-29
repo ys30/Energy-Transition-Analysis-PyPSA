@@ -82,9 +82,31 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
     # EIA publishes BA-level reported values as received, including anomalies.
     # Preserve observations and audit any replacement. Do not silently set negatives to zero.
     data = data.sort_values(["respondent", "period"]).reset_index(drop=True)
+    # EIA-930 can omit individual BA-hour records entirely. Materialize those
+    # as missing observations so the same audited short-gap rules apply.
+    # Never invent a value or silently substitute another balancing authority.
+    expected = pd.date_range(f"{year}-01-01", f"{year+1}-01-01",
+                             freq="h", inclusive="left", tz="UTC")
+    required_pairs = pd.MultiIndex.from_product(
+        [list(bas), expected], names=["respondent", "period"]
+    )
+    observed_pairs = pd.MultiIndex.from_frame(data[["respondent", "period"]])
+    absent_pairs = required_pairs.difference(observed_pairs)
+    if len(absent_pairs):
+        print(f"EIA demand QC: {len(absent_pairs)} absent BA-hour API records; "
+              f"examples={list(absent_pairs[:8])}", flush=True)
+        if len(absent_pairs) / len(required_pairs) > 0.01:
+            raise ValueError("More than 1% of BA-hour API records are absent")
+        data = (data.set_index(["respondent", "period"])
+                .reindex(required_pairs).reset_index())
     bad = data["value"].isna() | (data["value"] <= 0)
     data["raw_value"] = data["value"]
     data["qc_flag"] = bad.map({True: "missing_or_nonpositive", False: "observed"})
+    if len(absent_pairs):
+        absent_mask = pd.MultiIndex.from_frame(
+            data[["respondent", "period"]]
+        ).isin(absent_pairs)
+        data.loc[absent_mask, "qc_flag"] = "absent_api_record"
     # Enforce the QC threshold for EACH BA before attempting any imputation.
     # A concentrated failure must not be hidden by a pooled low anomaly rate.
     by_ba = data.assign(_bad=bad).groupby("respondent")["_bad"].agg(["sum", "count"])
