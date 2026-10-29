@@ -76,10 +76,34 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
     data = data[["period", "respondent", "value"]].copy()
     data["period"] = pd.to_datetime(data["period"], utc=True, errors="raise")
     data["value"] = pd.to_numeric(data["value"], errors="coerce")
-    if data["value"].isna().any() or (data["value"] < 0).any():
-        raise ValueError("EIA includes missing/negative load: investigate before aggregation")
     if data.duplicated(["period", "respondent"]).any():
         raise ValueError("Duplicate balancing authority-hour rows")
+    # EIA publishes BA-level reported values as received, including anomalies.
+    # Preserve observations and audit any replacement. Do not silently set negatives to zero.
+    data = data.sort_values(["respondent", "period"]).reset_index(drop=True)
+    bad = data["value"].isna() | (data["value"] <= 0)
+    data["raw_value"] = data["value"]
+    data["qc_flag"] = bad.map({True: "missing_or_nonpositive", False: "observed"})
+    n_bad = int(bad.sum())
+    if n_bad:
+        print(f"EIA demand QC: {n_bad} missing/nonpositive observations among {len(data)}", flush=True)
+        # Per-BA local time-series interpolation is used only for isolated gaps,
+        # never for a full missing BA or long gaps. Preserve raw_values and flags.
+        for ba, idx in data.groupby("respondent").groups.items():
+            subset = data.loc[idx].sort_values("period")
+            v = subset["value"].where(subset["value"] > 0)
+            filled = v.interpolate(method="linear", limit=3, limit_area="inside")
+            replaced = v.isna() & filled.notna()
+            data.loc[subset.index, "value"] = filled
+            data.loc[subset.index[replaced], "qc_flag"] = "interpolated_max_3h"
+        remaining = data["value"].isna() | (data["value"] <= 0)
+        if remaining.any():
+            examples = data.loc[remaining, ["period", "respondent", "raw_value"]].head(8).to_dict("records")
+            raise ValueError(f"Unresolved EIA data quality: {int(remaining.sum())} rows; examples={examples}")
+    data.attrs["qc_anomaly_rows"] = n_bad
+    data.attrs["qc_fraction"] = n_bad / len(data)
+    if n_bad / len(data) > 0.01:
+        raise ValueError(f"Too many EIA anomalies: {n_bad}/{len(data)} > 1% QC limit")
     present = set(data.respondent)
     if set(bas) - present:
         raise ValueError(f"Missing balancing authorities: {set(bas) - present}")
