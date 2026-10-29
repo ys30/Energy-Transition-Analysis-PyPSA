@@ -273,7 +273,55 @@ def representative_hours(observations: pd.DataFrame, year: int):
         raise ValueError("Representative-hour energy conservation failed")
     return rep
 
-def build_and_solve(reps: pd.DataFrame, output: Path):
+def load_ba_capacity(path: Path, bas, *, minimum_coverage=0.95):
+    """Load audited EIA-860 BA nameplate capacities as an explicit scenario.
+
+    Requires a manifest from eia860_plant_ba and a same-year CSV.
+    Does not imply dependable capacity or reproduce observed generation.
+    """
+    import math
+    frame = pd.read_csv(path)
+    required = {"ba_code", "fuel", "capacity_mw"}
+    if required - set(frame):
+        raise ValueError(f"Missing EIA-860 capacity columns: {required - set(frame)}")
+    if frame.empty:
+        raise ValueError("Empty EIA-860 BA capacity input")
+    if frame[["ba_code", "fuel"]].isna().any().any():
+        raise ValueError("Missing EIA-860 BA or fuel code")
+    if frame.duplicated(["ba_code", "fuel"]).any():
+        raise ValueError("Duplicate BA-fuel rows in EIA-860 capacity")
+    if not frame.ba_code.isin(bas).all():
+        # Official inventory can contain additional BAs; filter explicitly.
+        frame = frame.loc[frame.ba_code.isin(bas)].copy()
+    if frame.empty:
+        raise ValueError("No EIA-860 capacity for requested EIA-930 BAs")
+    frame["capacity_mw"] = pd.to_numeric(frame.capacity_mw, errors="raise")
+    if not frame.capacity_mw.map(math.isfinite).all() or frame.capacity_mw.lt(0).any():
+        raise ValueError("Invalid EIA-860 BA nameplate MW")
+    manifest = path.with_name("ba_crosswalk_manifest_" + path.stem.rsplit("_", 1)[-1] + ".json")
+    if not manifest.is_file():
+        raise FileNotFoundError(f"Required crosswalk provenance missing: {manifest}")
+    provenance = json.loads(manifest.read_text())
+    coverage = float(provenance.get("operating_nameplate_mapping_fraction", 0))
+    if coverage < minimum_coverage:
+        raise ValueError(f"Insufficient EIA-860 plant BA mapping coverage: {coverage:.2%}")
+    fuel_map = {
+        "NG": "gas", "WND": "wind", "SUN": "solar",
+    }
+    frame["carrier"] = frame.fuel.map(fuel_map)
+    unsupported = frame.loc[frame.carrier.isna() & frame.capacity_mw.gt(0)]
+    if not unsupported.empty:
+        raise ValueError(
+            "EIA-860 contains nonzero hydro/coal/nuclear/other fuels not represented "
+            "in the three-carrier dispatch; refusing silent capacity omission"
+        )
+    cap = frame.groupby("carrier").capacity_mw.sum().to_dict()
+    if not all(cap.get(c, 0) > 0 for c in CARRIERS):
+        raise ValueError("Missing positive gas, wind or solar capacity in EIA-860 input")
+    return {k: float(cap[k]) for k in CARRIERS}
+
+
+def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
     import pypsa
     n = pypsa.Network()
     n.add("Bus", "western_subset")
@@ -284,7 +332,8 @@ def build_and_solve(reps: pd.DataFrame, output: Path):
     for carrier, cfg in CARRIERS.items():
         n.add("Carrier", carrier, co2_emissions=cfg["co2_emissions"])
         n.add("Generator", carrier, bus="western_subset", carrier=carrier,
-              p_nom=cfg["p_nom"], marginal_cost=cfg["marginal_cost"],
+              p_nom=(capacities[carrier] if capacities is not None else cfg["p_nom"]),
+              marginal_cost=cfg["marginal_cost"],
               p_max_pu=AVAILABILITY[carrier])
     # Load shedding makes infeasibility visible; it must never be mistaken for physical generation.
     n.add("Generator", "unserved", bus="western_subset", p_nom=1e7,
@@ -297,6 +346,8 @@ def build_and_solve(reps: pd.DataFrame, output: Path):
     unserved_mwh = float(generation["unserved"])
     result = {
         "solve_status": condition, "observed_demand_mwh": total_mwh,
+        "capacity_basis": "audited_EIA860_nameplate_scenario" if capacities is not None else "assumed_capacity_scenario",
+        "generator_nameplate_mw": {k: float(capacities[k] if capacities is not None else CARRIERS[k]["p_nom"]) for k in CARRIERS},
         "unserved_mwh": unserved_mwh, "unserved_share": unserved_mwh / total_mwh,
         "dispatch_mwh_by_carrier": {k: float(generation[k]) for k in CARRIERS},
         "operational_tco2_assumed": float(sum(generation[k] * CARRIERS[k]["co2_emissions"] for k in CARRIERS)),
@@ -315,7 +366,10 @@ def main():
     p.add_argument("--bas", nargs="+", default=list(DEFAULT_BAS))
     p.add_argument("--output", type=Path, default=Path("outputs/eia930_west"))
     p.add_argument("--cached", action="store_true", help="Use previously downloaded per-year CSVs; never synthesize inputs")
+    p.add_argument("--eia860-capacity", type=Path,
+                   help="Optional audited BA-fuel capacity CSV; only supported carriers allowed")
     args = p.parse_args()
+    capacities = load_ba_capacity(args.eia860_capacity, args.bas) if args.eia860_capacity else None
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = {"source": "EIA-930 region-data hourly actual demand, type D",
                 "source_url": API, "respondents": args.bas,
@@ -383,7 +437,7 @@ def main():
         }
         (args.output / f"energy_audit_{year}.json").write_text(json.dumps(energy_audit, indent=2))
         rep.to_csv(args.output / f"representative_hours_{year}.csv", index=False)
-        result = build_and_solve(rep, args.output / str(year))
+        result = build_and_solve(rep, args.output / str(year), capacities=capacities)
         results.append({"year": year, **{k: v for k, v in result.items() if isinstance(v, (int, float, str))}})
     pd.DataFrame(results).to_csv(args.output / "yearly_summary.csv", index=False)
 
