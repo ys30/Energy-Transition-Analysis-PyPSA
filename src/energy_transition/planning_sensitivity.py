@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 from .ba_historical_dispatch import ba_capacities, SOLVABLE
 from .eia930_west import fetch_eia_demand, representative_hours
+from .solar_availability import solar_daylight_profile
 
 PERIODS=(2025,2030,2035,2040)
 NEW_BUILD={"gas":(90000,65,1.0,0.4),"wind":(120000,2,0.35,0.0),
@@ -35,6 +36,7 @@ def prepare(period, scenario, caps, observed):
     for carrier in ("gas","coal","nuclear","hydro","wind","solar"):
         n.add("Carrier",carrier,co2_emissions=NEW_BUILD.get(carrier,(0,0,0,0))[3])
     n.carriers.loc["coal","co2_emissions"]=0.9
+    pv = solar_daylight_profile(n.snapshots)
     for ba in bas:
         n.add("Bus",ba)
         load=reps[ba].value.to_numpy() * ((1+opts["growth"])**(period-2024))
@@ -43,11 +45,11 @@ def prepare(period, scenario, caps, observed):
             if b!=ba:continue
             cost, avail=SOLVABLE[tech]
             n.add("Generator",f"{ba}_{tech}_existing",bus=ba,carrier=tech,
-                  p_nom=float(mw),marginal_cost=cost,p_max_pu=avail)
+                  p_nom=float(mw),marginal_cost=cost,p_max_pu=pv if tech=="solar" else avail)
         for tech,(capital,marginal,avail,_) in NEW_BUILD.items():
             n.add("Generator",f"{ba}_{tech}_new",bus=ba,carrier=tech,
                   p_nom_extendable=True,capital_cost=capital,marginal_cost=marginal,
-                  p_max_pu=avail)
+                  p_max_pu=pv if tech=="solar" else avail)
         n.add("Generator",f"{ba}_unserved",bus=ba,p_nom=1e7,marginal_cost=10000)
     return n,base
 
@@ -110,6 +112,7 @@ def run(output,year_baseline=2024,bas=("CISO","BPAT")):
     (output/"assumptions.json").write_text(json.dumps({
        "source_eia860_year":year_baseline,"source_eia930_year":year_baseline,"planning_years":PERIODS,
        "scenarios":SCENARIOS,"new_build_parameters_capital_usd_per_mw_year_marginal_usd_per_mwh_availability_and_tco2_per_mwh":NEW_BUILD,
+       "solar_profile":"Illustrative local-time daylight envelope, NOT observed solar irradiance; zero at local night, approximately 0.26 mean.",
        "warning":"Each year solved independently, no chronological transmission or storage, 50% carbon cap is enforced relative to each planning year’s unconstrained reference model emissions; this is NOT an empirically calibrated carbon budget. Emissions are operational model estimates using assumed factors, not observed EIA generation or emissions. Not a forecast or integrated multi-period investment solution."
     },indent=2))
     return rows
