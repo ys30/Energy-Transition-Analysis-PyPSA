@@ -48,3 +48,12 @@ def test_schedule3_accepts_plant_id_number_and_annotated_fuel_header():
     })
     result = normalize_schedule3(frame, 2024)
     assert result.net_generation_mwh.sum() == 120
+
+
+def test_schedule3_accepts_official_multiline_fuel_header():
+    frame = _schedule().rename(columns={
+        "Reported Fuel Type Code": "Reported\nFuel Type Code"
+    })
+    result = normalize_schedule3(frame, 2024)
+    assert len(result) == 12
+    assert result.net_generation_mwh.sum() == 120
