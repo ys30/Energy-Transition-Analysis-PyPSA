@@ -70,7 +70,7 @@ def balance_audit(demand,generation,interchange,bas,year):
         audit.common_demand_mwh/audit.complete_triples)
     audit["candidate_minus_mae_share_of_load"]=audit.mae_d_minus_ng_minus_ti/(
         audit.common_demand_mwh/audit.complete_triples)
-    audit["accounting_gate"]=audit.apply(
+    audit["official_balance_residual_mwh"]=audit.common_residual_plus_mwh\n    audit["official_balance_mae_mw"]=audit.mae_d_minus_ng_plus_ti\n    audit["official_balance_mae_share_of_load"]=audit.candidate_plus_mae_share_of_load\n    audit["accounting_gate"]=audit.apply(
         lambda r: "review_required" if r.complete_triple_share < 0.99 or
         min(r.candidate_plus_mae_share_of_load,
             r.candidate_minus_mae_share_of_load)>0.10
@@ -91,8 +91,8 @@ def main():
     audit.to_csv(a.output/"ba_balance_summary.csv",index=False)
     (a.output/"provenance.json").write_text(json.dumps({
       "source":API,"types":["D","NG","TI"],
-      "warning":"Demand may include audited imputations; NG/TI incomplete hours retained. Interchange sign convention NOT assumed; neither accounting residual is independently validated.",
-      "interpretation":"D - NG +/- TI is a screening diagnostic, not a full energy accounting identity; storage, BA net interchange conventions and losses require validation."
+      "official_identity":"Demand = Net Generation - Total Interchange; positive TI is net exports and negative TI is net imports.",\n      "official_definition":"https://www.eia.gov/electricity/930-content/about.html",\n      "warning":"Demand may include audited imputations; NG/TI incomplete hours retained. Official identity is assessed only on common nonmissing hours.",
+      "interpretation":"D - NG + TI is the official EIA-930 accounting residual. Anomalies may reflect data reporting, pseudo-ties or dynamic schedules; do not infer transmission capacity."
     },indent=2))
     print(audit.to_string(index=False))
 if __name__=="__main__":main()
