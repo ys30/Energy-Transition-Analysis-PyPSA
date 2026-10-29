@@ -177,7 +177,18 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
         )
     coverage = data.groupby("period").respondent.nunique()
     if len(coverage) != len(expected) or coverage.min() != len(bas):
-        raise ValueError("Incomplete BA coverage in at least one hourly snapshot")
+        # A missing API record is distinct from a reported zero or NaN.
+        # Report exact BA/time pairs rather than silently forward-filling them.
+        complete = pd.MultiIndex.from_product(
+            [expected, list(bas)], names=["period", "respondent"]
+        )
+        observed = pd.MultiIndex.from_frame(data[["period", "respondent"]])
+        missing_pairs = complete.difference(observed)
+        samples = [(str(t), ba) for t, ba in missing_pairs[:12]]
+        raise ValueError(
+            f"Incomplete BA coverage: {len(missing_pairs)} absent BA-hour records; "
+            f"examples={samples}"
+        )
     return data.sort_values(["period", "respondent"]).reset_index(drop=True)
 
 
