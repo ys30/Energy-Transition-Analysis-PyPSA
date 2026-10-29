@@ -58,6 +58,8 @@ def compare_generation(
         raise ValueError("Crosswalk contains missing BA")
     if observed.fuel.isna().any():
         raise ValueError("Missing EIA-923 fuel")
+    if observed.duplicated(["plant_id", "report_year", "month", "fuel"]).any():
+        raise ValueError("Duplicate normalized EIA-923 plant-month-fuel rows")
     observed["net_generation_mwh"] = pd.to_numeric(observed.net_generation_mwh, errors="raise")
     if not observed.net_generation_mwh.map(lambda v: bool(pd.notna(v) and abs(v) != float("inf"))).all():
         raise ValueError("Invalid EIA-923 generation")
@@ -89,8 +91,11 @@ def compare_generation(
     # a fictitious zero-MWh PyPSA carrier.
     observed_only = {k: float(v) for k, v in observed_by_fuel.items()
                      if k not in modeled}
+    comparable = sorted(set(observed_by_fuel) & set(modeled))
+    if not comparable:
+        raise ValueError("No common observed/model carriers; cannot validate generation")
     rows = []
-    for carrier in sorted(set(observed_by_fuel) & set(modeled)):
+    for carrier in comparable:
         obs = float(observed_by_fuel.get(carrier, 0))
         pred = float(modeled.get(carrier, 0))
         rows.append({
@@ -112,7 +117,7 @@ def compare_generation(
         "observed_only_fuels_excluded_from_comparison_mwh": observed_only,
         "observed_only_fuels_net_generation_mwh": float(sum(observed_only.values())),
         "modeled_only_carriers_not_comparable": sorted(set(modeled) - set(observed_by_fuel)),
-        "comparison_carriers": sorted(set(observed_by_fuel) & set(modeled)),
+        "comparison_carriers": comparable,
         "comparison_scope": "Only fuel categories common to both datasets; omitted fuels are not modeled as zero.",
         "interpretation": "Diagnostic comparison only; no parameter fitting or hourly validation.",
     }
