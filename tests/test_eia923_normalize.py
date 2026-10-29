@@ -68,3 +68,17 @@ def test_schedule3_accepts_multiline_official_netgen_columns():
     out = normalize_schedule3(frame, 2024)
     assert len(out) == 12
     assert out.net_generation_mwh.sum() == 120
+
+
+def test_official_incomplete_row_exclusion_does_not_zero_fill():
+    frame = _schedule()
+    second = _schedule(value=7)
+    second["Plant Id"] = 999
+    second.loc[0, "Netgen February"] = "not reported"
+    data = pd.concat([frame, second], ignore_index=True)
+    result = normalize_schedule3(data, 2024, allow_incomplete=True)
+    assert result.plant_id.unique().tolist() == ["123"]
+    assert result.net_generation_mwh.sum() == 120
+    audit = result.attrs["excluded_cells"]
+    assert len(audit) == 1
+    assert str(audit.iloc[0].plant_id) == "999"
