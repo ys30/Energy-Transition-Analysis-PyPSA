@@ -38,7 +38,7 @@ def compare_generation(
         raise ValueError("BA subset must be nonempty and unique")
     observed, x = eia923.copy(), crosswalk.copy()
     for d in (observed, x):
-        d["plant_id"] = d.plant_id.astype("string").str.strip().str.replace(r"\\.0$", "", regex=True)
+        d["plant_id"] = d.plant_id.astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
     observed["report_year"] = pd.to_numeric(observed.report_year, errors="raise")
     observed["month"] = pd.to_numeric(observed.month, errors="raise")
     x["mapping_year"] = pd.to_numeric(x.mapping_year, errors="raise")
