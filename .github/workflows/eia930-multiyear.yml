@@ -66,11 +66,12 @@ jobs:
     needs: yearly
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      # Checkout must precede artifact downloads: checkout git clean removes untracked files.
       - uses: actions/download-artifact@v4
         with:
           pattern: eia930-west-*
           path: yearly_artifacts
-      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
