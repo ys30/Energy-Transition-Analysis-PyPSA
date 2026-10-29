@@ -40,11 +40,16 @@ def extract_plant_ba(archive: bytes):
     x["ba_code"] = x.ba_code.astype("string").str.strip().str.upper()
     x["state"] = x.state.astype("string").str.strip().str.upper()
     x["crosswalk_qc"] = "valid"
-    invalid = x.plant_id.isna() | x.plant_id.eq("") | x.ba_code.isna() | x.ba_code.eq("")
+    invalid = (x.plant_id.isna() | x.plant_id.eq("").fillna(True)
+               | x.ba_code.isna() | x.ba_code.eq("").fillna(True))
     x.loc[invalid.fillna(True), "crosswalk_qc"] = "missing_plant_or_ba"
     valid = x.loc[x.crosswalk_qc.eq("valid")].copy()
     conflicting = valid.groupby("plant_id").ba_code.nunique().loc[lambda s:s.gt(1)].index
     x.loc[x.plant_id.isin(conflicting), "crosswalk_qc"] = "conflicting_ba"
+    # A plant appearing under multiple states is also ambiguous even if the
+    # reported BA code is identical; reject it before joining generators.
+    conflicting_state = valid.groupby("plant_id").state.nunique().loc[lambda s:s.gt(1)].index
+    x.loc[x.plant_id.isin(conflicting_state), "crosswalk_qc"] = "conflicting_plant_state"
     # Duplicate exact matches are redundant, not independent plants.
     return x, sheet
 
@@ -79,6 +84,8 @@ def main():
         raise ValueError("Operational status must be present to estimate operating capacity")
     if operating.empty:
         raise ValueError("No operating generators matched to reported plant BA codes")
+    if operating.capacity_mw.isna().any() or operating.capacity_mw.lt(0).any():
+        raise ValueError("Invalid matched operating generator nameplate capacity")
     operating_all = joined.loc[
         joined.status.astype("string").str.strip().str.upper().eq("OP")
         & joined.capacity_mw.notna()
