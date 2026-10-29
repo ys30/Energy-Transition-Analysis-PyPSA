@@ -163,8 +163,27 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
                         if pd.notna(a) and pd.notna(b) and a > 0 and b > 0:
                             data.loc[ix, "value"] = (float(a) + float(b)) / 2
                             data.loc[ix, "qc_flag"] = "neighboring_day_imputation"
+                # For gaps >24h, only use a bounded same-hour neighboring-week
+                # estimate with *both* original observations present. A 48-hour
+                # zero block is not accepted as actual load and remains flagged.
+                elif length <= 48:
+                    for ix in positions:
+                        pos = subset.index.get_loc(ix)
+                        if pos - 168 < 0 or pos + 168 >= len(subset):
+                            continue
+                        prev = subset.iloc[pos - 168]
+                        nxt = subset.iloc[pos + 168]
+                        current = subset.loc[ix]
+                        if (current["period"] - prev["period"] != pd.Timedelta(hours=168)
+                            or nxt["period"] - current["period"] != pd.Timedelta(hours=168)):
+                            continue
+                        a = prev["raw_value"]
+                        b = nxt["raw_value"]
+                        if pd.notna(a) and pd.notna(b) and a > 0 and b > 0:
+                            data.loc[ix, "value"] = (float(a) + float(b)) / 2
+                            data.loc[ix, "qc_flag"] = "neighboring_week_imputation"
                 print(f"  BA={ba} gap start={group.period.min()} length={length}h "
-                      f"remaining={int(data.loc[positions, 'value'].isna().sum())}", flush=True)
+                      f"remaining={int((data.loc[positions, 'value'].isna() | (data.loc[positions, 'value'] <= 0)).sum())}", flush=True)
         remaining = data["value"].isna() | (data["value"] <= 0)
         if remaining.any():
             examples = data.loc[remaining, ["period", "respondent", "raw_value"]].head(8).to_dict("records")
@@ -340,7 +359,7 @@ def main():
             counts["raw_observed_energy_mwh"] = counts.respondent.map(raw_audit.raw_observed_energy_mwh)
             counts["raw_nonpositive_or_missing_hours"] = counts.respondent.map(raw_audit.raw_nonpositive_or_missing_hours)
         if "qc_flag" in hourly:
-            bad = hourly.assign(interpolated=hourly.qc_flag.str.startswith(("interpolated_", "neighboring_day_"))).groupby("respondent").interpolated.sum()
+            bad = hourly.assign(interpolated=hourly.qc_flag.str.startswith(("interpolated_", "neighboring_day_", "neighboring_week_"))).groupby("respondent").interpolated.sum()
             counts["interpolated_hours"] = counts.respondent.map(bad).fillna(0).astype(int)
             counts["imputation_share"] = counts["interpolated_hours"] / counts["expected_hours"]
         expected_hours = 8784 if calendar.isleap(year) else 8760
