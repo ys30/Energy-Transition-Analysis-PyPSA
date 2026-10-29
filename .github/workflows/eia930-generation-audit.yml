@@ -1,0 +1,31 @@
+name: EIA-930 observed generation calibration audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia930-generation-audit.yml'
+      - 'src/energy_transition/eia930_generation_audit.py'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Download EIA-930 hourly observed BA generation and audit data quality
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        run: |
+          test -n "$EIA_API_KEY"
+          python -m energy_transition.eia930_generation_audit --year 2024 --bas CISO BPAT --output outputs/ba_generation_audit
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia930-observed-generation-2024
+          path: outputs/ba_generation_audit/
+          retention-days: 30
