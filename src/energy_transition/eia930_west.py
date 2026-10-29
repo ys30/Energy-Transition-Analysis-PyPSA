@@ -87,15 +87,55 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
     n_bad = int(bad.sum())
     if n_bad:
         print(f"EIA demand QC: {n_bad} missing/nonpositive observations among {len(data)}", flush=True)
-        # Per-BA local time-series interpolation is used only for isolated gaps,
-        # never for a full missing BA or long gaps. Preserve raw_values and flags.
+        # Diagnose consecutive missing blocks without modifying raw_values.
+        # Short gaps <=3 hours use time interpolation; longer gaps up to 24h
+        # use matching UTC hour on adjacent days (assumption, flagged).
+        # A longer block is left unresolved and fails the run.
         for ba, idx in data.groupby("respondent").groups.items():
             subset = data.loc[idx].sort_values("period")
-            v = subset["value"].where(subset["value"] > 0)
-            filled = v.interpolate(method="linear", limit=3, limit_area="inside")
-            replaced = v.isna() & filled.notna()
-            data.loc[subset.index, "value"] = filled
-            data.loc[subset.index[replaced], "qc_flag"] = "interpolated_max_3h"
+            vals = subset["value"].where(subset["value"] > 0).copy()
+            missing = vals.isna()
+            blocks = (missing != missing.shift(fill_value=False)).cumsum()
+            for _, group in subset.loc[missing].groupby(blocks[missing]):
+                positions = group.index
+                length = len(positions)
+                first = subset.index.get_loc(positions[0])
+                last = subset.index.get_loc(positions[-1])
+                before = first - 1
+                after = last + 1
+                if before < 0 or after >= len(subset):
+                    continue
+                # Demand must be consecutive hourly observations before imputing.
+                periods = subset["period"].reset_index(drop=True)
+                segment = periods.iloc[before:after + 1]
+                if not segment.diff().dropna().eq(pd.Timedelta(hours=1)).all():
+                    continue
+                if length <= 3:
+                    left = float(vals.iloc[before])
+                    right = float(vals.iloc[after])
+                    if pd.notna(left) and pd.notna(right):
+                        for j, ix in enumerate(positions, 1):
+                            data.loc[ix, "value"] = left + (right - left) * j / (length + 1)
+                            data.loc[ix, "qc_flag"] = "interpolated_le3h"
+                elif length <= 24:
+                    # Same-hour previous/next day must both be observed.
+                    for ix in positions:
+                        pos = subset.index.get_loc(ix)
+                        if pos - 24 < 0 or pos + 24 >= len(subset):
+                            continue
+                        prev = subset.iloc[pos - 24]
+                        nxt = subset.iloc[pos + 24]
+                        current = subset.loc[ix]
+                        if (current["period"] - prev["period"] != pd.Timedelta(hours=24)
+                            or nxt["period"] - current["period"] != pd.Timedelta(hours=24)):
+                            continue
+                        a = prev["raw_value"]
+                        b = nxt["raw_value"]
+                        if pd.notna(a) and pd.notna(b) and a > 0 and b > 0:
+                            data.loc[ix, "value"] = (float(a) + float(b)) / 2
+                            data.loc[ix, "qc_flag"] = "neighboring_day_imputation"
+                print(f"  BA={ba} gap start={group.period.min()} length={length}h "
+                      f"remaining={int(data.loc[positions, 'value'].isna().sum())}", flush=True)
         remaining = data["value"].isna() | (data["value"] <= 0)
         if remaining.any():
             examples = data.loc[remaining, ["period", "respondent", "raw_value"]].head(8).to_dict("records")
@@ -206,7 +246,7 @@ def main():
         ).reset_index()
         counts["year"] = year
         if "qc_flag" in hourly:
-            bad = hourly.assign(interpolated=hourly.qc_flag.eq("interpolated_max_3h")).groupby("respondent").interpolated.sum()
+            bad = hourly.assign(interpolated=hourly.qc_flag.str.startswith(("interpolated_", "neighboring_day_"))).groupby("respondent").interpolated.sum()
             counts["interpolated_hours"] = counts.respondent.map(bad).fillna(0).astype(int)
         expected_hours = 8784 if calendar.isleap(year) else 8760
         if (counts.observations != expected_hours).any():
