@@ -22,7 +22,12 @@ def aggregate(root: Path, output: Path, years=range(2019, 2026), allow_partial=F
         if missing:
             if not allow_partial:
                 raise FileNotFoundError(f"Required verified artifact missing: {missing[0]}")
-            excluded.append({"year": year, "reason": "missing_or_failed_yearly_artifact", "missing_paths": [str(p) for p in missing]})
+            status_path = folder / "year_run_status.json"
+            failure_detail = json.loads(status_path.read_text()) if status_path.is_file() else {}
+            excluded.append({"year": year, "reason": "missing_or_failed_yearly_artifact",
+                             "missing_paths": [str(p) for p in missing],
+                             "job_status": failure_detail.get("status", "unknown"),
+                             "error": failure_detail.get("last_error", "")})
             continue
         metrics = json.loads(metrics_path.read_text())
         energy = json.loads(energy_path.read_text())
