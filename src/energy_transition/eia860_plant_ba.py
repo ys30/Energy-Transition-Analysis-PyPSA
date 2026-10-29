@@ -77,6 +77,22 @@ def main():
         operating = mapped[mapped.status.astype(str).str.strip().eq("OP")]
     else:
         raise ValueError("Operational status must be present to estimate operating capacity")
+    if operating.empty:
+        raise ValueError("No operating generators matched to reported plant BA codes")
+    operating_all = joined.loc[
+        joined.status.astype("string").str.strip().str.upper().eq("OP")
+        & joined.capacity_mw.notna()
+        & joined.capacity_mw.ge(0)
+    ]
+    operating_coverage = (
+        float(operating.capacity_mw.sum()) / float(operating_all.capacity_mw.sum())
+        if float(operating_all.capacity_mw.sum()) > 0 else 0.0
+    )
+    if operating_coverage < 0.95:
+        raise ValueError(
+            f"Operating nameplate BA crosswalk coverage {operating_coverage:.2%} "
+            "below 95%; inspect generator_ba_audit before model calibration"
+        )
     grouped = operating.groupby(["ba_code","fuel"], as_index=False).capacity_mw.sum()
     grouped.to_csv(a.output / f"ba_operating_nameplate_by_fuel_{a.year}.csv", index=False)
     report = {
@@ -86,6 +102,7 @@ def main():
         "generator_rows":len(joined), "matched_generators":len(mapped),
         "unmatched_generators":int(joined.crosswalk_status.eq("unmatched").sum()),
         "operating_mapped_nameplate_mw":float(operating.capacity_mw.sum()),
+        "operating_nameplate_mapping_fraction":operating_coverage,
         "boundary":"Only generator-plant joins with reported EIA-860 plant BA codes. This is not hourly availability or calibrated dispatch."
     }
     (a.output / f"ba_crosswalk_manifest_{a.year}.json").write_text(json.dumps(report,indent=2))
