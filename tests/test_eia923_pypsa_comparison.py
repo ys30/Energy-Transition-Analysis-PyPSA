@@ -48,3 +48,4 @@ def test_nonpositive_observed_net_generation_is_not_percentage_accuracy():
     out = compare(qualified, FakeNetwork()).iloc[0]
     assert out.benchmark_evidence_status == "nonpositive_net_generation"
     assert pd.isna(out.absolute_percentage_difference)
+    assert pd.isna(out.relative_difference_vs_qualified_observed)
