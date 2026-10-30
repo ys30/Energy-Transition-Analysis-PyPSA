@@ -66,3 +66,11 @@ def test_reject_no_common_model_fuel():
     g['fuel'] = 'biomass'
     with pytest.raises(ValueError, match='No common observed/model carriers'):
         compare_generation(g, x, m, year=2024, bas=('CISO',))
+
+
+@pytest.mark.parametrize('bad_value', [float('nan'), float('inf'), -1.0, 'invalid'])
+def test_reject_invalid_modeled_dispatch(bad_value):
+    g, x, m = _fixtures()
+    m['dispatch_mwh_by_carrier']['gas'] = bad_value
+    with pytest.raises(ValueError, match='model dispatch'):
+        compare_generation(g, x, m, year=2024, bas=('CISO',))
