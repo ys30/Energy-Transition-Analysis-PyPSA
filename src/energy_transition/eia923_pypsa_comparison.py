@@ -103,6 +103,7 @@ def summarize_comparison(joined):
             "nonpositive_generation_rows": int(part.benchmark_evidence_status.eq("nonpositive_net_generation").sum()),
             "matched_qualified_eia923_mwh": float(part.loc[qualified, "eia923_qualified_mwh"].sum()),
             "matched_pypsa_mwh": float(part.loc[qualified, "pypsa_dispatch_mwh"].sum()),
+            "annual_comparison_readiness": "descriptive_only" if bool(qualified.any()) else "insufficient_comparable_evidence",
             "validated_hourly_calibration": False,
         })
     return pd.DataFrame(rows, columns=[
@@ -111,7 +112,7 @@ def summarize_comparison(joined):
         "qualified_annual_comparison_rows", "observed_only_rows",
         "model_only_rows", "partial_coverage_rows",
         "nonpositive_generation_rows", "matched_qualified_eia923_mwh",
-        "matched_pypsa_mwh", "validated_hourly_calibration",
+        "matched_pypsa_mwh", "annual_comparison_readiness", "validated_hourly_calibration",
     ])
 
 
