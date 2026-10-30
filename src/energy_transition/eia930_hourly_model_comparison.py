@@ -111,13 +111,21 @@ def extract_full_year_dispatch(network, year: int, bas):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--observed",type=Path,required=True)
-    parser.add_argument("--modeled",type=Path,required=True)
+    parser.add_argument("--modeled",type=Path,help="Prepared BA-hour modeled MW CSV")
+    parser.add_argument("--network",type=Path,help="Solved full-year PyPSA NetCDF, not representative-hour network")
     parser.add_argument("--year",type=int,default=2024)
     parser.add_argument("--bas",nargs="+",default=["CISO","BPAT"])
     parser.add_argument("--output",type=Path,default=Path("outputs/hourly_generation_comparison"))
     args=parser.parse_args()
+    if bool(args.modeled) == bool(args.network):
+        parser.error("Supply exactly one of --modeled or --network")
     args.output.mkdir(parents=True,exist_ok=True)
-    pairs,summary=compare_hourly(pd.read_csv(args.observed),pd.read_csv(args.modeled),
+    if args.network:
+        import pypsa
+        modeled=extract_full_year_dispatch(pypsa.Network(args.network),args.year,args.bas)
+    else:
+        modeled=pd.read_csv(args.modeled)
+    pairs,summary=compare_hourly(pd.read_csv(args.observed),modeled,
                                  args.year,args.bas)
     pairs.to_csv(args.output/"hourly_pairs.csv",index=False)
     summary.to_csv(args.output/"ba_hourly_error_summary.csv",index=False)
