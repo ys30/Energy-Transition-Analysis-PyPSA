@@ -66,7 +66,7 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
                    marginal_cost=generation_cost)
     no_storage.add("Generator","assumed_peaker",bus="pilot",p_nom=peaker_mw,
                    marginal_cost=peaker_cost)
-    no_storage.add("Generator","unserved",bus="pilot",p_nom=1e7,marginal_cost=10000.)
+    no_storage.add("Generator","unserved",bus="pilot",p_nom=1e7,marginal_cost=voll_usd_per_mwh)
     baseline_status,baseline_condition=no_storage.optimize(solver_name="highs")
     if baseline_status!="ok" or baseline_condition!="optimal":
         raise RuntimeError(f"No-storage counterfactual failed: {baseline_status}, {baseline_condition}")
