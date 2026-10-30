@@ -59,7 +59,9 @@ def compare_generation(
         raise ValueError("Missing EIA-923 fuel")
     if observed.fuel.astype("string").str.strip().eq("").any():
         raise ValueError("Blank EIA-923 fuel")
-    observed["fuel"] = observed.fuel.astype("string").str.strip()
+    observed["fuel"] = observed.fuel.astype("string").str.strip().str.lower()
+    if any(not isinstance(k, str) or k != k.strip().lower() for k in model_metrics.get("dispatch_mwh_by_carrier", {})):
+        raise ValueError("Model carrier labels must be lowercase and whitespace-free")
     x["ba_code"] = x.ba_code.astype("string").str.strip()
     if x.ba_code.eq("").fillna(True).any():
         raise ValueError("Crosswalk contains blank BA after normalization")
