@@ -358,12 +358,12 @@ def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
     n = pypsa.Network()
     n.add("Bus", "western_subset")
     snapshots = pd.DatetimeIndex(reps.snapshot)
+    if snapshots.isna().any():
+        raise ValueError("Representative dispatch contains missing snapshot timestamps")
     if snapshots.empty or len(set(snapshots.year)) != 1:
         raise ValueError("Representative snapshots must belong to exactly one analysis year")
     if len(reps) != 288 or snapshots.has_duplicates:
         raise ValueError("Representative dispatch requires 288 unique month-hour snapshots")
-    if snapshots.isna().any():
-        raise ValueError("Representative dispatch contains missing snapshot timestamps")
     expected_month_hours = {(month, hour) for month in range(1, 13) for hour in range(24)}
     actual_month_hours = set(zip(snapshots.month, snapshots.hour))
     if actual_month_hours != expected_month_hours:
