@@ -67,6 +67,31 @@ jobs:
           python -m energy_transition.eia923_normalize \
             --xlsx "outputs/eia923/eia923_${YEAR}.xlsx" \
             --year "$YEAR" --allow-incomplete --output outputs/eia923
+      - name: Summarize normalized official EIA-923 coverage audit
+        env:
+          YEAR: ${{ inputs.year || '2024' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          year = os.environ["YEAR"]
+          source = Path(f"outputs/eia923/eia923_source_{year}.json")
+          audit = json.loads(source.read_text())
+          keys = (
+              "observations", "included_net_generation_mwh",
+              "included_abs_generation_mwh", "excluded_monthly_cells",
+              "excluded_source_rows", "excluded_valid_numeric_cells",
+              "excluded_valid_numeric_net_generation_mwh",
+              "unmapped_fuel_cells", "unmapped_fuel_net_generation_mwh",
+              "unmapped_fuel_abs_generation_mwh", "coverage_caveat",
+          )
+          lines = ["## Official EIA-923 normalization audit", ""]
+          lines.extend(f"- **{k}**: {audit.get(k, 'not recorded')}" for k in keys)
+          report = "\\n".join(lines) + "\\n"
+          print(report)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(report)
+          PY
       - name: Show EIA-923 schema diagnostics if normalization failed
         if: failure()
         run: |
