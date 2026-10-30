@@ -24,6 +24,9 @@ def compare_seasons(hourly, output, weeks=SEASON_WEEKS):
         results=run_sensitivity(window,output/season)
         results.insert(0,"season",season)
         results.insert(1,"week_start_utc",start_string)
+        if {"unserved_mwh","unserved_without_storage_mwh"}.issubset(results.columns):
+            results["shortage_affected"] = (results["unserved_mwh"] > 1e-5) | (results["unserved_without_storage_mwh"] > 1e-5)
+            results["economic_interpretation"] = results["shortage_affected"].map({True:"includes_high_assumed_unserved_energy_penalty", False:"dispatch_operating_cost_only_no_shortage"})
         all_results.append(results)
     combined=pd.concat(all_results,ignore_index=True)
     if combined.groupby("season").duration_h.nunique().ne(4).any():
@@ -33,7 +36,7 @@ def compare_seasons(hourly, output, weeks=SEASON_WEEKS):
        "source":"2024 observed EIA-930 CAISO/BPAT hourly demand, 4 selected contiguous weeks",
        "weeks":weeks,
        "design":"Same assumed generation, battery power, costs, and battery round-trip efficiency for every season",
-       "limitation":"Weeks are illustrative, not probabilistically representative; do not annualize savings or infer optimal investment duration."
+       "limitation":"Weeks are illustrative, not probabilistically representative; do not annualize savings or infer optimal investment duration. Shortage-affected cases include a $10,000/MWh unmet-load penalty rather than electricity market revenue."
     },indent=2))
     return combined
 
