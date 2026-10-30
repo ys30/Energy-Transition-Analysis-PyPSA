@@ -98,6 +98,8 @@ def normalize_schedule3(frame: pd.DataFrame, year: int, *, allow_incomplete=Fals
     unmapped_fuel_cells = long.attrs.get("unmapped_fuel_cells")
     excluded_numeric_cells = long.attrs.get("excluded_numeric_cells")
     long = long.dropna(subset=["fuel"])
+    if long.empty:
+        raise ValueError("No usable EIA-923 plant-month generation after missing-value and fuel-code exclusions")
     long["report_year"] = year
     result = long[["plant_id", "report_year", "month", "fuel", "net_generation_mwh"]].groupby(
         ["plant_id", "report_year", "month", "fuel"], as_index=False
