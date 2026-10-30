@@ -1,0 +1,33 @@
+name: EIA-930 observed hourly solar wind audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia930-hourly-renewables.yml'
+      - 'src/energy_transition/eia930_hourly_renewables.py'
+      - 'tests/test_eia930_hourly_renewables.py'
+jobs:
+  observed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_eia930_hourly_renewables.py
+      - name: Download and audit observed 2024 solar wind output for CISO and BPAT
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        run: |
+          test -n "$EIA_API_KEY"
+          python -m energy_transition.eia930_hourly_renewables --year 2024 --bas CISO BPAT --output outputs/eia930_renewables
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia930-hourly-solar-wind-2024
+          path: outputs/eia930_renewables/
+          retention-days: 60
