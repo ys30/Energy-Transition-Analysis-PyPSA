@@ -1,0 +1,47 @@
+name: EIA 2024 plant-level BA qualification match
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia2024-plant-match.yml'
+      - 'src/energy_transition/eia2024_plant_qualification_match.py'
+      - 'tests/test_eia2024_plant_qualification_match.py'
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]' openpyxl xlrd
+      - run: python -m pytest -q tests/test_eia2024_plant_qualification_match.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia923-ba-fuel-generation-2024
+          run-id: 40937912804
+          github-token: ${{ github.token }}
+          path: inputs/eia923
+      - name: Reconstruct independently verified 2024 EIA-860 plant mapping
+        run: |
+          python -m energy_transition.eia860_capacity --year 2024 --output outputs/eia860
+          python -m energy_transition.eia860_plant_ba \
+            --year 2024 \
+            --generators outputs/eia860/western_state_generators_2024.csv \
+            --output outputs/eia860
+      - name: Reconcile EIA-923 qualified plant source records to EIA-860 BA
+        run: |
+          python -m energy_transition.eia2024_plant_qualification_match \
+            --qualified inputs/eia923/generation_qualification_record_audit.csv \
+            --generator-ba outputs/eia860/generator_ba_audit_2024.csv \
+            --output outputs/plant_match
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia2024-plant-ba-qualification-match
+          path: outputs/plant_match/
+          retention-days: 60
