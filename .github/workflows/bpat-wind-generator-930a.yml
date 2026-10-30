@@ -1,0 +1,35 @@
+name: BPAT wind generator-level EIA930A Schedule 2 audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/bpat-wind-generator-930a.yml'
+      - 'src/energy_transition/bpat_wind_generator_930a.py'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]' openpyxl
+      - uses: actions/download-artifact@v4
+        with:
+          name: bpat-wind-plant-concentration-2024
+          run-id: 41086750022
+          github-token: ${{ github.token }}
+          path: inputs/wind
+      - run: |
+          python -m energy_transition.bpat_wind_generator_930a \
+            --wind inputs/wind/bpat_wind_qualified_plant_concentration.csv \
+            --output outputs/generator_membership
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bpat-wind-generator-930a-2024
+          path: outputs/generator_membership/
