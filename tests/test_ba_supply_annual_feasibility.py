@@ -53,3 +53,26 @@ def test_2024_leap_year_nameplate_ceiling():
     assert row.qualified_generation_over_nameplate == 1.0
     assert not bool(row.energy_exceeds_nameplate)
     assert row.annual_screen_status == 'annual_plausibility_only'
+
+
+def test_reject_invalid_annual_supply_inputs():
+    import pytest
+    capacity = pd.DataFrame([{"ba_code": "CISO", "fuel": "NG", "capacity_mw": 10.0}])
+    qualified = pd.DataFrame([{
+        "ba_code": "CISO", "fuel": "NG", "qualified_annual_mwh": 100.0,
+        "withheld_reported_annual_mwh": 0.0, "source_rows": 2, "qualified_rows": 1,
+    }])
+    for field, invalid in [
+        ("qualified_annual_mwh", -1),
+        ("qualified_annual_mwh", float("inf")),
+        ("source_rows", -1),
+        ("qualified_rows", 3),
+    ]:
+        bad = qualified.copy()
+        bad.loc[0, field] = invalid
+        with pytest.raises(ValueError):
+            screen(capacity, bad)
+    bad_capacity = capacity.copy()
+    bad_capacity.loc[0, "capacity_mw"] = float("nan")
+    with pytest.raises(ValueError):
+        screen(bad_capacity, qualified)
