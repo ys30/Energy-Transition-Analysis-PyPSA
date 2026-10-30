@@ -5,6 +5,10 @@ on:
     paths:
       - '.github/workflows/eia930-full-hour-pilot.yml'
       - 'src/energy_transition/eia930_full_hour_pilot.py'
+      - 'src/energy_transition/eia930_hourly_model_comparison.py'
+      - 'src/energy_transition/eia930_generation_audit.py'
+      - 'src/energy_transition/eia930_west.py'
+      - 'pyproject.toml'
 jobs:
   hourly_pilot:
     runs-on: ubuntu-latest
