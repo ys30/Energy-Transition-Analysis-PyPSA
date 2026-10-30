@@ -180,6 +180,7 @@ def main():
         "excluded_source_rows": int(excluded.source_row_id.nunique()) if excluded is not None else 0,
         "excluded_valid_numeric_cells": len(excluded_numeric) if excluded_numeric is not None else 0,
         "excluded_valid_numeric_net_generation_mwh": float(excluded_numeric.net_generation_mwh.sum()) if excluded_numeric is not None else 0,
+        "excluded_valid_numeric_abs_generation_mwh": float(excluded_numeric.net_generation_mwh.abs().sum()) if excluded_numeric is not None else 0,
         "unmapped_fuel_cells": len(unmapped) if unmapped is not None else 0,
         "unmapped_fuel_net_generation_mwh": float(unmapped.net_generation_mwh.sum()) if unmapped is not None else 0,
         "unmapped_fuel_abs_generation_mwh": float(unmapped.net_generation_mwh.abs().sum()) if unmapped is not None else 0,
