@@ -26,6 +26,12 @@ def add_screened_ba_lines(network, lines: pd.DataFrame, bas=("CISO","BPAT")):
             raise ValueError(f"Invalid {col}")
     if data.reactance_ohm.le(0).any() or data.resistance_ohm.lt(0).any() or data.nominal_kv.le(0).any():
         raise ValueError("Invalid AC line impedance or voltage")
+    # Reject missing/invalid ratings before PyPSA mutation, even if the
+    # upstream screening function is later relaxed.
+    data["capacity_mw"]=pd.to_numeric(data["capacity_mw"],errors="coerce")
+    import numpy as np
+    if not np.isfinite(data["capacity_mw"].to_numpy(dtype=float)).all() or data["capacity_mw"].le(0).any():
+        raise ValueError("Physical line ratings must be finite positive MW values")
     if not data.evidence_status.eq("independently_verified").all():
         raise ValueError("All branches must have independently verified physical parameters")
     # Validate every branch endpoint, not just the first line touching each BA.
