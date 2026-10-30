@@ -12,7 +12,7 @@ def normalize(s):return s.astype("string").str.strip().str.replace(r"\.0$","",re
 def compare(wind,gen,book):
     x=wind.copy();x["plant_id"]=normalize(x.plant_id)
     g=gen.copy();g["plant_id"]=normalize(g.plant_id);g["generator_id"]=normalize(g.generator_id)
-    g=g[g.plant_id.isin(x.plant_id)&g.status.astype(str).str.upper().eq("OP")].copy()
+    g=g[g.plant_id.isin(x.plant_id)&g.status.astype(str).str.upper().eq("OP")&g.fuel.astype(str).str.upper().eq("WND")].copy()
     if g.duplicated(["plant_id","generator_id"]).any():raise ValueError("Duplicate EIA860 generator key")
     e=pd.read_excel(io.BytesIO(book),sheet_name="SCH 2")
     needed={"BA Code","EIA Plant ID","EIA Generator ID"}
@@ -37,7 +37,7 @@ def compare(wind,gen,book):
        "full_generator_coverage_plants":int(plants.plant_membership.eq("all_operating_generators_listed").sum()),
        "partial_or_all_coverage_plants":int(plants.listed_bpat_sch2_generators.gt(0).sum()),
        "not_listed_plant_count":int(plants.plant_membership.eq("not_in_sch2").sum()),
-       "caveat":"Plant EIA923 Page1 MWh cannot be allocated to individual EIA860 generators or Schedule2 listed generation."}
+       "caveat":"Wind-generator-only comparisons. Hybrid plant solar/battery members must not count toward wind Schedule 2 coverage; EIA923 Page 1 plant/fuel MWh cannot be allocated to individual generators."}
     return j,plants,summary
 def main():
     p=argparse.ArgumentParser();p.add_argument("--wind",type=Path,required=True);p.add_argument("--output",type=Path,required=True)
