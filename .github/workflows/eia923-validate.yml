@@ -243,6 +243,25 @@ jobs:
           out.mkdir(parents=True, exist_ok=True)
           (out / f"input_provenance_{year}.json").write_text(json.dumps(manifest, indent=2) + chr(10))
           PY
+      - name: Verify annual model metrics match requested analysis year
+        env:
+          YEAR: ${{ inputs.year || '2024' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          year = int(os.environ["YEAR"])
+          metrics_path = Path(f"outputs/eia930_west/{year}/metrics.json")
+          metrics = json.loads(metrics_path.read_text())
+          for key in ("year", "analysis_year"):
+              if key in metrics and int(metrics[key]) != year:
+                  raise ValueError(f"Model metrics {key}={metrics[key]} does not match {year}")
+          dispatch = metrics.get("dispatch_mwh_by_carrier")
+          if not isinstance(dispatch, dict) or not dispatch:
+              raise ValueError("Annual model metrics missing dispatch_mwh_by_carrier")
+          print(f"Requested analysis year: {year}; model carrier count: {len(dispatch)}")
+          print("Note: year is checked when explicitly recorded; output path alone is not proof of temporal coverage.")
+          PY
       - name: Compare observed EIA-923 generation against PyPSA dispatch
         run: |
           python -m energy_transition.eia923_validation \
