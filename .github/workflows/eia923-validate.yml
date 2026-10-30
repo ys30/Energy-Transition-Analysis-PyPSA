@@ -285,6 +285,8 @@ jobs:
                   raise ValueError("Representative-month-hour model must have 288 snapshots")
               if abs(float(metrics.get("represented_hours", -1)) - expected) > 1e-6:
                   raise ValueError("Representative model weights do not cover annual calendar hours")
+              if metrics.get("representative_hour_weight_sum_valid") is not True:
+                  raise ValueError("Representative-hour weight-integrity indicator missing or false")
               print(f"Verified 288 representative snapshots weighted to {expected} hours; NOT chronological hourly validation.")
           else:
               for key in ("snapshot_count", "n_snapshots", "hours", "n_hours"):
