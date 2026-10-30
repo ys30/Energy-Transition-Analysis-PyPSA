@@ -69,3 +69,22 @@ def test_annual_comparison_rejects_misaligned_snapshots_and_bad_weights():
     negative.snapshot_weightings.loc[negative.snapshot_weightings.index[0], "generators"] = 0.0
     with pytest.raises(ValueError, match="positive"):
         compare(qualified, negative)
+
+
+def test_observed_only_when_network_has_no_supported_generators():
+    network = FakeNetwork()
+    network.generators = network.generators.loc[["CISO_unserved"]].copy()
+    network.generators_t.p = network.generators_t.p[["CISO_unserved"]].copy()
+    qualified = pd.DataFrame({
+        "ba_code": ["CISO"], "fuel": ["NG"],
+        "qualified_annual_mwh": [100.0],
+        "withheld_reported_annual_mwh": [0.0],
+        "source_rows": [1], "qualified_rows": [1],
+    })
+    out = compare(qualified, network)
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row.comparison_status == "observed_only"
+    assert row.benchmark_evidence_status == "unmatched_source_boundary"
+    assert pd.isna(row.pypsa_dispatch_mwh)
+    assert pd.isna(row.absolute_percentage_difference)
