@@ -127,3 +127,17 @@ def test_annual_tail_gate_catches_single_extreme_hour():
     assert row.annual_max_residual_share_of_load==1.0
     assert row.official_balance_mae_share_of_load < 0.01
     assert row.accounting_gate=="review_required"
+
+
+def test_balance_rejects_out_of_year_and_unexpected_ba():
+    import pytest
+    hour=pd.Timestamp("2024-01-01T00:00:00Z")
+    good=pd.DataFrame({"respondent":["CISO"],"period":[hour],"value":[100.]})
+    wrong_year=good.copy()
+    wrong_year.loc[0,"period"]=pd.Timestamp("2025-01-01T00:00:00Z")
+    with pytest.raises(ValueError,match="outside requested calendar year"):
+        balance_audit(wrong_year,good,good,["CISO"],2024)
+    wrong_ba=good.copy()
+    wrong_ba.loc[0,"respondent"]="BPAT"
+    with pytest.raises(ValueError,match="unexpected BA respondent"):
+        balance_audit(good,wrong_ba,good,["CISO"],2024)
