@@ -24,10 +24,10 @@ def validate_window(hourly, hours=168):
     return wide.sum(axis=1)
 
 def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
-                 generation_mw=10000.,generation_cost=50.):
+                 generation_mw=55000.,generation_cost=50.,\n                 peaker_mw=20000.,peaker_cost=250.):
     import pypsa
     demand=validate_window(hourly)
-    if min(battery_mw,duration_h,generation_mw,generation_cost)<=0:
+    if min(battery_mw,duration_h,generation_mw,generation_cost,peaker_mw,peaker_cost)<=0:
         raise ValueError("Storage scenario parameters must be positive")
     n=pypsa.Network()
     n.add("Bus","pilot")
@@ -35,7 +35,7 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
     n.add("Load","observed_EIA930",bus="pilot",p_set=demand.to_numpy())
     n.add("Generator","assumed_firm_supply",bus="pilot",p_nom=generation_mw,
           marginal_cost=generation_cost)
-    n.add("Generator","unserved",bus="pilot",p_nom=1e7,marginal_cost=10000.)
+    n.add("Generator","assumed_peaker",bus="pilot",p_nom=peaker_mw,\n          marginal_cost=peaker_cost)\n    n.add("Generator","unserved",bus="pilot",p_nom=1e7,marginal_cost=10000.)
     # StorageUnit links charge, discharge and state of charge across true hourly snapshots.
     n.add("StorageUnit","assumed_battery",bus="pilot",p_nom=battery_mw,
           max_hours=duration_h,efficiency_store=0.95,efficiency_dispatch=0.95,
@@ -51,11 +51,11 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
     residual=residual-(charge*0.95-discharge/0.95)
     max_error=float(residual.abs().max())
     if max_error>1e-3:raise ValueError(f"Battery conservation residual {max_error} MWh")
-    output.mkdir(parents=True,exist_ok=True)
+    if float(charge.sum())<=1 or float(discharge.sum())<=1:\n        raise ValueError("Storage demonstration produced no meaningful charge/discharge; inspect supply assumptions")\n    output.mkdir(parents=True,exist_ok=True)
     pd.DataFrame({"demand_mw":demand.to_numpy(),"charge_mw":charge.to_numpy(),
                   "discharge_mw":discharge.to_numpy(),"state_of_charge_mwh":soc.to_numpy()},
                  index=demand.index).to_csv(output/"chronological_storage_dispatch.csv")
-    report={"status":condition,"hours":len(demand),"battery_mw_assumed":battery_mw,
+    report={"status":condition,"hours":len(demand),"battery_mw_assumed":battery_mw,\n            "assumed_firm_generation_mw":generation_mw,"assumed_peaker_mw":peaker_mw,\n            "assumed_peaker_cost_usd_per_mwh":peaker_cost,\n            "battery_charge_mwh":float(charge.sum()),\n            "battery_discharge_mwh":float(discharge.sum()),\n            "peaker_generation_mwh":float(n.generators_t.p["assumed_peaker"].sum()),
             "battery_duration_hours_assumed":duration_h,"capacity_mwh_assumed":battery_mw*duration_h,
             "round_trip_efficiency_assumed":0.95**2,
             "max_storage_conservation_error_mwh":max_error,
