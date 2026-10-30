@@ -1,0 +1,39 @@
+name: EIA-860 923 observed utilization screening
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia2024-technology-utilization.yml'
+      - 'src/energy_transition/eia2024_technology_utilization_screen.py'
+      - 'tests/test_eia2024_technology_utilization_screen.py'
+jobs:
+  ratio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_eia2024_technology_utilization_screen.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia923-vs-pypsa-2024
+          run-id: 40964541770
+          github-token: ${{ github.token }}
+          path: inputs/historical
+      - name: Reconcile 2024 two-BA nameplate and qualified generation
+        run: |
+          python -m energy_transition.eia2024_technology_utilization_screen \
+            --capacity inputs/historical/eia860_model_subset/ba_operating_nameplate_by_fuel_2024.csv \
+            --qualified inputs/historical/eia923_validation/eia923_vs_pypsa_2024.csv \
+            --output outputs/technology_utilization
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia2024-technology-utilization-screen
+          path: outputs/technology_utilization/
