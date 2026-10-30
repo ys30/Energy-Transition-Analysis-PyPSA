@@ -62,6 +62,8 @@ def test_valid_calendar_weight_inputs_reach_network_setup(monkeypatch, tmp_path,
 
     class Network:
         def add(self, *args, **kwargs):
+            pass
+        def set_snapshots(self, *args, **kwargs):
             raise ReachedSolverSetup
 
     monkeypatch.setitem(sys.modules, "pypsa", types.SimpleNamespace(Network=Network))
