@@ -26,7 +26,7 @@ def validate_window(hourly, hours=168):
 def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
                  generation_mw=55000.,generation_cost=50.,
                  peaker_mw=20000.,peaker_cost=250.,require_activity=True,
-                 voll_usd_per_mwh=10000.,renewable_net_mw=None,expected_hours=168):
+                 voll_usd_per_mwh=10000.,renewable_net_mw=None,expected_hours=168,cyclic_soc=False):
     import pypsa
     demand=validate_window(hourly,hours=expected_hours)
     if min(battery_mw,duration_h,generation_mw,generation_cost,peaker_mw,peaker_cost,voll_usd_per_mwh)<=0:
@@ -53,7 +53,7 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
     # StorageUnit links charge, discharge and state of charge across true hourly snapshots.
     n.add("StorageUnit","assumed_battery",bus="pilot",p_nom=battery_mw,
           max_hours=duration_h,efficiency_store=0.95,efficiency_dispatch=0.95,
-          cyclic_state_of_charge=False,state_of_charge_initial=0.,
+          cyclic_state_of_charge=cyclic_soc,state_of_charge_initial=0.,
           marginal_cost=0.1)
     status,condition=n.optimize(solver_name="highs")
     if status!="ok" or condition!="optimal":raise RuntimeError(f"Storage solve: {status}, {condition}")
@@ -97,6 +97,8 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
             "assumed_voll_usd_per_mwh":voll_usd_per_mwh,
             "observed_signed_renewable_mwh":float(renewable.sum()) if renewable is not None else None,
             "observed_renewable_input":"fixed_signed_hourly_net_injection" if renewable is not None else "not_included",
+            "cyclic_soc_assumed":bool(cyclic_soc),
+            "final_soc_mwh":float(soc.iloc[-1]),
             "battery_charge_mwh":float(charge.sum()),
             "battery_discharge_mwh":float(discharge.sum()),
             "peaker_generation_mwh":float(n.generators_t.p["assumed_peaker"].sum()),
