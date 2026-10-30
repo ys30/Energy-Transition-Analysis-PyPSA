@@ -163,3 +163,22 @@ def test_eia_api_rejects_out_of_scope_rows_before_gap_filling(
                         lambda *args, **kwargs: Response())
     with pytest.raises(ValueError, match=expected_error):
         fetch_eia_demand(2023, bas=("BA_A",), api_key="test")
+
+
+@pytest.mark.parametrize("year", [2023, 2024])
+def test_representative_energy_conservation_with_nonuniform_hourly_profiles(year):
+    """Calendar-weighted aggregation conserves energy even with sharp hourly peaks."""
+    from energy_transition.eia930_west import validate_annual_energy_conservation
+    dates = pd.date_range(f"{year}-01-01", f"{year+1}-01-01",
+                          freq="h", inclusive="left", tz="UTC")
+    a = pd.DataFrame({"period": dates, "respondent": "A",
+                      "value": [90.0 + 12.0 * (d.hour == 18) + d.day for d in dates]})
+    b = pd.DataFrame({"period": dates, "respondent": "B",
+                      "value": [200.0 + 70.0 * (d.month == 8 and d.hour == 15) for d in dates]})
+    hourly = pd.concat([a, b], ignore_index=True)
+    rep = representative_hours(hourly, year)
+    observed = float(hourly.value.sum())
+    represented = float((rep.value * rep.weight_h).sum())
+    validate_annual_energy_conservation(observed, represented, year)
+    assert represented == pytest.approx(observed, rel=1e-12)
+    assert float(rep.value.max()) < float(hourly.groupby("period").value.sum().max())
