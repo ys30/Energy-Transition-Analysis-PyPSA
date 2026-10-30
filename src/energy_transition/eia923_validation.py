@@ -74,6 +74,9 @@ def compare_generation(
     target = joined.loc[joined.ba_code.isin(bas)].copy()
     if target.empty:
         raise ValueError("No EIA-923 plant generation mapped to selected BAs")
+    missing_observations = sorted(set(bas) - set(target.ba_code.dropna().unique()))
+    if missing_observations:
+        raise ValueError(f"Requested BAs have no mapped EIA-923 observations: {missing_observations}")
     mapped = target.loc[target._merge.eq("both")].copy()
     # The national EIA-923 file necessarily contains plants outside the
     # western EIA-860 crosswalk. Do not treat them as BA mapping failures,
