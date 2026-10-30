@@ -35,7 +35,7 @@ def run_sensitivity(hourly,output,durations=DURATIONS):
             "unserved_without_storage_mwh":result["unserved_mwh_without_storage"],
             "avoided_unserved_mwh":result["unserved_mwh_without_storage"]-result["unserved_mwh"],
             "avoided_unserved_penalty_usd":(result["unserved_mwh_without_storage"]-result["unserved_mwh"])*10000.,
-            "non_shortage_dispatch_savings_usd":result["operating_savings_usd"]-(result["unserved_mwh_without_storage"]-result["unserved_mwh"])*10000.,
+            "non_shortage_dispatch_savings_usd":result["operating_savings_usd_assumed"]-(result["unserved_mwh_without_storage"]-result["unserved_mwh"])*10000.,
             "max_soc_error_mwh":result["max_storage_conservation_error_mwh"]
         })
     df=pd.DataFrame(rows)
