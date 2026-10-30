@@ -360,6 +360,11 @@ def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
     snapshots = pd.DatetimeIndex(reps.snapshot)
     if snapshots.empty or len(set(snapshots.year)) != 1:
         raise ValueError("Representative snapshots must belong to exactly one analysis year")
+    if len(reps) != 288 or snapshots.has_duplicates:
+        raise ValueError("Representative dispatch requires 288 unique month-hour snapshots")
+    expected_hours = 8784 if calendar.isleap(int(snapshots.year[0])) else 8760
+    if reps.weight_h.isna().any() or (reps.weight_h <= 0).any() or abs(float(reps.weight_h.sum()) - expected_hours) > 1e-6:
+        raise ValueError("Representative snapshot weights must be positive and cover the full analysis year")
     n.set_snapshots(snapshots)
     n.snapshot_weightings.loc[:, ["objective", "generators", "stores"]] = reps.weight_h.to_numpy()[:, None]
     n.add("Load", "eia930_observed_demand", bus="western_subset", p_set=reps.value.to_numpy())
