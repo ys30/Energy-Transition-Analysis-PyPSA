@@ -83,6 +83,9 @@ def test_official_incomplete_row_exclusion_does_not_zero_fill():
     assert len(audit) == 1
     assert str(audit.iloc[0].plant_id) == "999"
     assert audit.iloc[0].original_cell_text == "not reported"
+    lost = result.attrs["excluded_numeric_cells"]
+    assert len(lost) == 11
+    assert lost.net_generation_mwh.sum() == 77
 
 
 def test_unknown_fuel_kept_in_separate_audit_with_partial_mode():
