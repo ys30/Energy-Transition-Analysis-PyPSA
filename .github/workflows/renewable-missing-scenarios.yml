@@ -1,0 +1,38 @@
+name: Renewable missing-hour scenario sensitivity
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/renewable-missing-scenarios.yml'
+      - 'src/energy_transition/renewable_missing_scenarios.py'
+      - 'tests/test_renewable_missing_scenarios.py'
+jobs:
+  scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_renewable_missing_scenarios.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia930-hourly-solar-wind-2024
+          run-id: 41003777337
+          github-token: ${{ github.token }}
+          path: inputs/renewables
+      - run: |
+          python -m energy_transition.renewable_missing_scenarios \
+            --input inputs/renewables/renewable_hourly_observed.csv \
+            --output outputs/missing_scenarios
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renewable-gap-sensitivity-2024
+          path: outputs/missing_scenarios/
+          retention-days: 60
