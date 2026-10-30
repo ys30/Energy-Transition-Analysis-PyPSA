@@ -22,8 +22,8 @@ jobs:
       - run: python -m pytest -q tests/test_eia923_ba_technology_coverage.py
       - uses: actions/download-artifact@v4
         with:
-          name: eia923-official-2024
-          run-id: 40964541770
+          name: eia923-ba-fuel-generation-2024
+          run-id: 40937912804
           github-token: ${{ github.token }}
           path: inputs/eia923
       - name: Audit BA technology qualification and withheld source rows
