@@ -14,12 +14,20 @@ def inventory(path: Path) -> dict:
     path=Path(path)
     if not path.is_file():
         raise FileNotFoundError(path)
-    data=path.read_bytes()
-    result={"archive":path.name,"sha256":hashlib.sha256(data).hexdigest(),
-            "size_bytes":len(data),"files":[],"ready_for_pypsa_line":False,
+    hasher=hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda:stream.read(1024*1024),b""):
+            hasher.update(chunk)
+    result={"archive":path.name,"sha256":hasher.hexdigest(),
+            "size_bytes":path.stat().st_size,"files":[],"ready_for_pypsa_line":False,
             "status":"file_inventory_only_no_branch_physics_verified"}
     with zipfile.ZipFile(path) as archive:
-        for member in archive.infolist():
+        members=archive.infolist()
+        if len(members)>100000:
+            raise ValueError("Archive member count exceeds inspection limit")
+        if sum(m.file_size for m in members)>20_000_000_000:
+            raise ValueError("Archive uncompressed size exceeds inspection limit")
+        for member in members:
             if member.is_dir():
                 continue
             name=member.filename
