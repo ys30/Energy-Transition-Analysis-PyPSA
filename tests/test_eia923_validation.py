@@ -158,3 +158,11 @@ def test_negative_generation_from_unmapped_plant_is_separate():
     assert audit["negative_net_generation_rows_unmapped_national"] == 1
     assert audit["unmapped_national_generation_abs_mwh"] == pytest.approx(7)
     assert audit["selected_ba_mapped_generation_net_mwh"] == pytest.approx(135)
+
+
+def test_crosswalk_ba_codes_are_whitespace_normalized():
+    g, x, m = _fixtures()
+    x.loc[x.plant_id.eq("101"), "ba_code"] = " CISO "
+    result, audit = compare_generation(g, x, m, year=2024, bas=("CISO",))
+    assert audit["selected_ba_mapped_plant_count"] == 2
+    assert result.set_index("carrier").loc["gas", "observed_eia923_net_generation_mwh"] == pytest.approx(95)
