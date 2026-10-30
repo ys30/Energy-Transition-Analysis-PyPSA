@@ -41,7 +41,7 @@ def compare(qualified, network):
     joined=joined.drop(columns="_merge")
     comparable=joined.comparison_status.eq("both_sources")
     joined["model_minus_qualified_observed_mwh"]=(joined.pypsa_dispatch_mwh-joined.eia923_qualified_mwh).where(comparable)
-    joined["relative_difference_vs_qualified_observed"]=(joined.model_minus_qualified_observed_mwh/joined.eia923_qualified_mwh).where(comparable & joined.eia923_qualified_mwh.ne(0))
+    joined["relative_difference_vs_qualified_observed"]=(joined.model_minus_qualified_observed_mwh/joined.eia923_qualified_mwh).where(comparable & joined.eia923_qualified_mwh.gt(0))
     joined["full_source_row_coverage"]=joined.qualified_rows.eq(joined.source_rows)
     # Signed net generation is valid source evidence, but an annual percentage
     # discrepancy only has a stable denominator for strictly positive observed MWh.
