@@ -26,7 +26,7 @@ def _representatives(year=2024):
     ("shift_month_weights", "calendar days"),
     ("missing_timestamp", "missing snapshot timestamps"),
     ("infinite_weight", "finite"),
-    ("duplicate_month_hour", "month and hour exactly once"),
+    ("duplicate_month_hour", "288 unique month-hour snapshots"),
 ])
 def test_representative_input_rejected_before_solver(monkeypatch, tmp_path, corruption, message):
     class Network:
