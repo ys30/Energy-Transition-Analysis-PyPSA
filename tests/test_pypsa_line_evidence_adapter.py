@@ -45,3 +45,29 @@ def test_pu_cannot_be_misrepresented_as_ohms():
     data=record().drop(columns=["reactance_ohm"])
     with pytest.raises(ValueError,match="ohm"):
         add_screened_ba_lines(FakeNetwork(),data)
+
+
+@pytest.mark.parametrize("bad_rating", [0, -1, float("nan"), float("inf"), "not-a-number"])
+def test_invalid_line_capacity_rejected_without_mutation(bad_rating):
+    n=FakeNetwork()
+    data=record()
+    data.loc[0,"capacity_mw"]=bad_rating
+    with pytest.raises(ValueError):
+        add_screened_ba_lines(n,data)
+    assert not n.added
+
+
+def test_existing_line_name_collision_rejected_without_mutation():
+    n=FakeNetwork()
+    n.lines=pd.DataFrame(index=pd.Index(["evidence_line_0"],name="Line"))
+    with pytest.raises(ValueError,match="collide"):
+        add_screened_ba_lines(n,record())
+    assert not n.added
+
+
+def test_existing_line_dispatch_rejected_without_mutation():
+    n=FakeNetwork()
+    n.lines_t=SimpleNamespace(p0=pd.DataFrame({"old_line":[12.0]}))
+    with pytest.raises(ValueError,match="prior line dispatch"):
+        add_screened_ba_lines(n,record())
+    assert not n.added
