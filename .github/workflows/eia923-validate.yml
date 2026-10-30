@@ -29,6 +29,9 @@ on:
       - 'src/energy_transition/eia860_plant_ba.py'
       - 'src/energy_transition/eia930_west.py'
       - 'tests/test_eia860_capacity.py'
+concurrency:
+  group: eia923-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 permissions:
   contents: read
 jobs:
