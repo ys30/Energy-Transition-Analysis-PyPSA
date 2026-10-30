@@ -97,6 +97,24 @@ def main():
         ]),
     })
     unserved.to_csv(args.output/"unserved_load_hourly.csv",index=False)
+    # Preserve the dispatch energy-balance residual in the model artifact,
+    # independently of the GitHub Actions validation step.
+    gas_by_hour=modeled.set_index(["respondent","period"])["value"].sort_index()
+    unmet_by_hour=unserved.set_index(["respondent","period"])["unserved_mw"].sort_index()
+    demand_by_hour=demand.stack().rename_axis(["period","respondent"]).reorder_levels(
+        ["respondent","period"]).sort_index()
+    residual=(gas_by_hour+unmet_by_hour-demand_by_hour)
+    if not residual.index.equals(demand_by_hour.index) or not np.isfinite(residual).all():
+        raise ValueError("Hourly energy balance has missing or nonfinite residuals")
+    max_residual_mw=float(residual.abs().max())
+    if max_residual_mw>1e-4:
+        raise ValueError(f"Hourly energy balance exceeded tolerance: {max_residual_mw} MW")
+    (args.output/"hourly_balance_audit.json").write_text(json.dumps({
+        "year":args.year,"hours_per_ba":len(demand.index),
+        "max_absolute_residual_mw":max_residual_mw,
+        "tolerance_mw":1e-4,
+        "definition":"gas_mw + synthetic_unserved_mw - observed_demand_mw"
+    },indent=2))
     if not np.isfinite(unserved.unserved_mw).all() or (unserved.unserved_mw < -1e-6).any():
         raise ValueError("Invalid unserved-load dispatch")
     summary={
