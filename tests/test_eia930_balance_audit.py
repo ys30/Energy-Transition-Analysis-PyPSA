@@ -56,3 +56,24 @@ def test_balance_audit_preserves_missing_and_rejects_infinite_measurements():
     infinite.loc[0,"value"]=float("inf")
     with pytest.raises(ValueError,match="infinite"):
         balance_audit(good,infinite,good,["CISO"],2024)
+
+
+def test_zero_demand_cannot_pass_annual_or_monthly_accounting_gate():
+    from energy_transition.eia930_balance_audit import monthly_balance_audit
+    hours=pd.date_range("2024-01-01","2025-01-01",freq="h",inclusive="left",tz="UTC")
+    zero=pd.DataFrame({"respondent":"CISO","period":hours,"value":0.0})
+    hourly,summary=balance_audit(zero,zero,zero,["CISO"],2024)
+    assert summary.iloc[0].complete_triples==8784
+    assert summary.iloc[0].accounting_gate=="review_required"
+    monthly=monthly_balance_audit(hourly)
+    assert len(monthly)==12
+    assert (monthly.quality_flag=="review_required").all()
+
+
+def test_balanced_positive_load_remains_screening_only():
+    hours=pd.date_range("2024-01-01","2025-01-01",freq="h",inclusive="left",tz="UTC")
+    d=pd.DataFrame({"respondent":"CISO","period":hours,"value":100.0})
+    ng=pd.DataFrame({"respondent":"CISO","period":hours,"value":80.0})
+    ti=pd.DataFrame({"respondent":"CISO","period":hours,"value":-20.0})
+    _,summary=balance_audit(d,ng,ti,["CISO"],2024)
+    assert summary.iloc[0].accounting_gate=="screening_only_not_verified"
