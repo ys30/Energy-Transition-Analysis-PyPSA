@@ -8,6 +8,7 @@ import argparse
 import json
 from pathlib import Path
 import pandas as pd
+import numpy as np
 
 
 def evaluate(summary: pd.DataFrame, monthly: pd.DataFrame) -> list[dict]:
@@ -28,7 +29,17 @@ def evaluate(summary: pd.DataFrame, monthly: pd.DataFrame) -> list[dict]:
         bad_balance=int(months.residual_share_of_demand.abs().gt(.10).sum())
         coverage=float(row.complete_triple_share)
         mae=float(row.official_balance_mae_share_of_load)
-        eligible=bool(coverage>=.99 and mae<=.10 and poor_coverage==0 and bad_balance==0)
+        numeric=months[["coverage","residual_share_of_demand"]].apply(pd.to_numeric,errors="coerce")
+        numeric_ok=bool(np.isfinite([coverage,mae]).all() and np.isfinite(numeric.to_numpy()).all())
+        quality_ok=("quality_flag" not in months or
+                    months["quality_flag"].eq("screening_only_not_verified").all())
+        if "annual_max_residual_share_of_load" in summary:
+            tail=pd.to_numeric(row.annual_max_residual_share_of_load,errors="coerce")
+            tail_ok=bool(np.isfinite(tail) and tail<=.50)
+        else:
+            tail_ok=True
+        eligible=bool(numeric_ok and quality_ok and tail_ok and coverage>=.99
+                      and mae<=.10 and poor_coverage==0 and bad_balance==0)
         decisions.append({"ba_code":ba,"interchange_calibration_eligible":eligible,
           "coverage_share":coverage,"official_mae_share_of_load":mae,
           "months_below_99pct_coverage":poor_coverage,
