@@ -269,8 +269,8 @@ jobs:
                    "- Annual MWh conservation does not preserve chronological peaks or validate resource adequacy.",
                    ""]
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
-              f.write("\\n".join(lines) + "\\n")
-          print("\\n".join(lines))
+              f.write(chr(10).join(lines) + chr(10))
+          print(chr(10).join(lines))
           PY
       - name: Record model and input artifact provenance
         env:
