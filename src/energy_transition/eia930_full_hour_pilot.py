@@ -79,6 +79,13 @@ def main():
     network=solve_hourly_demand(demand,args.year)
     args.output.mkdir(parents=True,exist_ok=True)
     network.export_to_netcdf(args.output/"hourly_network.nc")
+    # Export explicit UTC timestamps: PyPSA internally stores naive snapshots.
+    modeled=pd.concat([
+        pd.DataFrame({"respondent":ba,"period":demand.index,
+                      "value":network.generators_t.p[f"{ba}_gas"].to_numpy(dtype=float)})
+        for ba in args.bas
+    ],ignore_index=True)
+    modeled.to_csv(args.output/"modeled_generation_hourly.csv",index=False)
     manifest={
         "year":args.year,"bas":args.bas,"hours":8784 if calendar.isleap(args.year) else 8760,
         "demand":"EIA-930 supplied BA hourly demand, subject to upstream QC",
