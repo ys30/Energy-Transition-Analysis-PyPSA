@@ -22,3 +22,12 @@
 ## Status and next milestone
 
 **Discovery-only; real physical branch inputs not yet ingested or certified.** The existing `transmission_evidence_gate.py` and `pypsa_line_evidence_adapter.py` enforce elementary structural and value checks, not full provenance authentication. Synthetic two-bus optimization is separately verified in [the AC Line sensitivity record](verified_synthetic_ac_line_sweep.md); its numbers are fictional test fixtures. The next material milestone is *download a license-compatible WECC public case, inspect its actual branch fields and base definitions, then run a physically meaningful and clearly labeled scenario*.
+
+
+## Access and version verification update (2026-10-30)
+
+The [official WECC ADS page](https://www.wecc.org/program-areas/reliability-planning-performance-analysis/reliability-modeling/anchor-data-set-ads) currently lists **2036 ADS PCM public** deliverables and multiple **2034 ADS PCM public** versions, separately from NDA-confidential deliverables. At least one public 2034 dataset has an [official download request form](https://www.wecc.org/form/ads-download-form2) requiring name, email, organization and intended use; no claim is made that this form was completed or a public case downloaded. Do not bypass access terms.
+
+The [WECC 2030 ADS PCM release notes](https://www.wecc.org/system/files/documents/anchor_data_set/2024/2030ADS_PCM_ReleaseNotes_GV-V2.3_6-9-2021.pdf) describe a **GridView** case using a Microsoft Access `.mdb` database plus `.DAT` text input files. This confirms that a public ADS case is **not necessarily a ready-made PyPSA CSV**; the exact downloaded edition must be inspected before choosing a converter. Proprietary GridView operation may entail separate licensing. The official 2034 case is a future *planning* topology and must not be relabeled an observed 2024 network.
+
+**Next executable milestone:** acquire an authorized public archive, checksum the untouched files, inventory actual formats/headers and branch fields, record source edition and modeling bases, then implement a format-specific importer. No authentic 2024 branch impedance/rating table is yet verified for this repository.
