@@ -503,9 +503,11 @@ def main():
         counts["peak_units"] = "MW"
         counts["expected_hours"] = 8784 if calendar.isleap(year) else 8760
         counts["coverage_fraction"] = counts["observations"] / counts["expected_hours"]
+        # Peak timestamp is reported in UTC; ties use the first observed hour.
+        # Compute it on the same quality-controlled demand series as peak_mw.
+        peak_rows = hourly.loc[hourly.groupby("respondent")["value"].idxmax()]
         counts["peak_hour_utc"] = counts["respondent"].map(
-            hourly.loc[hourly.groupby("respondent")["value"].idxmax()]
-                  .set_index("respondent")["period"].astype("string")
+            peak_rows.set_index("respondent")["period"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         )
         if "raw_value" in hourly:
             raw_audit = hourly.groupby("respondent").agg(
