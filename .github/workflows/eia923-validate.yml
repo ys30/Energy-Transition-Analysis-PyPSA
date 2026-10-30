@@ -213,6 +213,23 @@ jobs:
             --bas CISO BPAT \
             --eia860-capacity "outputs/eia860_model_subset/ba_operating_nameplate_by_fuel_${YEAR}.csv" \
             --output outputs/eia930_west
+      - name: Audit annual demand and renewable temporal coverage
+        env:
+          YEAR: ${{ inputs.year || '2024' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          year = int(os.environ["YEAR"])
+          root = Path("outputs/eia930_west") / str(year)
+          manifests = sorted(root.rglob("*coverage*.json"))
+          print(f"Coverage manifests found: {len(manifests)}")
+          for manifest in manifests:
+              data = json.loads(manifest.read_text())
+              print(f"{manifest}: {json.dumps(data, sort_keys=True)[:2500]}")
+          if not manifests:
+              print("::warning::No separate annual hourly coverage manifest found; annual dispatch comparison alone does not certify 8784-hour input completeness.")
+          PY
       - name: Record model and input artifact provenance
         env:
           YEAR: ${{ inputs.year || '2024' }}
