@@ -117,3 +117,21 @@ def test_annual_energy_conservation_gate_rejects_bad_totals(raw, representative)
 def test_annual_energy_conservation_gate_accepts_rounding_tolerance():
     from energy_transition.eia930_west import validate_annual_energy_conservation
     validate_annual_energy_conservation(1000000.0, 1000000.00001, 2024)
+
+
+@pytest.mark.parametrize("invalid_ba", [None, "", "   "])
+def test_representative_hours_rejects_missing_ba_identity(invalid_ba):
+    dates = pd.date_range("2023-01-01", "2024-01-01", freq="h", inclusive="left", tz="UTC")
+    df = pd.DataFrame({"period": dates, "respondent": "BA_A", "value": 100.0})
+    df.loc[0, "respondent"] = invalid_ba
+    with pytest.raises(ValueError, match="balancing authority identifier"):
+        representative_hours(df, 2023)
+
+
+@pytest.mark.parametrize("bad_value", [float("inf"), float("-inf"), float("nan")])
+def test_representative_hours_rejects_nonfinite_hourly_demand(bad_value):
+    dates = pd.date_range("2023-01-01", "2024-01-01", freq="h", inclusive="left", tz="UTC")
+    df = pd.DataFrame({"period": dates, "respondent": "BA_A", "value": 100.0})
+    df.loc[123, "value"] = bad_value
+    with pytest.raises(ValueError, match="nonfinite"):
+        representative_hours(df, 2023)
