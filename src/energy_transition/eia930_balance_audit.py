@@ -79,6 +79,15 @@ def balance_audit(demand,generation,interchange,bas,year):
         common_residual_minus_mwh=("residual_d_minus_ng_minus_ti","sum"),
         common_residual_plus_mwh=("residual_d_minus_ng_plus_ti","sum"))
     audit=audit.merge(common.reset_index(),on="respondent",how="left")
+    # A small signed yearly residual or mean error can conceal isolated
+    # severe hourly imbalances. Audit the tail on complete triples only.
+    tail=valid.groupby("respondent")["residual_d_minus_ng_plus_ti"].agg(
+        annual_p95_absolute_residual_mw=lambda v: float(v.abs().quantile(0.95)),
+        annual_max_absolute_residual_mw=lambda v: float(v.abs().max()),
+    ).reset_index()
+    audit=audit.merge(tail,on="respondent",how="left")
+    audit["annual_max_residual_share_of_load"]=audit.annual_max_absolute_residual_mw/(
+        audit.common_demand_mwh/audit.complete_triples)
     audit["complete_triple_share"]=audit.complete_triples/audit.expected_hours
     audit["candidate_plus_mae_share_of_load"]=audit.mae_d_minus_ng_plus_ti/(
         audit.common_demand_mwh/audit.complete_triples)
@@ -95,7 +104,9 @@ def balance_audit(demand,generation,interchange,bas,year):
             r.complete_triple_share < 0.99 or
             not np.isfinite(r.official_balance_mae_share_of_load) or
             r.common_demand_mwh <= 0 or
-            r.official_balance_mae_share_of_load > 0.10
+            r.official_balance_mae_share_of_load > 0.10 or
+            not np.isfinite(r.annual_max_residual_share_of_load) or
+            r.annual_max_residual_share_of_load > 0.50
         ) else "screening_only_not_verified", axis=1)
     return merged,audit
 
