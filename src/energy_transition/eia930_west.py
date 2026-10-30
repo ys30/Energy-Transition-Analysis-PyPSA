@@ -370,7 +370,8 @@ def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
         [calendar.monthrange(int(snapshots.year[0]), int(month))[1]
          for month in snapshots.month], index=reps.index, dtype="float64"
     )
-    if not pd.to_numeric(reps.weight_h, errors="coerce").equals(expected_weights):
+    actual_weights = pd.to_numeric(reps.weight_h, errors="coerce").to_numpy(dtype="float64")
+    if not (abs(actual_weights - expected_weights.to_numpy()) < 1e-9).all():
         raise ValueError("Representative month-hour weights must equal calendar days in each month")
     expected_hours = 8784 if calendar.isleap(int(snapshots.year[0])) else 8760
     if reps.weight_h.isna().any() or (reps.weight_h <= 0).any() or abs(float(reps.weight_h.sum()) - expected_hours) > 1e-6:
