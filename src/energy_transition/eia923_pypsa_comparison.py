@@ -43,6 +43,18 @@ def compare(qualified, network):
     joined["model_minus_qualified_observed_mwh"]=(joined.pypsa_dispatch_mwh-joined.eia923_qualified_mwh).where(comparable)
     joined["relative_difference_vs_qualified_observed"]=(joined.model_minus_qualified_observed_mwh/joined.eia923_qualified_mwh).where(comparable & joined.eia923_qualified_mwh.ne(0))
     joined["full_source_row_coverage"]=joined.qualified_rows.eq(joined.source_rows)
+    # Signed net generation is valid source evidence, but an annual percentage
+    # discrepancy only has a stable denominator for strictly positive observed MWh.
+    joined["absolute_difference_mwh"] = joined.model_minus_qualified_observed_mwh.abs()
+    joined["absolute_percentage_difference"] = (
+        joined["relative_difference_vs_qualified_observed"].abs()
+        .where(comparable & joined.eia923_qualified_mwh.gt(0))
+    )
+    joined["benchmark_evidence_status"] = "unmatched_source_boundary"
+    joined.loc[comparable, "benchmark_evidence_status"] = "partial_source_coverage"
+    joined.loc[comparable & joined.full_source_row_coverage, "benchmark_evidence_status"] = "qualified_annual_comparison"
+    joined.loc[comparable & joined.eia923_qualified_mwh.le(0), "benchmark_evidence_status"] = "nonpositive_net_generation"
+    joined["validated_hourly_calibration"] = False
     joined["interpretation"]="Descriptive benchmark, not calibrated model accuracy; incomplete EIA-923 rows and BA boundary mismatches limit inference"
     return joined.sort_values(["ba_code","tech"])
 
