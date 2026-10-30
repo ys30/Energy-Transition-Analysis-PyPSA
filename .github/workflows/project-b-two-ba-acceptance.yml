@@ -35,7 +35,7 @@ jobs:
           # API listing is paginated. Never infer "latest" from an
           # incomplete first page when the repository has many workflows.
           page=2
-          while len(runs)==100:
+          while len(runs)>=100 and len(runs)%100==0:
             next_req=urllib.request.Request(
               f"https://api.github.com/repos/{repo}/actions/runs?per_page=100&page={page}",
               headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
