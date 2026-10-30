@@ -51,6 +51,10 @@ jobs:
           assert np.isfinite(result["value"]).all()
           assert (result["value"]>=0).all()
           audit=__import__("json").loads((out/"unserved_load_audit.json").read_text())
+          balance=__import__("json").loads((out/"hourly_balance_audit.json").read_text())
+          assert balance["year"]==2024 and balance["hours_per_ba"]==8784
+          assert np.isfinite(balance["max_absolute_residual_mw"])
+          assert balance["max_absolute_residual_mw"]<=balance["tolerance_mw"]
           unmet=pd.read_csv(out/"unserved_load_hourly.csv")
           assert len(unmet)==8784
           assert np.isfinite(unmet["unserved_mw"]).all()
