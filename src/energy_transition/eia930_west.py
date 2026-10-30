@@ -384,6 +384,7 @@ def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
         "temporal_representation": "288_weighted_month_hour_snapshots_not_chronological_hourly",
         "snapshot_count": int(len(reps)),
         "represented_hours": float(reps.weight_h.sum()),
+        "representative_hour_weight_sum_valid": bool(abs(float(reps.weight_h.sum()) - round(float(reps.weight_h.sum()))) < 1e-6),
         "capacity_basis": "audited_EIA860_nameplate_scenario" if capacities is not None else "assumed_capacity_scenario",
         "generator_nameplate_mw": {k: float(v) for k, v in scenario_carriers.items()},
         "unserved_mwh": unserved_mwh, "unserved_share": unserved_mwh / total_mwh,
