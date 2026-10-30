@@ -9,6 +9,20 @@ def screen(capacity,qualified):
     qcols={"ba_code","fuel","qualified_annual_mwh","withheld_reported_annual_mwh","source_rows","qualified_rows"}
     if cols-set(capacity) or qcols-set(qualified):raise ValueError("Missing required fields")
     c=capacity.copy();q=qualified.copy()
+    # Reject invalid numeric evidence rather than silently treating it as a valid BA benchmark.
+    for frame, fields in (
+        (c, ("capacity_mw",)),
+        (q, ("qualified_annual_mwh", "withheld_reported_annual_mwh", "source_rows", "qualified_rows")),
+    ):
+        for field in fields:
+            numeric = pd.to_numeric(frame[field], errors="coerce")
+            if numeric.isna().any() or (~numeric.map(lambda value: bool(pd.notna(value) and value < float("inf")))).any():
+                raise ValueError(f"Invalid or missing numeric values in {field}")
+            if numeric.lt(0).any():
+                raise ValueError(f"Negative values in {field}")
+            frame[field] = numeric
+    if q.qualified_rows.gt(q.source_rows).any():
+        raise ValueError("Qualified source rows exceed source rows")
     c=c[c.ba_code.isin(["CISO","BPAT"])]
     q=q[q.ba_code.isin(["CISO","BPAT"])]
     if c.duplicated(["ba_code","fuel"]).any() or q.duplicated(["ba_code","fuel"]).any():raise ValueError("Duplicate BA fuel")
