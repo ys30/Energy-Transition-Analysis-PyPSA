@@ -71,6 +71,33 @@ jobs:
           assert float(mismatch.max())<=1e-4, f"BA-hour energy balance failed: {mismatch.max()} MW"
           print("Verified 8784 model dispatch values and separate synthetic unserved-load audit")
           PY
+      - name: Compare assumption-driven gas dispatch with EIA-930 observed net generation
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from energy_transition.eia930_generation_audit import fetch_net_generation
+          out=Path("outputs/hourly_dispatch_pilot")
+          fetch_net_generation(2024,["CISO"]).to_csv(
+              out/"observed_net_generation_hourly.csv",index=False)
+          PY
+          python -m energy_transition.eia930_hourly_model_comparison \
+            --observed outputs/hourly_dispatch_pilot/observed_net_generation_hourly.csv \
+            --modeled outputs/hourly_dispatch_pilot/modeled_generation_hourly.csv \
+            --year 2024 --bas CISO --output outputs/hourly_dispatch_pilot
+      - name: Verify comparison remains descriptive rather than calibrated
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          out=Path("outputs/hourly_dispatch_pilot")
+          row=pd.read_csv(out/"ba_hourly_error_summary.csv").iloc[0]
+          assert row["expected_hours"]==8784
+          assert row["paired_hours"]>0
+          assert not bool(row["validated_calibration"])
+          print("Observed-vs-model comparison is descriptive, not validated calibration")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
