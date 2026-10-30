@@ -88,3 +88,15 @@ def test_negative_net_generation_is_retained_and_flagged():
     assert row.annual_screen_status == "negative_net_generation"
     assert pd.isna(row.qualified_generation_over_nameplate)
     assert not bool(row.ready_for_hourly_calibration)
+
+
+def test_negative_withheld_net_generation_is_valid_signed_evidence():
+    capacity = pd.DataFrame([{"ba_code": "CISO", "fuel": "NG", "capacity_mw": 10.0}])
+    qualified = pd.DataFrame([{
+        "ba_code": "CISO", "fuel": "NG", "qualified_annual_mwh": 500.0,
+        "withheld_reported_annual_mwh": -20.0, "source_rows": 2, "qualified_rows": 1,
+    }])
+    row = screen(capacity, qualified).iloc[0]
+    assert row.withheld_mwh == -20.0
+    assert row.annual_screen_status == "partial_qualified_source_coverage"
+    assert not bool(row.ready_for_hourly_calibration)
