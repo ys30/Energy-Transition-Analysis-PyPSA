@@ -263,8 +263,11 @@ def representative_hours(observations: pd.DataFrame, year: int):
     d = observations[["period", "respondent", "value"]].copy()
     d["period"] = pd.to_datetime(d["period"], utc=True, errors="raise")
     d["value"] = pd.to_numeric(d["value"], errors="raise")
-    if d.empty or d["value"].isna().any() or (d["value"] <= 0).any():
-        raise ValueError("Missing or nonpositive hourly demand")
+    import math
+    if d["respondent"].isna().any() or d["respondent"].astype("string").str.strip().eq("").any():
+        raise ValueError("Missing or blank balancing authority identifier")
+    if d.empty or not d["value"].map(math.isfinite).all() or (d["value"] <= 0).any():
+        raise ValueError("Missing, nonfinite or nonpositive hourly demand")
     if d.duplicated(["period", "respondent"]).any():
         raise ValueError("Duplicate BA-hour demand observations")
     if not d["period"].dt.year.eq(year).all():
