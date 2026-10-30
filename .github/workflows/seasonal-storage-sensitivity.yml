@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/seasonal-storage-sensitivity.yml'
       - 'src/energy_transition/seasonal_storage_sensitivity.py'
+      - 'src/energy_transition/storage_duration_sensitivity.py'
+      - 'src/energy_transition/chronological_storage_pilot.py'
       - 'tests/test_seasonal_storage_sensitivity.py'
 jobs:
   seasonal:
