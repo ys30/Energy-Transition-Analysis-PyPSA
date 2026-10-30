@@ -15,6 +15,7 @@ def test_duration_sensitivity_consistent_baselines(monkeypatch,tmp_path):
             "objective_usd_without_storage_assumed":1000,
             "operating_savings_usd_assumed":10*duration_h,
             "unserved_mwh":0,
+            "unserved_mwh_without_storage":0,
             "max_storage_conservation_error_mwh":0,
         }
     monkeypatch.setattr("energy_transition.storage_duration_sensitivity.solve_window",mock_solver)
@@ -26,3 +27,22 @@ def test_duration_sensitivity_consistent_baselines(monkeypatch,tmp_path):
 def test_duration_sensitivity_rejects_duplicate_durations(tmp_path):
     with pytest.raises(ValueError,match="unique"):
         run_sensitivity(pd.DataFrame(),tmp_path,durations=(4.,4.))
+
+
+def test_decomposition_of_avoided_shortage_penalty(monkeypatch,tmp_path):
+    def fake_solver(hourly,path,*,duration_h,require_activity=False):
+        return {
+          "battery_mw_assumed":1000,"capacity_mwh_assumed":1000*duration_h,
+          "battery_charge_mwh":100,"battery_discharge_mwh":90,
+          "peaker_generation_mwh":100,"peaker_generation_mwh_without_storage":100,
+          "objective_usd_with_storage_assumed":900000,
+          "objective_usd_without_storage_assumed":1000000,
+          "operating_savings_usd_assumed":100000,
+          "unserved_mwh":2,"unserved_mwh_without_storage":10,
+          "max_storage_conservation_error_mwh":0,
+        }
+    monkeypatch.setattr("energy_transition.storage_duration_sensitivity.solve_window",fake_solver)
+    result=run_sensitivity(pd.DataFrame(),tmp_path,durations=(4.,))
+    assert result.iloc[0].avoided_unserved_mwh == 8
+    assert result.iloc[0].avoided_unserved_penalty_usd == 80000
+    assert result.iloc[0].non_shortage_dispatch_savings_usd == 20000
