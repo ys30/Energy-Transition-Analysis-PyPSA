@@ -28,6 +28,8 @@ def test_eia923_validation_preserves_negative_net_generation():
     assert gas.observed_eia923_net_generation_mwh == 95
     assert gas.model_minus_observed_mwh == 15
     assert audit["negative_net_generation_rows"] == 1
+    assert audit["negative_net_generation_rows_selected_ba"] == 1
+    assert audit["negative_net_generation_rows_unmapped_national"] == 0
     assert audit["selected_ba_mapped_plant_count"] == 2
     assert audit["selected_ba_mapped_observation_count"] == 3
     assert audit["selected_ba_mapped_generation_abs_mwh"] == pytest.approx(145)
