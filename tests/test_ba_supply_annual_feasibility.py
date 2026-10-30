@@ -18,6 +18,8 @@ def test_ba_technology_annual_feasibility_and_qualification():
     assert not bool(gas.qualified_rows_complete)
     assert bool(hydro.energy_exceeds_nameplate)
     assert not result.ready_for_hourly_calibration.any()
+    assert gas.annual_screen_status == 'partial_qualified_source_coverage'
+    assert hydro.annual_screen_status == 'exceeds_nameplate_ceiling'
 
 
 def test_missing_nameplate_is_unknown_not_zero_capacity():
@@ -37,6 +39,7 @@ def test_missing_nameplate_is_unknown_not_zero_capacity():
     assert pd.isna(unknown.qualified_generation_over_nameplate)
     assert pd.isna(unknown.energy_exceeds_nameplate)
     assert not bool(unknown.ready_for_hourly_calibration)
+    assert unknown.annual_screen_status == 'no_supported_nameplate'
 
 
 def test_2024_leap_year_nameplate_ceiling():
@@ -49,3 +52,4 @@ def test_2024_leap_year_nameplate_ceiling():
     assert row.annual_nameplate_ceiling_mwh == 8784.0
     assert row.qualified_generation_over_nameplate == 1.0
     assert not bool(row.energy_exceeds_nameplate)
+    assert row.annual_screen_status == 'annual_plausibility_only'
