@@ -157,6 +157,13 @@ def compare_generation(
             float(sum(observed_abs_by_fuel.values()))
             if sum(observed_abs_by_fuel.values()) else None
         ),
+        "selected_ba_observed_generation_by_ba_and_fuel_net_mwh": {
+            str(ba): {str(fuel): float(value) for fuel, value in fuel_totals.items()}
+            for ba, fuel_totals in (
+                (ba, group.groupby("fuel").net_generation_mwh.sum().to_dict())
+                for ba, group in mapped.groupby("ba_code")
+            )
+        },
         "comparison_scope": "Only fuel categories common to both datasets; omitted fuels are not modeled as zero.",
         "interpretation": "Diagnostic comparison only; no parameter fitting or hourly validation.",
     }
