@@ -135,3 +135,31 @@ def test_representative_hours_rejects_nonfinite_hourly_demand(bad_value):
     df.loc[123, "value"] = bad_value
     with pytest.raises(ValueError, match="nonfinite"):
         representative_hours(df, 2023)
+
+
+@pytest.mark.parametrize("respondent, timestamp, expected_error", [
+    ("OTHER", "2023-01-01T00", "BA identifiers"),
+    (None, "2023-01-01T00", "BA identifiers"),
+    ("BA_A", "2022-12-31T23", "outside requested year"),
+    ("BA_A", "2024-01-01T00", "outside requested year"),
+])
+def test_eia_api_rejects_out_of_scope_rows_before_gap_filling(
+    monkeypatch, respondent, timestamp, expected_error
+):
+    import json
+    from energy_transition import eia930_west
+
+    class Response:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, *args):
+            return json.dumps({"response": {"data": [
+                {"period": timestamp, "respondent": respondent, "value": 100}
+            ], "total": 1}}).encode()
+
+    monkeypatch.setattr(eia930_west.urllib.request, "urlopen",
+                        lambda *args, **kwargs: Response())
+    with pytest.raises(ValueError, match=expected_error):
+        fetch_eia_demand(2023, bas=("BA_A",), api_key="test")
