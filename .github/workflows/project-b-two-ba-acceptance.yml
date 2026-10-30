@@ -106,20 +106,24 @@ jobs:
                   if (balance["hours_per_ba"]!=8784
                           or balance["max_absolute_residual_mw"]>balance["tolerance_mw"]):
                       raise SystemExit(f"{ba}: hourly demand balance failed")
-                  # Do not treat a single matched hour as adequate evidence
-                  # for a full-year empirical comparison.
-                  if int(m["paired_hours"])!=8784:
-                      raise SystemExit(f"{ba}: full-year observed NG pairing incomplete")
-                  if (int(m["observed_hours"])!=8784
-                          or abs(float(m["paired_coverage"])-1.0)>1e-12):
-                      raise SystemExit(f"{ba}: full-year observed NG coverage inconsistent")
+                  # Distinguish completed *model* time coverage from observed
+                  # source completeness. Do not fill missing EIA-930 NG hours.
                   import math
-                  if not all(math.isfinite(float(m[key])) for key in
-                             ("mae_mw","rmse_mw","paired_coverage")):
-                      raise SystemExit(f"{ba}: nonfinite hourly comparison metrics")
+                  paired=int(m["paired_hours"])
+                  observed=int(m["observed_hours"])
+                  fraction=float(m["paired_coverage"])
+                  if (not 0<paired<=observed<=8784
+                          or not math.isclose(fraction,paired/8784,abs_tol=1e-9)
+                          or not all(math.isfinite(float(m[key])) for key in
+                                     ("mae_mw","rmse_mw","paired_coverage"))):
+                      raise SystemExit(f"{ba}: invalid observed coverage or metrics")
                   report[ba]={
                       "run_id":run["id"],"url":run["html_url"],
-                      "paired_hours":int(m["paired_hours"]),
+                      "paired_hours":paired,
+                      "observed_hours":observed,
+                      "missing_observed_hours":8784-observed,
+                      "observed_full_year_complete":observed==8784,
+                      "hourly_model_complete":True,
                       "paired_coverage":float(m["paired_coverage"]),
                       "mae_mw":float(m["mae_mw"]),
                       "rmse_mw":float(m["rmse_mw"]),
