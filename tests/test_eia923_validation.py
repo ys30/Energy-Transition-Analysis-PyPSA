@@ -74,3 +74,17 @@ def test_reject_invalid_modeled_dispatch(bad_value):
     m['dispatch_mwh_by_carrier']['gas'] = bad_value
     with pytest.raises(ValueError, match='model dispatch'):
         compare_generation(g, x, m, year=2024, bas=('CISO',))
+
+
+def test_reject_blank_observed_fuel():
+    g, x, m = _fixtures()
+    g.loc[0, 'fuel'] = '  '
+    with pytest.raises(ValueError, match='Blank EIA-923 fuel'):
+        compare_generation(g, x, m, year=2024, bas=('CISO',))
+
+
+def test_strip_observed_fuel_whitespace_before_comparison():
+    g, x, m = _fixtures()
+    g.loc[0, 'fuel'] = ' gas '
+    result, audit = compare_generation(g, x, m, year=2024, bas=('CISO',))
+    assert result.set_index('carrier').loc['gas', 'observed_eia923_net_generation_mwh'] == 95
