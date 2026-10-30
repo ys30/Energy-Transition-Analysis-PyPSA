@@ -36,4 +36,13 @@ See [verified numeric report](verified_2024_two_ba_hourly_numerical_acceptance.m
 
 **Not delivered by this acceptance:** calibrated CISO/BPAT historical production, actual BA transmission/interchange constraints, EIA-923 generator-fuel matching reconciliation, BPAT wind accounting resolution, empirical storage cost savings, capacity expansion, or 2025–2040 investment/transition projections. These remain project-wide research and model-engineering work, not silently considered complete.
 
+## Research continuation priorities
+
+1. **Observed CISO NG gap:** Compare EIA-930 source API timestamps and timezone semantics around 2024-11-02 08:00 through 2024-11-03 08:00 UTC; retain source payload and request metadata before assigning a daylight-saving explanation. Keep the 24 missing hours excluded from observed-error statistics.
+2. **BPAT generation reconciliation:** Trace EIA-923 plant-level annual wind generation against EIA-930 BA-hour totals, with plant-to-BA mapping and reporting-boundary differences explicitly audited. Do not treat unmatched plants as proof of the discrepancy's cause.
+3. **Annual empirical gates:** Execute and preserve the EIA-860/EIA-923 annual validation with run ID, input vintage, BA coverage, artifact hashes and reproducible error tables. The successful hourly gas-only pilots do not satisfy this separate validation.
+4. **Physical model extension:** Replace synthetic gas-only supply with defensible technology-specific capacities and availability, then introduce physical interconnection (PyPSA Line/Link as appropriate), storage chronology and calibrated constraints. Re-evaluate costs, shortages and emissions only after these steps.
+
+**Next milestone:** A separately documented, source-audited annual validation and an evidence-backed reconciliation of the CISO missing block and BPAT wind difference. No claim of historical calibration or completed transition projections is authorized by the current engineering acceptance.
+
 GitHub artifact retention is time-limited; no indefinite external archive is evidenced here.
