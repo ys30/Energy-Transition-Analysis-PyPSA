@@ -422,6 +422,18 @@ def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
     return result
 
 
+def validate_annual_energy_conservation(raw_energy: float, represented_energy: float, year: int) -> None:
+    """Reject nonfinite, nonpositive, or nonconserving annual demand totals."""
+    import math
+    if (not math.isfinite(raw_energy) or not math.isfinite(represented_energy)
+            or raw_energy <= 0
+            or abs(raw_energy - represented_energy) > max(1e-6, abs(raw_energy) * 1e-10)):
+        raise ValueError(
+            f"Representative-hour aggregation does not conserve annual demand energy "
+            f"for {year}: observed={raw_energy}, represented={represented_energy}"
+        )
+
+
 def main():
     p = argparse.ArgumentParser(description="EIA-930 based, assumption-driven Western BA PyPSA dispatch")
     p.add_argument("--years", type=int, nargs="+", default=[2023, 2024])
@@ -493,16 +505,7 @@ def main():
         rep = representative_hours(hourly, year)
         raw_energy = float(hourly["value"].sum())
         represented_energy = float((rep["value"] * rep["weight_h"]).sum())
-        # Month-hour weighting must preserve annual energy before optimization.
-        # A complete 288-row grid by itself does not establish this invariant.
-        import math
-        if (not math.isfinite(raw_energy) or not math.isfinite(represented_energy)
-                or raw_energy <= 0
-                or abs(raw_energy - represented_energy) > max(1e-6, abs(raw_energy) * 1e-10)):
-            raise ValueError(
-                f"Representative-hour aggregation does not conserve annual demand energy "
-                f"for {year}: observed={raw_energy}, represented={represented_energy}"
-            )
+        validate_annual_energy_conservation(raw_energy, represented_energy, year)
         energy_audit = {
             "year": year,
             "balancing_authorities": sorted(hourly.respondent.unique().tolist()),
