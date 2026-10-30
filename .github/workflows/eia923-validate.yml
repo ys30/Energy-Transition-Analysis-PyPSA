@@ -269,6 +269,15 @@ jobs:
               raise ValueError("Representative month-hour mean exceeds observed hourly peak")
           peak_loss_mw = observed_peak - representative_peak
           peak_loss_fraction = peak_loss_mw / observed_peak
+          # Ensure the standalone model audit and workflow report agree.
+          recorded_loss = float(audit["peak_loss_mw"])
+          recorded_fraction = float(audit["peak_loss_fraction"])
+          if not all(math.isfinite(v) for v in (recorded_loss, recorded_fraction)):
+              raise ValueError("Nonfinite peak smoothing audit values")
+          if not math.isclose(recorded_loss, peak_loss_mw, rel_tol=1e-10, abs_tol=1e-6):
+              raise ValueError("Standalone and workflow peak loss MW disagree")
+          if not math.isclose(recorded_fraction, peak_loss_fraction, rel_tol=1e-10, abs_tol=1e-10):
+              raise ValueError("Standalone and workflow peak loss fractions disagree")
           audit["peak_information_loss_mw"] = peak_loss_mw
           audit["peak_information_loss_fraction"] = peak_loss_fraction
           audit["annual_energy_conservation_verified"] = True
