@@ -182,3 +182,15 @@ def test_representative_energy_conservation_with_nonuniform_hourly_profiles(year
     validate_annual_energy_conservation(observed, represented, year)
     assert represented == pytest.approx(observed, rel=1e-12)
     assert float(rep.value.max()) < float(hourly.groupby("period").value.sum().max())
+
+
+@pytest.mark.parametrize("bas", [
+    ("BPAT", "BPAT"),
+    ("BPAT", ""),
+    ("BPAT", " CISO"),
+    ("BPAT", None),
+])
+def test_eia_api_rejects_invalid_requested_ba_codes(monkeypatch, bas):
+    monkeypatch.setenv("EIA_API_KEY", "test")
+    with pytest.raises(ValueError, match="BA selection"):
+        fetch_eia_demand(2024, bas=bas)
