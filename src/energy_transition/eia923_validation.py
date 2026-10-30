@@ -85,6 +85,17 @@ def compare_generation(
     modeled = model_metrics.get("dispatch_mwh_by_carrier")
     if not isinstance(modeled, dict) or not modeled:
         raise ValueError("Missing model dispatch_mwh_by_carrier")
+    if any(not isinstance(k, str) or not k.strip() for k in modeled):
+        raise ValueError("Invalid model carrier labels")
+    for carrier, value in modeled.items():
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid model dispatch for {carrier}") from exc
+        if not pd.notna(numeric_value) or abs(numeric_value) == float("inf"):
+            raise ValueError(f"Nonfinite model dispatch for {carrier}")
+        if numeric_value < -1e-6:
+            raise ValueError(f"Negative model dispatch for {carrier}")
     # EIA-923 primary fuel codes are not the same as PyPSA carrier labels.
     # The caller must normalize fuel to the model's carrier names.
     # Retain observed-only fuels in the audit, but never compare them with
