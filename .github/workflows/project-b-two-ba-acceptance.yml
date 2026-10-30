@@ -44,6 +44,18 @@ jobs:
                         "run_url":latest["html_url"]}
             if latest["status"]!="completed" or latest["conclusion"]!="success":
               raise SystemExit(f"Latest {ba} workflow has not passed: {latest['html_url']}")
+          # Ensure the two independently passed pilots used identical source revision.
+          ciso_sha=report["CISO"]["commit_sha"]
+          bpat_sha=report["BPAT"]["commit_sha"]
+          if ciso_sha!=bpat_sha:
+            raise SystemExit(
+              f"Different tested source revisions: CISO={ciso_sha}, BPAT={bpat_sha}")
+          report["common_commit_sha"]=ciso_sha
+          report["acceptance_limitations"]=[
+            "Checks successful upstream workflow evidence, not numerical comparisons across BA",
+            "Both models are independent gas-only baselines without physical interconnection",
+            "Observed EIA-930 NG differences are descriptive, not calibrated predictions",
+          ]
           with open("two_ba_engineering_acceptance.json","w") as f:
             json.dump(report,f,indent=2)
           print(json.dumps(report,indent=2))
