@@ -12,8 +12,8 @@ def audit(wind,book):
         for header in (0,1,2,3):
             d=pd.read_excel(excel,sheet_name=sheet,header=header)
             names={str(c).strip().lower().replace("\n"," "):c for c in d.columns}
-            pid=next((v for k,v in names.items() if k in ("plant id","plant code","eia plant code","eia plant id","plant id number")),None)
-            ba=next((v for k,v in names.items() if "balancing authority" in k and ("code" in k or "acronym" in k)),None)
+            pid=next((v for k,v in names.items() if k in ("eia plant id","plant id (eia-930a)","plant id")),None)
+            ba=next((v for k,v in names.items() if k=="ba code" or ("balancing authority" in k and "code" in k)),None)
             if pid and ba:
                 schema.append({"sheet":sheet,"header":header,"plant_col":str(pid),"ba_col":str(ba),"rows":len(d)})
                 sub=d[[pid,ba]].copy();sub.columns=["plant_id","eia930a_ba"]
