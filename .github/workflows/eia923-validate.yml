@@ -82,6 +82,7 @@ jobs:
               "included_abs_generation_mwh", "excluded_monthly_cells",
               "excluded_source_rows", "excluded_valid_numeric_cells",
               "excluded_valid_numeric_net_generation_mwh",
+              "excluded_valid_numeric_abs_generation_mwh",
               "unmapped_fuel_cells", "unmapped_fuel_net_generation_mwh",
               "unmapped_fuel_abs_generation_mwh", "coverage_caveat",
           )
@@ -102,10 +103,10 @@ jobs:
           year = os.environ["YEAR"]
           audit = json.loads(Path(f"outputs/eia923/eia923_source_{year}.json").read_text())
           included = float(audit["included_abs_generation_mwh"])
-          lost = abs(float(audit["excluded_valid_numeric_net_generation_mwh"]))
+          lost = float(audit["excluded_valid_numeric_abs_generation_mwh"])
           unknown = float(audit["unmapped_fuel_abs_generation_mwh"])
           print(f"Included abs MWh: {included:,.1f}")
-          print(f"Excluded valid monthly net MWh (absolute net only): {lost:,.1f}")
+          print(f"Excluded valid monthly absolute MWh: {lost:,.1f}")
           print(f"Unmapped-fuel abs MWh (may overlap exclusions): {unknown:,.1f}")
           print("These diagnostics are not a certified completeness fraction.")
           if included <= 0:
