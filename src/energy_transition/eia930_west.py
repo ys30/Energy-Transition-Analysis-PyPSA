@@ -88,6 +88,16 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
     data = data[["period", "respondent", "value"]].copy()
     data["period"] = pd.to_datetime(data["period"], utc=True, errors="raise")
     data["value"] = pd.to_numeric(data["value"], errors="coerce").astype("float64")
+    # Reject out-of-scope API rows instead of silently discarding them during
+    # the expected BA-hour reindex (which could conceal upstream API changes).
+    requested_bas = set(bas)
+    unexpected_bas = set(data["respondent"].dropna()) - requested_bas
+    if data["respondent"].isna().any() or unexpected_bas:
+        raise ValueError(f"Unexpected or missing EIA demand BA identifiers: {sorted(unexpected_bas)}")
+    year_start = pd.Timestamp(f"{year}-01-01", tz="UTC")
+    year_end = pd.Timestamp(f"{year+1}-01-01", tz="UTC")
+    if data["period"].isna().any() or not data["period"].between(year_start, year_end, inclusive="left").all():
+        raise ValueError("EIA demand API returned timestamps outside requested year")
     if data.duplicated(["period", "respondent"]).any():
         raise ValueError("Duplicate balancing authority-hour rows")
     # EIA publishes BA-level reported values as received, including anomalies.
