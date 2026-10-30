@@ -94,6 +94,8 @@ def summarize_comparison(joined):
             "ba_code": ba,
             "technology_rows": int(len(part)),
             "matched_technology_rows": int(comparable.sum()),
+            "matched_technology_fraction": float(comparable.sum() / len(part)),
+            "qualified_annual_fraction": float(qualified.sum() / len(part)),
             "qualified_annual_comparison_rows": int(qualified.sum()),
             "observed_only_rows": int(part.comparison_status.eq("observed_only").sum()),
             "model_only_rows": int(part.comparison_status.eq("model_only").sum()),
@@ -105,6 +107,7 @@ def summarize_comparison(joined):
         })
     return pd.DataFrame(rows, columns=[
         "ba_code", "technology_rows", "matched_technology_rows",
+        "matched_technology_fraction", "qualified_annual_fraction",
         "qualified_annual_comparison_rows", "observed_only_rows",
         "model_only_rows", "partial_coverage_rows",
         "nonpositive_generation_rows", "matched_qualified_eia923_mwh",
