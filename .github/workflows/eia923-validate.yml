@@ -29,6 +29,8 @@ on:
       - 'src/energy_transition/eia860_plant_ba.py'
       - 'src/energy_transition/eia930_west.py'
       - 'tests/test_eia860_capacity.py'
+      - 'tests/test_eia930_west.py'
+      - 'tests/test_eia930_capacity_scenario.py'
 concurrency:
   group: eia923-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'push' }}
@@ -45,7 +47,7 @@ jobs:
           cache: pip
       - run: python -m pip install -e '.[dev]'
       - name: EIA-923 normalization and validation regression tests
-        run: python -m pytest -q tests/test_eia923_download.py tests/test_eia923_normalize.py tests/test_eia923_validation.py tests/test_eia930_capacity_scenario.py tests/test_eia860_plant_ba.py
+        run: python -m pytest -q tests/test_eia923_download.py tests/test_eia923_normalize.py tests/test_eia923_validation.py tests/test_eia930_capacity_scenario.py tests/test_eia930_west.py tests/test_eia860_plant_ba.py
   # The official annual EIA-923 workbook and matching solved model metrics
   # are required for empirical validation. The workflow intentionally does
   # not label unit tests as an observed-data validation.
