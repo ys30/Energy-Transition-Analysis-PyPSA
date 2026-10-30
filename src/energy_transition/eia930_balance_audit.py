@@ -45,6 +45,12 @@ def balance_audit(demand,generation,interchange,bas,year):
         source["period"]=pd.to_datetime(source["period"],utc=True,errors="coerce")
         if source["period"].isna().any():
             raise ValueError(f"{label}: invalid hourly timestamps")
+        if not source["respondent"].isin(bas).all():
+            raise ValueError(f"{label}: unexpected BA respondent outside requested scope")
+        start=pd.Timestamp(f"{year}-01-01",tz="UTC")
+        end=pd.Timestamp(f"{year+1}-01-01",tz="UTC")
+        if ((source["period"] < start) | (source["period"] >= end)).any():
+            raise ValueError(f"{label}: observations outside requested calendar year")
         if source.duplicated(["respondent","period"]).any():
             raise ValueError(f"{label}: duplicate BA-hour observations")
         source["value"]=pd.to_numeric(source["value"],errors="coerce")
