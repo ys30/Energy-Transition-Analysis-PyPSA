@@ -77,3 +77,19 @@ def test_balanced_positive_load_remains_screening_only():
     ti=pd.DataFrame({"respondent":"CISO","period":hours,"value":-20.0})
     _,summary=balance_audit(d,ng,ti,["CISO"],2024)
     assert summary.iloc[0].accounting_gate=="screening_only_not_verified"
+
+
+def test_monthly_signed_residual_cancellation_cannot_hide_hourly_imbalance():
+    from energy_transition.eia930_balance_audit import monthly_balance_audit
+    hours=pd.date_range("2024-01-01","2024-02-01",freq="h",inclusive="left",tz="UTC")
+    demand=pd.DataFrame({"respondent":"CISO","period":hours,"value":100.0})
+    generation=demand.copy()
+    generation["value"]=[80.0 if i%2==0 else 120.0 for i in range(len(hours))]
+    interchange=demand.copy()
+    interchange["value"]=0.0
+    hourly,_=balance_audit(demand,generation,interchange,["CISO"],2024)
+    monthly=monthly_balance_audit(hourly)
+    jan=monthly[monthly.month=="2024-01"].iloc[0]
+    assert jan.official_residual_mwh==0.0
+    assert jan.mae_share_of_load==0.2
+    assert jan.quality_flag=="review_required"
