@@ -19,7 +19,7 @@ def run_sensitivity(hourly,output,durations=DURATIONS):
     rows=[]
     for duration in durations:
         path=output/f"duration_{int(duration)}h"
-        result=solve_window(hourly,path,duration_h=duration)
+        result=solve_window(hourly,path,duration_h=duration,require_activity=False)
         rows.append({
             "duration_h":duration,
             "battery_power_mw":result["battery_mw_assumed"],
