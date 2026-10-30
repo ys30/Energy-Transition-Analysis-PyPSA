@@ -8,6 +8,8 @@ on:
       - 'src/energy_transition/storage_duration_sensitivity.py'
       - 'src/energy_transition/chronological_storage_pilot.py'
       - 'tests/test_seasonal_storage_sensitivity.py'
+      - 'src/energy_transition/storage_savings_attribution.py'
+      - 'tests/test_storage_savings_attribution.py'
 jobs:
   seasonal:
     runs-on: ubuntu-latest
@@ -21,7 +23,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install -e '.[model,dev]'
-      - run: python -m pytest -q tests/test_seasonal_storage_sensitivity.py tests/test_storage_duration_sensitivity.py
+      - run: python -m pytest -q tests/test_seasonal_storage_sensitivity.py tests/test_storage_duration_sensitivity.py tests/test_storage_savings_attribution.py
       - uses: actions/download-artifact@v4
         with:
           name: eia930-west-2024
@@ -32,6 +34,11 @@ jobs:
         run: |
           python -m energy_transition.seasonal_storage_sensitivity \
             --hourly inputs/eia930_2024/eia930_demand_2024.csv \
+            --output outputs/seasonal_storage
+      - name: Reconcile model shortage penalties and operating savings
+        run: |
+          python -m energy_transition.storage_savings_attribution \
+            --input outputs/seasonal_storage/seasonal_storage_sensitivity.csv \
             --output outputs/seasonal_storage
       - uses: actions/upload-artifact@v4
         if: always()
