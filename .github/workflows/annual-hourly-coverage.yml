@@ -1,0 +1,46 @@
+name: Annual 2024 hourly storage input coverage gate
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/annual-hourly-coverage.yml'
+      - 'src/energy_transition/annual_hourly_coverage_gate.py'
+      - 'tests/test_annual_hourly_coverage_gate.py'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_annual_hourly_coverage_gate.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia930-west-2024
+          run-id: 40935909190
+          github-token: ${{ github.token }}
+          path: inputs/demand
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia930-hourly-solar-wind-2024
+          run-id: 41003777337
+          github-token: ${{ github.token }}
+          path: inputs/renewables
+      - name: Require fully aligned leap-year input coverage before annual LP
+        run: |
+          python -m energy_transition.annual_hourly_coverage_gate \
+            --demand inputs/demand/eia930_demand_2024.csv \
+            --renewables inputs/renewables/renewable_hourly_observed.csv \
+            --output outputs/annual_coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: annual-hourly-storage-input-coverage-2024
+          path: outputs/annual_coverage/
+          retention-days: 60
