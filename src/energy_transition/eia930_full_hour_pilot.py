@@ -86,6 +86,30 @@ def main():
         for ba in args.bas
     ],ignore_index=True)
     modeled.to_csv(args.output/"modeled_generation_hourly.csv",index=False)
+    # Gas-only generation is not proof of supply adequacy: account explicitly
+    # for the expensive synthetic unserved-load generator.
+    unserved=pd.DataFrame({
+        "respondent":np.repeat(args.bas,len(demand.index)),
+        "period":list(demand.index)*len(args.bas),
+        "unserved_mw":np.concatenate([
+            network.generators_t.p[f"{ba}_unserved"].to_numpy(dtype=float)
+            for ba in args.bas
+        ]),
+    })
+    unserved.to_csv(args.output/"unserved_load_hourly.csv",index=False)
+    if not np.isfinite(unserved.unserved_mw).all() or (unserved.unserved_mw < -1e-6).any():
+        raise ValueError("Invalid unserved-load dispatch")
+    summary={
+        "year":args.year,
+        "unserved_mwh_by_ba":{
+            ba:float(unserved.loc[unserved.respondent==ba,"unserved_mw"].sum())
+            for ba in args.bas
+        },
+        "total_unserved_mwh":float(unserved.unserved_mw.sum()),
+        "unserved_positive_hours":int((unserved.unserved_mw>1e-6).sum()),
+        "interpretation":"Synthetic unserved generator is a feasibility diagnostic, not observed load shedding.",
+    }
+    (args.output/"unserved_load_audit.json").write_text(json.dumps(summary,indent=2))
     manifest={
         "year":args.year,"bas":args.bas,"hours":8784 if calendar.isleap(args.year) else 8760,
         "demand":"EIA-930 supplied BA hourly demand, subject to upstream QC",
