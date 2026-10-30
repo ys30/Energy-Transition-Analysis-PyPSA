@@ -132,12 +132,14 @@ def test_ba_coverage_summary_excludes_partial_and_unmatched_annual_totals():
     ciso = result[result.ba_code == "CISO"].iloc[0]
     bpat = result[result.ba_code == "BPAT"].iloc[0]
     assert ciso.qualified_annual_comparison_rows == 1
+    assert ciso.annual_comparison_readiness == 'descriptive_only'
     assert ciso.matched_technology_fraction == 0.5
     assert ciso.qualified_annual_fraction == 0.5
     assert ciso.observed_only_rows == 1
     assert ciso.matched_qualified_eia923_mwh == 45.0
     assert ciso.matched_pypsa_mwh == 50.0
     assert bpat.observed_only_rows == 1
+    assert bpat.annual_comparison_readiness == 'insufficient_comparable_evidence'
     assert bpat.matched_technology_fraction == 0.0
     assert bpat.qualified_annual_fraction == 0.0
     assert bpat.matched_qualified_eia923_mwh == 0.0
