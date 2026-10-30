@@ -120,3 +120,21 @@ def test_reject_requested_ba_with_crosswalk_but_no_observed_generation():
     })], ignore_index=True)
     with pytest.raises(ValueError, match="no mapped EIA-923 observations"):
         compare_generation(g, x, m, year=2024, bas=("CISO", "BPAT"))
+
+
+def test_two_ba_audit_separates_signed_and_absolute_generation():
+    g, x, m = _fixtures()
+    g = pd.concat([g, pd.DataFrame({
+        "plant_id": ["203", "203"], "report_year": [2024, 2024],
+        "month": [1, 2], "fuel": ["wind", "wind"],
+        "net_generation_mwh": [20, -2],
+    })], ignore_index=True)
+    x = pd.concat([x, pd.DataFrame({
+        "plant_id": ["203"], "ba_code": ["BPAT"], "mapping_year": [2024],
+    })], ignore_index=True)
+    result, audit = compare_generation(g, x, m, year=2024, bas=("CISO", "BPAT"))
+    assert audit["selected_ba_mapped_plant_count_by_ba"] == {"BPAT": 1, "CISO": 2}
+    assert audit["selected_ba_mapped_generation_net_mwh_by_ba"]["BPAT"] == pytest.approx(18)
+    assert audit["selected_ba_mapped_generation_abs_mwh_by_ba"]["BPAT"] == pytest.approx(22)
+    assert audit["selected_ba_mapped_generation_net_mwh_by_ba"]["CISO"] == pytest.approx(135)
+    assert result.set_index("carrier").loc["wind", "observed_eia923_net_generation_mwh"] == pytest.approx(58)
