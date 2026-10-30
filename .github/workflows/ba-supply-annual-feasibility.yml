@@ -1,0 +1,45 @@
+name: 2024 BA technology annual supply feasibility audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ba-supply-annual-feasibility.yml'
+      - 'src/energy_transition/ba_supply_annual_feasibility.py'
+      - 'tests/test_ba_supply_annual_feasibility.py'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_ba_supply_annual_feasibility.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia923-vs-pypsa-2024
+          run-id: 40964541770
+          github-token: ${{ github.token }}
+          path: inputs/eia860
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia923-ba-fuel-generation-2024
+          run-id: 40937912804
+          github-token: ${{ github.token }}
+          path: inputs/eia923
+      - name: Screen nameplate against qualified annual energy by BA and technology
+        run: |
+          python -m energy_transition.ba_supply_annual_feasibility \
+            --capacity inputs/eia860/eia860_model_subset/ba_operating_nameplate_by_fuel_2024.csv \
+            --qualified inputs/eia923/generation_qualified_ba_fuel.csv \
+            --output outputs/ba_supply
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 2024-ba-supply-feasibility
+          path: outputs/ba_supply/
