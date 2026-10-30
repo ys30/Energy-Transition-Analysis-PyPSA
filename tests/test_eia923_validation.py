@@ -144,3 +144,17 @@ def test_two_ba_audit_separates_signed_and_absolute_generation():
         "CISO": {"gas": 95.0, "wind": 40.0},
         "BPAT": {"wind": 18.0},
     }
+
+
+def test_negative_generation_from_unmapped_plant_is_separate():
+    g, x, m = _fixtures()
+    g = pd.concat([g, pd.DataFrame({
+        "plant_id": ["999"], "report_year": [2024], "month": [1],
+        "fuel": ["gas"], "net_generation_mwh": [-7],
+    })], ignore_index=True)
+    _, audit = compare_generation(g, x, m, year=2024, bas=("CISO",))
+    assert audit["negative_net_generation_rows"] == 2
+    assert audit["negative_net_generation_rows_selected_ba"] == 1
+    assert audit["negative_net_generation_rows_unmapped_national"] == 1
+    assert audit["unmapped_national_generation_abs_mwh"] == pytest.approx(7)
+    assert audit["selected_ba_mapped_generation_net_mwh"] == pytest.approx(135)
