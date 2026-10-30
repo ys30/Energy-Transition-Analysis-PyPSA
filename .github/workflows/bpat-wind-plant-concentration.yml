@@ -1,0 +1,37 @@
+name: BPAT 2024 wind plant concentration audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/bpat-wind-plant-concentration.yml'
+      - 'src/energy_transition/bpat_wind_plant_concentration.py'
+      - 'tests/test_bpat_wind_plant_concentration.py'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_bpat_wind_plant_concentration.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia2024-plant-ba-qualification-match
+          run-id: 41085325552
+          github-token: ${{ github.token }}
+          path: inputs/plant
+      - run: |
+          python -m energy_transition.bpat_wind_plant_concentration \
+            --plant-audit inputs/plant/plant_qualification_match_audit.csv \
+            --output outputs/bpat_plant
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bpat-wind-plant-concentration-2024
+          path: outputs/bpat_plant/
