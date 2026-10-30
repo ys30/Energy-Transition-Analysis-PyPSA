@@ -19,16 +19,25 @@ def audit(wind,book):
                 sub=d[[pid,ba]].copy();sub.columns=["plant_id","eia930a_ba"]
                 sub["plant_id"]=sub.plant_id.astype("string").str.strip().str.replace(r"\.0$","",regex=True)
                 sub["eia930a_ba"]=sub.eia930a_ba.astype("string").str.strip().str.upper()
+                sub["schedule"]=sheet
                 matches.append(sub.dropna().drop_duplicates())
                 break
     if not matches:raise ValueError("Unrecognized official EIA930A sheets: "+str([(s,list(pd.read_excel(excel,sheet_name=s,nrows=3).columns)) for s in excel.sheet_names]))
     cross=pd.concat(matches,ignore_index=True).drop_duplicates()
     bpat=cross[cross.eia930a_ba.eq("BPAT")]
+    operating=bpat[bpat.schedule.eq("SCH 2")]
+    operating_ids=set(operating.plant_id)
     ids=set(bpat.plant_id)
     x["in_eia930a_bpat_population"]=x.plant_id.isin(ids)
+    x["in_eia930a_bpat_sch2"]=x.plant_id.isin(operating_ids)
+    x["in_eia930a_other_ba"]=x.plant_id.isin(set(cross.loc[~cross.eia930a_ba.eq("BPAT"),"plant_id"]))
     x["in_any_eia930a_population"]=x.plant_id.isin(set(cross.plant_id))
     summary={"source_url":URL,"sheet_schemas":schema,"bpat_wind_plants":len(x),
       "in_eia930a_bpat":int(x.in_eia930a_bpat_population.sum()),
+      "in_bpat_sch2":int(x.in_eia930a_bpat_sch2.sum()),
+      "not_in_bpat_sch2":int((~x.in_eia930a_bpat_sch2).sum()),
+      "not_in_bpat_sch2_eia923_mwh":float(x.loc[~x.in_eia930a_bpat_sch2,"net_generation_mwh"].sum()),
+      "in_other_ba_any_schedule":int(x.in_eia930a_other_ba.sum()),
       "not_in_eia930a_bpat":int((~x.in_eia930a_bpat_population).sum()),
       "listed_bpat_wind_qualified_mwh":float(x.loc[x.in_eia930a_bpat_population,"net_generation_mwh"].sum()),
       "unlisted_bpat_wind_qualified_mwh":float(x.loc[~x.in_eia930a_bpat_population,"net_generation_mwh"].sum()),
