@@ -43,6 +43,10 @@ jobs:
           out=Path("outputs/hourly_dispatch_pilot")
           result=pd.read_csv(out/"modeled_generation_hourly.csv")
           assert len(result)==8784
+          observed=pd.read_csv(out/"observed_demand_hourly.csv")
+          assert len(observed)==8784
+          assert pd.to_datetime(result["period"],utc=True).is_unique
+          assert set(pd.to_datetime(result["period"],utc=True))==set(pd.to_datetime(observed["period"],utc=True))
           assert result["respondent"].eq("CISO").all()
           assert np.isfinite(result["value"]).all()
           assert (result["value"]>=0).all()
