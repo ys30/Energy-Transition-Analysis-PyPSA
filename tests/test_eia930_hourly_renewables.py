@@ -23,3 +23,14 @@ def test_renewables_reject_duplicate_hourly_fuel():
     row={"period":"2024-01-01T00:00Z","respondent":"BPAT","fueltype":"WND","value":10.}
     with pytest.raises(ValueError,match="Duplicate"):
         audit(pd.DataFrame([row,row]),2024,bas=("BPAT",))
+
+def test_season_profiles_retain_signed_generation_and_reject_missing():
+    from energy_transition.eia930_hourly_renewables import season_profiles
+    dates=pd.date_range("2024-01-08",periods=168,freq="h",tz="UTC")
+    frame=pd.DataFrame([{"period":date,"respondent":ba,"fueltype":fuel,"value":(-2. if fuel=="SUN" else 5.)}
+         for date in dates for ba in ("CISO","BPAT") for fuel in ("SUN","WND")])
+    weeks=season_profiles(frame,starts={"winter":"2024-01-08T00:00:00Z"})
+    assert len(weeks)==672
+    assert weeks.loc[weeks.fueltype.eq("SUN"),"reported_signed_net_mwh"].sum()==-672.
+    with pytest.raises(ValueError,match="incomplete"):
+        season_profiles(frame.iloc[:-1],starts={"winter":"2024-01-08T00:00:00Z"})
