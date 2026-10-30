@@ -117,6 +117,20 @@ jobs:
                           or not all(math.isfinite(float(m[key])) for key in
                                      ("mae_mw","rmse_mw","paired_coverage"))):
                       raise SystemExit(f"{ba}: invalid observed coverage or metrics")
+                  # Preserve the exact UTC timestamps absent from observed NG.
+                  observed_ng=pd.read_csv(find_unique("observed_net_generation_hourly.csv"))
+                  observed_ng["period"]=pd.to_datetime(observed_ng["period"],utc=True,errors="coerce")
+                  observed_ng["value"]=pd.to_numeric(observed_ng["value"],errors="coerce")
+                  complete=pd.date_range("2024-01-01","2025-01-01",freq="h",
+                                         inclusive="left",tz="UTC")
+                  valid=observed_ng.loc[
+                    observed_ng["respondent"].eq(ba)&observed_ng["value"].notna(),
+                    "period"]
+                  missing=complete.difference(pd.DatetimeIndex(valid))
+                  if len(missing)!=8784-observed:
+                      raise SystemExit(f"{ba}: observed missing timestamp count disagrees with summary")
+                  report.setdefault("missing_ng_utc_timestamps",{})[ba]=[
+                      x.isoformat() for x in missing]
                   report[ba]={
                       "run_id":run["id"],"url":run["html_url"],
                       "paired_hours":paired,
