@@ -355,13 +355,22 @@ jobs:
           lines.extend(["", "### Comparable annual generation by carrier", "",
                         "| Carrier | Observed MWh | Modeled MWh | Difference MWh | Relative error |",
                         "|---|---:|---:|---:|---:|"])
+          import math
           for record in records:
               carrier = record["carrier"]
               observed = float(record["observed_eia923_net_generation_mwh"])
               modeled = float(record["modeled_pypsa_dispatch_mwh"])
               difference = float(record["model_minus_observed_mwh"])
               error = record["relative_error_if_nonzero"]
-              error_text = f"{100 * float(error):+.1f}%" if error else "n/a"
+              if not all(math.isfinite(v) for v in (observed, modeled, difference)):
+                  raise ValueError(f"Nonfinite annual comparison value for carrier {carrier}")
+              if error:
+                  numeric_error = float(error)
+                  if not math.isfinite(numeric_error):
+                      raise ValueError(f"Nonfinite annual relative error for carrier {carrier}")
+                  error_text = f"{100 * numeric_error:+.1f}%"
+              else:
+                  error_text = "n/a"
               lines.append(f"| {carrier} | {observed:,.0f} | {modeled:,.0f} | {difference:+,.0f} | {error_text} |")
           lines.extend(["", "### Evidence qualification", "",
                         f"- **Selected-BA completeness:** {audit.get('selected_ba_completeness', 'unverified')}",
