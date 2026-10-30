@@ -110,3 +110,20 @@ def test_monthly_tail_metrics_detect_extreme_hour_even_with_low_mae():
     assert jan.mae_share_of_load < 0.01
     assert jan.max_residual_share_of_load==1.0
     assert jan.quality_flag=="review_required"
+
+
+def test_annual_tail_gate_catches_single_extreme_hour():
+    hours=pd.date_range("2024-01-01","2025-01-01",freq="h",inclusive="left",tz="UTC")
+    demand=pd.DataFrame({"respondent":"CISO","period":hours,"value":100.0})
+    generation=demand.copy()
+    generation.loc[0,"value"]=0.0
+    interchange=demand.copy()
+    interchange["value"]=0.0
+    _,audit=balance_audit(demand,generation,interchange,["CISO"],2024)
+    row=audit.iloc[0]
+    assert row.complete_triples==8784
+    assert row.annual_p95_absolute_residual_mw==0.0
+    assert row.annual_max_absolute_residual_mw==100.0
+    assert row.annual_max_residual_share_of_load==1.0
+    assert row.official_balance_mae_share_of_load < 0.01
+    assert row.accounting_gate=="review_required"
