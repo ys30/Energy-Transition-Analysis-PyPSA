@@ -46,6 +46,8 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
         raise ValueError("Set EIA_API_KEY. An EIA API key is required for this workflow.")
     if not bas:
         raise ValueError("At least one balancing authority is required")
+    if len(set(bas)) != len(bas) or any(not isinstance(ba, str) or not ba.strip() or ba != ba.strip() for ba in bas):
+        raise ValueError("BA selection must contain unique, nonblank, whitespace-free codes")
     params = [
         ("api_key", key), ("frequency", "hourly"), ("data[0]", "value"),
         ("facets[type][]", "D"), ("start", f"{year}-01-01T00"),
