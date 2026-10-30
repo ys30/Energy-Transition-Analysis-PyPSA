@@ -43,3 +43,33 @@ def test_hourly_comparison_preserves_missing_not_zero_filled():
     assert row.paired_hours==0
     assert pd.isna(row.mae_mw)
     assert row.comparison_status=="partial_hours_not_calibrated"
+
+
+def test_extract_full_year_dispatch_rejects_representative_hours():
+    from energy_transition.eia930_hourly_model_comparison import extract_full_year_dispatch
+    from types import SimpleNamespace
+    idx=pd.date_range("2024-01-01",periods=2,freq="h",tz="UTC")
+    network=SimpleNamespace(
+        snapshots=idx,
+        generators=pd.DataFrame({"bus":["CISO"]},index=["CISO_gas"]),
+        generators_t=SimpleNamespace(p=pd.DataFrame({"CISO_gas":[10.,20.]},index=idx)),
+    )
+    with pytest.raises(ValueError,match="Full-year hourly"):
+        extract_full_year_dispatch(network,2024,["CISO"])
+
+
+def test_extract_full_year_dispatch_sums_supported_generator_production():
+    from energy_transition.eia930_hourly_model_comparison import extract_full_year_dispatch
+    from types import SimpleNamespace
+    idx=pd.date_range("2024-01-01","2025-01-01",freq="h",inclusive="left",tz="UTC")
+    network=SimpleNamespace(
+        snapshots=idx,
+        generators=pd.DataFrame({"bus":["CISO","CISO","CISO"]},
+             index=["CISO_gas","CISO_solar","CISO_unserved"]),
+        generators_t=SimpleNamespace(p=pd.DataFrame(
+             {"CISO_gas":10.,"CISO_solar":5.,"CISO_unserved":100.},index=idx)),
+    )
+    out=extract_full_year_dispatch(network,2024,["CISO"])
+    assert len(out)==8784
+    assert out.value.eq(15.).all()
+    assert out.period.iloc[-1]==pd.Timestamp("2024-12-31T23:00:00Z")
