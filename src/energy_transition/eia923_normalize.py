@@ -84,15 +84,19 @@ def normalize_schedule3(frame: pd.DataFrame, year: int, *, allow_incomplete=Fals
     if missing.any() and not allow_incomplete:
         raise ValueError(f"Missing EIA-923 monthly net generation: {int(missing.sum())} cells")
     if allow_incomplete:
-        # Exclude an entire source record if ANY of its twelve months is not numeric.
-        # Preserve the original offending cells for a separate CSV audit.
+        # Preserve missing-cell tokens and every numeric month discarded with
+        # an incomplete source row; downstream annual totals are partial.
         excluded_audit = long.loc[missing, ["source_row_id", "plant_id", "fuel_code", "month", "net_generation_mwh"]].copy()
         excluded_audit["original_cell_text"] = raw.loc[missing].tolist()
         long.attrs["excluded_cells"] = excluded_audit
         complete_ids = long.groupby("source_row_id").net_generation_mwh.transform(lambda x: x.notna().all())
+        dropped_numeric = long.loc[~complete_ids & ~missing,
+            ["source_row_id", "plant_id", "fuel_code", "month", "net_generation_mwh"]].copy()
+        long.attrs["excluded_numeric_cells"] = dropped_numeric
         long = long.loc[complete_ids].copy()
     excluded_cells = long.attrs.get("excluded_cells")
     unmapped_fuel_cells = long.attrs.get("unmapped_fuel_cells")
+    excluded_numeric_cells = long.attrs.get("excluded_numeric_cells")
     long = long.dropna(subset=["fuel"])
     long["report_year"] = year
     result = long[["plant_id", "report_year", "month", "fuel", "net_generation_mwh"]].groupby(
@@ -101,6 +105,7 @@ def normalize_schedule3(frame: pd.DataFrame, year: int, *, allow_incomplete=Fals
     if allow_incomplete:
         result.attrs["excluded_cells"] = excluded_cells
         result.attrs["unmapped_fuel_cells"] = unmapped_fuel_cells
+        result.attrs["excluded_numeric_cells"] = excluded_numeric_cells
     return result
 
 
@@ -159,9 +164,11 @@ def main():
     a.output.mkdir(parents=True, exist_ok=True)
     excluded = result.attrs.get("excluded_cells")
     unmapped = result.attrs.get("unmapped_fuel_cells")
+    excluded_numeric = result.attrs.get("excluded_numeric_cells")
     if a.allow_incomplete:
         excluded.to_csv(a.output / f"eia923_excluded_monthly_cells_{a.year}.csv", index=False)
         unmapped.to_csv(a.output / f"eia923_unmapped_fuel_cells_{a.year}.csv", index=False)
+        excluded_numeric.to_csv(a.output / f"eia923_excluded_numeric_cells_{a.year}.csv", index=False)
     result.to_csv(a.output / f"eia923_normalized_{a.year}.csv", index=False)
     (a.output / f"eia923_source_{a.year}.json").write_text(json.dumps({
         "year": a.year, "input_file": a.xlsx.name, "sheet": selected_sheet,
@@ -169,6 +176,8 @@ def main():
         "strict_source_record_exclusion": a.allow_incomplete,
         "excluded_monthly_cells": len(excluded) if excluded is not None else 0,
         "excluded_source_rows": int(excluded.source_row_id.nunique()) if excluded is not None else 0,
+        "excluded_valid_numeric_cells": len(excluded_numeric) if excluded_numeric is not None else 0,
+        "excluded_valid_numeric_net_generation_mwh": float(excluded_numeric.net_generation_mwh.sum()) if excluded_numeric is not None else 0,
         "unmapped_fuel_cells": len(unmapped) if unmapped is not None else 0,
         "selected_fuel_coverage": "unmapped official source codes withheld and audited; extended observed-only fuel groups do not imply PyPSA carrier support",
         "warning": "Normalized official plant-month data; not automatically verified against EIA-930 BA totals."
