@@ -61,6 +61,9 @@ def audit(frame, year, bas=("CISO","BPAT")):
               "missing_timestamp_hours":len(missing),"missing_value_hours":nulls,
               "negative_generation_hours":negatives,
               "reported_generation_mwh_valid_nonnegative_only":float(within.loc[within.value.ge(0),"value"].sum()),
+              "reported_signed_net_generation_mwh":float(within.value.sum()),
+              "negative_net_generation_mwh":float(within.loc[within.value.lt(0),"value"].sum()),
+              "minimum_hourly_net_generation_mwh":float(within.value.min()) if not within.empty else None,
               "coverage_fraction":float((len(expected)-len(missing)-nulls)/len(expected)),
               "complete_nonnegative":bool(not len(missing) and not nulls and not negatives)})
     return pd.DataFrame(rows)
@@ -78,7 +81,7 @@ def main():
     (a.output/"provenance.json").write_text(json.dumps({
       "api":API,"year":a.year,"bas":a.bas,"fueltypes":FUEL,
       "units":"EIA reported megawatthours per hour; numerically equivalent to average MW during each hourly interval",
-      "warning":"Missing and negative hours are retained, not interpolated or clipped. Reported actual plant generation must not be confused with meteorological availability or future resource potential.",
+      "warning":"Missing and negative hours are retained, not interpolated or clipped. The signed net generation sum is the relevant net-energy statistic; nonnegative-only sums overstate net generation. Reported actual BA generation must not be confused with meteorological availability or future resource potential.",
       "policy":"Never convert this to a model-wide p_max_pu without audited matching nameplate and geography."
     },indent=2))
     print(results.to_string(index=False))
