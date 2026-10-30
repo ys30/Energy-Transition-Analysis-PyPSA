@@ -33,3 +33,12 @@ This checklist separates implementation, reported research observations, and emp
 5. Report the Actions **run URL, run ID, commit SHA, completion date, job outcomes**, and a concise carrier-level comparison before changing the status of this study to empirical-validation-complete.
 
 No successful run ID or artifact-level confirmation has been independently established in this status document.
+
+
+## Chronological hourly pilot: separate validation track
+
+The repository now contains an independent **full-year hourly demand/dispatch pilot** and an hourly BA generation export. This is a different temporal experiment from the 288 weighted month-hour annual model. A full-year hourly timestamp index does **not** by itself establish historical calibration: the pilot still has explicit supply and availability assumptions.
+
+For an empirical hourly comparison, require a solved PyPSA NetCDF with genuine UTC hourly snapshots, matching BA identities and a separately audited EIA-930 generation series. Compare only aligned observed hours, report missing-hour coverage and the distribution of hourly residuals (not just annual totals), and inspect interchange/balancing residuals before interpreting discrepancies as model error. Do not infer hourly generation validation from the annual EIA-923 comparison.
+
+**Acceptance status:** implementation exists, but no independently verified end-to-end hourly pilot run, hourly BA comparison artifact, or calibrated hourly error statistic has been established here. Keep this track separate from the annual EIA-923 evidence gate above.
