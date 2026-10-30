@@ -134,6 +134,32 @@ jobs:
           assert "ba_hourly_error_summary.csv" in report["sha256"]
           print("Saved run provenance and output SHA-256 manifest")
           PY
+      - name: Independently verify output integrity manifest
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          out=Path("outputs/hourly_dispatch_pilot")
+          manifest=json.loads((out/"execution_manifest.json").read_text())
+          required={
+            "observed_demand_hourly.csv",
+            "observed_net_generation_hourly.csv",
+            "modeled_generation_hourly.csv",
+            "unserved_load_hourly.csv",
+            "hourly_balance_audit.json",
+            "unserved_load_audit.json",
+            "hourly_pairs.csv",
+            "ba_hourly_error_summary.csv",
+            "hourly_network.nc",
+          }
+          assert required.issubset(manifest["sha256"]), required-set(manifest["sha256"])
+          for name,digest in manifest["sha256"].items():
+            p=out/name
+            assert p.is_file(),f"Missing expected artifact: {name}"
+            assert hashlib.sha256(p.read_bytes()).hexdigest()==digest, f"Checksum mismatch: {name}"
+          assert manifest["commit_sha"] and manifest["workflow_run_id"]
+          print("Independent manifest integrity gate passed")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
