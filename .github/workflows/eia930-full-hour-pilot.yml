@@ -1,0 +1,56 @@
+name: EIA-930 full-year hourly dispatch pilot
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia930-full-hour-pilot.yml'
+      - 'src/energy_transition/eia930_full_hour_pilot.py'
+jobs:
+  hourly_pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Fetch observed 2024 CISO demand
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        run: |
+          test -n "$EIA_API_KEY"
+          python - <<'PY'
+          from pathlib import Path
+          from energy_transition.eia930_west import fetch_eia_demand
+          out=Path("outputs/hourly_dispatch_pilot")
+          out.mkdir(parents=True,exist_ok=True)
+          fetch_eia_demand(2024,["CISO"]).to_csv(out/"observed_demand_hourly.csv",index=False)
+          PY
+      - name: Solve 8784 chronological hours with assumed gas supply
+        run: |
+          python -m energy_transition.eia930_full_hour_pilot \
+            --demand outputs/hourly_dispatch_pilot/observed_demand_hourly.csv \
+            --year 2024 --bas CISO --output outputs/hourly_dispatch_pilot
+      - name: Confirm dispatch is complete and finite
+        run: |
+          python - <<'PY'
+          import numpy as np
+          import pandas as pd
+          from pathlib import Path
+          out=Path("outputs/hourly_dispatch_pilot")
+          result=pd.read_csv(out/"modeled_generation_hourly.csv")
+          assert len(result)==8784
+          assert result["respondent"].eq("CISO").all()
+          assert np.isfinite(result["value"]).all()
+          assert (result["value"]>=0).all()
+          print("Verified 8784 model dispatch values; assumption-driven only")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia930-full-year-ciso-assumption-driven-2024
+          path: outputs/hourly_dispatch_pilot/
+          retention-days: 30
