@@ -16,7 +16,7 @@ def _representatives(year=2024):
     ])
     return pd.DataFrame({
         "snapshot": snapshots,
-        "weight_h": [calendar.monthrange(year, month)[1]
+        "weight_h": [float(calendar.monthrange(year, month)[1])
                      for month in range(1, 13) for _ in range(24)],
         "value": 100.0,
     })
