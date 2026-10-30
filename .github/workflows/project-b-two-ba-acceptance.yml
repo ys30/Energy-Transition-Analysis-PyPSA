@@ -41,24 +41,24 @@ jobs:
               with urllib.request.urlopen(request,timeout=45) as response:
                   return json.load(response)
 
-          runs=[]
-          for page in range(1,11):
-              batch=api(f"actions/runs?per_page=100&page={page}")["workflow_runs"]
-              runs.extend(batch)
-              if len(batch)<100:
-                  break
-          else:
-              raise SystemExit("More than 1000 workflow runs; paging incomplete")
-
-          names={"CISO":"EIA-930 full-year hourly dispatch pilot",
-                 "BPAT":"EIA-930 BPAT full-year hourly independent pilot"}
+          # Query only successful runs of each target workflow. The repository
+          # has >1000 total workflow runs and generic history is insufficient.
+          workflows={
+              "CISO":"eia930-full-hour-pilot.yml",
+              "BPAT":"eia930-bpat-full-hour-pilot.yml",
+          }
           by_ba={}
-          for ba,workflow in names.items():
-              successful=[r for r in runs if r["name"]==workflow
-                          and r["status"]=="completed"
-                          and r["conclusion"]=="success"]
+          for ba,filename in workflows.items():
+              successful=[]
+              for page in range(1,6):
+                  data=api(f"actions/workflows/{filename}/runs?status=success&per_page=100&page={page}")
+                  batch=[r for r in data["workflow_runs"]
+                         if r["status"]=="completed" and r["conclusion"]=="success"]
+                  successful.extend(batch)
+                  if len(data["workflow_runs"])<100:
+                      break
               if not successful:
-                  raise SystemExit(f"No successful {ba} workflow")
+                  raise SystemExit(f"No successful {ba} runs available")
               by_ba[ba]={r["head_sha"]:r for r in reversed(successful)}
 
           shared=set(by_ba["CISO"])&set(by_ba["BPAT"])
