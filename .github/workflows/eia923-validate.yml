@@ -274,9 +274,14 @@ jobs:
           year = int(os.environ["YEAR"])
           metrics_path = Path(f"outputs/eia930_west/{year}/metrics.json")
           metrics = json.loads(metrics_path.read_text())
-          for key in ("year", "analysis_year"):
-              if key in metrics and int(metrics[key]) != year:
-                  raise ValueError(f"Model metrics {key}={metrics[key]} does not match {year}")
+          if "analysis_year" not in metrics:
+              raise ValueError("Model metrics missing required analysis_year")
+          if int(metrics["analysis_year"]) != year:
+              raise ValueError(
+                  f"Model analysis_year={metrics['analysis_year']} does not match {year}"
+              )
+          if "year" in metrics and int(metrics["year"]) != year:
+              raise ValueError(f"Model metrics year={metrics['year']} does not match {year}")
           dispatch = metrics.get("dispatch_mwh_by_carrier")
           if not isinstance(dispatch, dict) or not dispatch:
               raise ValueError("Annual model metrics missing dispatch_mwh_by_carrier")
