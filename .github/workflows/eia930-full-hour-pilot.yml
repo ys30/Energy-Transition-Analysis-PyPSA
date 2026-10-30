@@ -109,6 +109,31 @@ jobs:
           assert not bool(row["validated_calibration"])
           print("Observed-vs-model comparison is descriptive, not validated calibration")
           PY
+      - name: Record reproducible input and output checksums
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,platform
+          from pathlib import Path
+          import pypsa,pandas,numpy
+          out=Path("outputs/hourly_dispatch_pilot")
+          files=sorted(p for p in out.iterdir() if p.is_file() and p.name!="execution_manifest.json")
+          report={
+            "commit_sha":os.environ["GITHUB_SHA"],
+            "workflow_run_id":os.environ["GITHUB_RUN_ID"],
+            "python_version":platform.python_version(),
+            "pypsa_version":pypsa.__version__,
+            "pandas_version":pandas.__version__,
+            "numpy_version":numpy.__version__,
+            "source":"EIA-930 official API at run time; upstream data may be revised",
+            "sha256":{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in files},
+            "interpretation":"Assumption-driven gas-only engineering pilot, not historical generation calibration",
+          }
+          (out/"execution_manifest.json").write_text(json.dumps(report,indent=2))
+          assert "observed_demand_hourly.csv" in report["sha256"]
+          assert "observed_net_generation_hourly.csv" in report["sha256"]
+          assert "ba_hourly_error_summary.csv" in report["sha256"]
+          print("Saved run provenance and output SHA-256 manifest")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
