@@ -20,7 +20,6 @@ def compare_generation(
     *,
     year: int,
     bas: tuple[str, ...],
-    min_mapped_generation_fraction: float = 0.95,
 ):
     """Compare annual observed EIA-923 net generation (MWh) with modeled MWh.
 
