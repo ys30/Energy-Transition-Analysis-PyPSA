@@ -1,0 +1,41 @@
+name: Chronological storage duration sensitivity
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/storage-duration-sensitivity.yml'
+      - 'src/energy_transition/storage_duration_sensitivity.py'
+      - 'src/energy_transition/chronological_storage_pilot.py'
+      - 'tests/test_storage_duration_sensitivity.py'
+jobs:
+  sensitivity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[model,dev]'
+      - run: python -m pytest -q tests/test_storage_duration_sensitivity.py tests/test_chronological_storage_pilot.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia930-west-2024
+          run-id: 40935909190
+          github-token: ${{ github.token }}
+          path: inputs/eia930_2024
+      - name: Compare 2 4 6 and 8 hour durations on identical actual load
+        run: |
+          python -m energy_transition.storage_duration_sensitivity \
+            --hourly inputs/eia930_2024/eia930_demand_2024.csv \
+            --start 2024-01-08T00:00:00Z \
+            --output outputs/storage_duration_sensitivity
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chronological-storage-duration-comparison-2024
+          path: outputs/storage_duration_sensitivity/
+          retention-days: 60
