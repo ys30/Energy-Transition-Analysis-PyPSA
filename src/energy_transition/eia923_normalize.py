@@ -179,6 +179,10 @@ def main():
         "excluded_valid_numeric_cells": len(excluded_numeric) if excluded_numeric is not None else 0,
         "excluded_valid_numeric_net_generation_mwh": float(excluded_numeric.net_generation_mwh.sum()) if excluded_numeric is not None else 0,
         "unmapped_fuel_cells": len(unmapped) if unmapped is not None else 0,
+        "unmapped_fuel_net_generation_mwh": float(unmapped.net_generation_mwh.sum()) if unmapped is not None else 0,
+        "unmapped_fuel_abs_generation_mwh": float(unmapped.net_generation_mwh.abs().sum()) if unmapped is not None else 0,
+        "included_net_generation_mwh": float(result.net_generation_mwh.sum()),
+        "included_abs_generation_mwh": float(result.net_generation_mwh.abs().sum()),
         "selected_fuel_coverage": "unmapped official source codes withheld and audited; extended observed-only fuel groups do not imply PyPSA carrier support",
         "warning": "Normalized official plant-month data; not automatically verified against EIA-930 BA totals."
     }, indent=2))
