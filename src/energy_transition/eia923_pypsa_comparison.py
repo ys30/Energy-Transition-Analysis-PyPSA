@@ -45,7 +45,12 @@ def compare(qualified, network):
         if tech not in ("gas","coal","nuclear","hydro","wind","solar"):continue
         generation=float((network.generators_t.p[name]*weight).sum())
         records.append({"ba_code":ba,"tech":tech,"pypsa_dispatch_mwh":generation})
-    model=pd.DataFrame(records).groupby(["ba_code","tech"],as_index=False).pypsa_dispatch_mwh.sum()
+    # A network with no supported thermal/renewable generators still has a
+    # meaningful observed-only comparison; do not crash on an empty groupby.
+    if records:
+        model=pd.DataFrame(records).groupby(["ba_code","tech"],as_index=False).pypsa_dispatch_mwh.sum()
+    else:
+        model=pd.DataFrame(columns=["ba_code","tech","pypsa_dispatch_mwh"])
     joined=bytech.merge(model,on=["ba_code","tech"],how="outer",indicator=True)
     joined["comparison_status"]=joined["_merge"].map({"both":"both_sources","left_only":"observed_only","right_only":"model_only"}).astype(str)
     joined=joined.drop(columns="_merge")
