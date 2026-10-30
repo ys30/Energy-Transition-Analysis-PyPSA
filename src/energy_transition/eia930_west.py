@@ -493,6 +493,16 @@ def main():
         rep = representative_hours(hourly, year)
         raw_energy = float(hourly["value"].sum())
         represented_energy = float((rep["value"] * rep["weight_h"]).sum())
+        # Month-hour weighting must preserve annual energy before optimization.
+        # A complete 288-row grid by itself does not establish this invariant.
+        import math
+        if (not math.isfinite(raw_energy) or not math.isfinite(represented_energy)
+                or raw_energy <= 0
+                or abs(raw_energy - represented_energy) > max(1e-6, abs(raw_energy) * 1e-10)):
+            raise ValueError(
+                f"Representative-hour aggregation does not conserve annual demand energy "
+                f"for {year}: observed={raw_energy}, represented={represented_energy}"
+            )
         energy_audit = {
             "year": year,
             "balancing_authorities": sorted(hourly.respondent.unique().tolist()),
