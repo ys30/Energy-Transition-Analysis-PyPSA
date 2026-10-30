@@ -99,3 +99,21 @@ def test_eia_api_rejects_concentrated_ba_anomalies(monkeypatch):
     monkeypatch.setattr(eia930_west.urllib.request, "urlopen", lambda *args, **kwargs: Response())
     with pytest.raises(ValueError, match="BA-specific"):
         eia930_west.fetch_eia_demand(2023, bas=("A", "B"), api_key="test", length=3000)
+
+
+@pytest.mark.parametrize("raw, representative", [
+    (1000.0, 999.0),
+    (1000.0, float("nan")),
+    (float("inf"), 1000.0),
+    (0.0, 0.0),
+    (-1.0, -1.0),
+])
+def test_annual_energy_conservation_gate_rejects_bad_totals(raw, representative):
+    from energy_transition.eia930_west import validate_annual_energy_conservation
+    with pytest.raises(ValueError, match="does not conserve annual demand energy"):
+        validate_annual_energy_conservation(raw, representative, 2024)
+
+
+def test_annual_energy_conservation_gate_accepts_rounding_tolerance():
+    from energy_transition.eia930_west import validate_annual_energy_conservation
+    validate_annual_energy_conservation(1000000.0, 1000000.00001, 2024)
