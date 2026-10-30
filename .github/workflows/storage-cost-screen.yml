@@ -1,0 +1,40 @@
+name: Battery investment cost threshold screening
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/storage-cost-screen.yml'
+      - 'src/energy_transition/storage_cost_screen.py'
+      - 'tests/test_storage_cost_screen.py'
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Validate cost threshold calculations
+        run: python -m pytest -q tests/test_storage_cost_screen.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: observed-renewable-storage-comparison-2024
+          run-id: 41074412531
+          github-token: ${{ github.token }}
+          path: inputs/observed
+      - name: Screen annual battery fixed costs without annualizing a selected week
+        run: |
+          python -m energy_transition.storage_cost_screen \
+            --input inputs/observed/observed_renewable_storage_comparison.csv \
+            --output outputs/storage_cost
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: battery-cost-threshold-2024
+          path: outputs/storage_cost/
+          retention-days: 60
