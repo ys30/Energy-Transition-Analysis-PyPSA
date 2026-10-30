@@ -56,6 +56,24 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
     if max_error>1e-3:raise ValueError(f"Battery conservation residual {max_error} MWh")
     if float(charge.sum())<=1 or float(discharge.sum())<=1:
         raise ValueError("Storage demonstration produced no meaningful charge/discharge; inspect supply assumptions")
+    # Counterfactual: identical demand, generation limits and marginal costs, but no battery.
+    no_storage=pypsa.Network()
+    no_storage.add("Bus","pilot")
+    no_storage.set_snapshots(demand.index.tz_convert(None))
+    no_storage.add("Load","observed_EIA930",bus="pilot",p_set=demand.to_numpy())
+    no_storage.add("Generator","assumed_firm_supply",bus="pilot",p_nom=generation_mw,
+                   marginal_cost=generation_cost)
+    no_storage.add("Generator","assumed_peaker",bus="pilot",p_nom=peaker_mw,
+                   marginal_cost=peaker_cost)
+    no_storage.add("Generator","unserved",bus="pilot",p_nom=1e7,marginal_cost=10000.)
+    baseline_status,baseline_condition=no_storage.optimize(solver_name="highs")
+    if baseline_status!="ok" or baseline_condition!="optimal":
+        raise RuntimeError(f"No-storage counterfactual failed: {baseline_status}, {baseline_condition}")
+    objective_with=float(n.objective)
+    objective_without=float(no_storage.objective)
+    savings=objective_without-objective_with
+    if savings < -1e-4:
+        raise ValueError("Battery increases optimized cost despite optional use")
     output.mkdir(parents=True,exist_ok=True)
     pd.DataFrame({"demand_mw":demand.to_numpy(),"charge_mw":charge.to_numpy(),
                   "discharge_mw":discharge.to_numpy(),"state_of_charge_mwh":soc.to_numpy()},
@@ -66,6 +84,13 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
             "battery_charge_mwh":float(charge.sum()),
             "battery_discharge_mwh":float(discharge.sum()),
             "peaker_generation_mwh":float(n.generators_t.p["assumed_peaker"].sum()),
+            "peaker_generation_mwh_without_storage":float(no_storage.generators_t.p["assumed_peaker"].sum()),
+            "unserved_mwh_without_storage":float(no_storage.generators_t.p["unserved"].sum()),
+            "objective_usd_with_storage_assumed":objective_with,
+            "objective_usd_without_storage_assumed":objective_without,
+            "operating_savings_usd_assumed":savings,
+            "savings_fraction":savings/objective_without if objective_without else None,
+            "economic_caveat":"Operating costs only; excludes battery capex and degradation. Not a cost-benefit estimate.",
             "battery_duration_hours_assumed":duration_h,"capacity_mwh_assumed":battery_mw*duration_h,
             "round_trip_efficiency_assumed":0.95**2,
             "max_storage_conservation_error_mwh":max_error,
