@@ -363,6 +363,12 @@ jobs:
               error = record["relative_error_if_nonzero"]
               error_text = f"{100 * float(error):+.1f}%" if error else "n/a"
               lines.append(f"| {carrier} | {observed:,.0f} | {modeled:,.0f} | {difference:+,.0f} | {error_text} |")
+          lines.extend(["", "### Evidence qualification", "",
+                        f"- **Selected-BA completeness:** {audit.get('selected_ba_completeness', 'unverified')}",
+                        f"- **Observed comparable-fuel absolute MWh fraction:** {audit.get('selected_ba_observed_generation_comparable_fraction_abs', 'not recorded')}",
+                        f"- **Unmapped national plant count:** {audit.get('unmapped_national_plant_count', 'not recorded')}",
+                        f"- **Unmapped national absolute generation MWh:** {audit.get('unmapped_national_generation_abs_mwh', 'not recorded')}",
+                        "- These quantities do not prove that all selected-BA plants were captured."])
           lines.extend(["", "### Selected BA source coverage (mapped plants only)", "",
                         "| BA | Mapped plants | Net generation MWh | Absolute generation MWh |",
                         "|---|---:|---:|---:|"])
