@@ -344,6 +344,15 @@ jobs:
               if ba not in counts or ba not in net or ba not in absolute:
                   raise ValueError(f"Missing source coverage for requested BA {ba}")
               lines.append(f"| {ba} | {int(counts[ba]):,} | {float(net[ba]):,.0f} | {float(absolute[ba]):,.0f} |")
+          lines.extend(["", "### Observed EIA-923 generation by BA and fuel", "",
+                        "| BA | Fuel | Net generation MWh |",
+                        "|---|---|---:|"])
+          breakdown = audit.get("selected_ba_observed_generation_by_ba_and_fuel_net_mwh", {})
+          for ba in audit["bas"]:
+              if ba not in breakdown:
+                  raise ValueError(f"Missing BA-by-fuel observed generation for {ba}")
+              for fuel, mwh in sorted(breakdown[ba].items()):
+                  lines.append(f"| {ba} | {fuel} | {float(mwh):,.0f} |")
           lines.extend(["", "Comparison is diagnostic only; plant-to-BA completeness is not certified."])
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
               f.write(chr(10).join(lines) + chr(10))
