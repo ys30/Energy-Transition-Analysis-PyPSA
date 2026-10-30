@@ -32,6 +32,9 @@ def test_eia923_validation_preserves_negative_net_generation():
     assert audit["selected_ba_mapped_observation_count"] == 3
     assert audit["selected_ba_mapped_generation_abs_mwh"] == pytest.approx(145)
     assert audit["selected_ba_mapped_generation_net_mwh"] == pytest.approx(135)
+    assert audit["selected_ba_mapped_plant_count_by_ba"] == {"CISO": 2}
+    assert audit["selected_ba_mapped_generation_net_mwh_by_ba"] == {"CISO": pytest.approx(135)}
+    assert audit["selected_ba_mapped_generation_abs_mwh_by_ba"] == {"CISO": pytest.approx(145)}
 
 
 def test_eia923_rejects_wrong_crosswalk_year():
