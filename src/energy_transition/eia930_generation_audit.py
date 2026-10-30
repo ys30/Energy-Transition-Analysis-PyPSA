@@ -30,7 +30,11 @@ def fetch_net_generation(year, bas, api_key=None):
         response=obj.get("response",{})
         page=response.get("data")
         if page is None: raise ValueError("EIA NG API response missing data")
-        if not page: break
+        if not page:
+            total=int(response.get("total",offset))
+            if offset < total:
+                raise ValueError("EIA NG API returned an empty page before total records were fetched")
+            break
         total=int(response.get("total",offset+len(page)))
         if total < 0:
             raise ValueError("EIA NG API returned invalid total count")
