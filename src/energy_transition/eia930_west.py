@@ -362,6 +362,10 @@ def build_and_solve(reps: pd.DataFrame, output: Path, capacities=None):
         raise ValueError("Representative snapshots must belong to exactly one analysis year")
     if len(reps) != 288 or snapshots.has_duplicates:
         raise ValueError("Representative dispatch requires 288 unique month-hour snapshots")
+    expected_month_hours = {(month, hour) for month in range(1, 13) for hour in range(24)}
+    actual_month_hours = set(zip(snapshots.month, snapshots.hour))
+    if actual_month_hours != expected_month_hours:
+        raise ValueError("Representative snapshots must contain each calendar month and hour exactly once")
     expected_hours = 8784 if calendar.isleap(int(snapshots.year[0])) else 8760
     if reps.weight_h.isna().any() or (reps.weight_h <= 0).any() or abs(float(reps.weight_h.sum()) - expected_hours) > 1e-6:
         raise ValueError("Representative snapshot weights must be positive and cover the full analysis year")
