@@ -18,7 +18,7 @@ def screen(capacity,qualified):
             numeric = pd.to_numeric(frame[field], errors="coerce")
             if numeric.isna().any() or (~numeric.map(lambda value: bool(pd.notna(value) and value < float("inf")))).any():
                 raise ValueError(f"Invalid or missing numeric values in {field}")
-            if field != "qualified_annual_mwh" and numeric.lt(0).any():
+            if field not in ("qualified_annual_mwh", "withheld_reported_annual_mwh") and numeric.lt(0).any():
                 raise ValueError(f"Negative values in {field}")
             frame[field] = numeric
     if q.qualified_rows.gt(q.source_rows).any():
