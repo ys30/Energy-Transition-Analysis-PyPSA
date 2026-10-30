@@ -127,6 +127,7 @@ def monthly_balance_audit(frame):
     ).reset_index()
     monthly=monthly.merge(tails,on=["respondent","month"],how="left")
     monthly["p95_residual_share_of_load"]=monthly.p95_absolute_residual_mw/(monthly.demand_mwh/monthly.common_hours)
+    monthly["max_residual_share_of_load"]=monthly.max_absolute_residual_mw/(monthly.demand_mwh/monthly.common_hours)
     import numpy as np
     monthly["quality_flag"]=monthly.apply(
         lambda row: "review_required" if (
@@ -135,8 +136,10 @@ def monthly_balance_audit(frame):
             not np.isfinite(row.residual_share_of_demand) or
             not np.isfinite(row.mae_share_of_load) or
             not np.isfinite(row.p95_residual_share_of_load) or
+            not np.isfinite(row.max_residual_share_of_load) or
             abs(row.residual_share_of_demand) > 0.10 or
-            row.mae_share_of_load > 0.10
+            row.mae_share_of_load > 0.10 or
+            row.max_residual_share_of_load > 0.50
         ) else "screening_only_not_verified", axis=1)
     return monthly
 
