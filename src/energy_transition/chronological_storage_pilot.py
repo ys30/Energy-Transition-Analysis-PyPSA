@@ -26,9 +26,9 @@ def validate_window(hourly, hours=168):
 def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
                  generation_mw=55000.,generation_cost=50.,
                  peaker_mw=20000.,peaker_cost=250.,require_activity=True,
-                 voll_usd_per_mwh=10000.,renewable_net_mw=None):
+                 voll_usd_per_mwh=10000.,renewable_net_mw=None,expected_hours=168):
     import pypsa
-    demand=validate_window(hourly)
+    demand=validate_window(hourly,hours=expected_hours)
     if min(battery_mw,duration_h,generation_mw,generation_cost,peaker_mw,peaker_cost,voll_usd_per_mwh)<=0:
         raise ValueError("Storage scenario parameters must be positive")
     renewable=None
