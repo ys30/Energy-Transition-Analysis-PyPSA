@@ -293,10 +293,10 @@ jobs:
                   raise ValueError("Representative-hour weight-integrity indicator missing or false")
               print(f"Verified 288 representative snapshots weighted to {expected} hours; NOT chronological hourly validation.")
           else:
-              for key in ("snapshot_count", "n_snapshots", "hours", "n_hours"):
-                  if key in metrics and int(metrics[key]) != expected:
-                      raise ValueError(f"Model metrics {key} does not equal {expected} annual hourly snapshots")
-              print("Temporal representation unspecified or hourly; full-year hourly coverage not independently certified.")
+              raise ValueError(
+                  f"Unexpected or missing temporal_representation={representation!r}; "
+                  "this validation workflow requires explicit 288 weighted month-hour snapshots"
+              )
           PY
       - name: Compare observed EIA-923 generation against PyPSA dispatch
         run: |
