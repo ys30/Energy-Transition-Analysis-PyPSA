@@ -1,0 +1,56 @@
+name: Project B two-BA engineering acceptance
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - EIA-930 full-year hourly dispatch pilot
+      - EIA-930 BPAT full-year hourly independent pilot
+    types: [completed]
+permissions:
+  actions: read
+  contents: read
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify successful CISO and BPAT run evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import json,os,urllib.request
+          repo=os.environ["GH_REPOSITORY"]
+          req=urllib.request.Request(
+            f"https://api.github.com/repos/{repo}/actions/runs?per_page=100",
+            headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
+                     "Accept":"application/vnd.github+json",
+                     "User-Agent":"project-b-acceptance"})
+          with urllib.request.urlopen(req,timeout=30) as f:
+            runs=json.load(f)["workflow_runs"]
+          names={
+            "CISO":"EIA-930 full-year hourly dispatch pilot",
+            "BPAT":"EIA-930 BPAT full-year hourly independent pilot",
+          }
+          report={"acceptance_scope":"Verified workflows for independent gas-only 2024 BA pilots; not a calibrated multi-BA grid"}
+          for ba,name in names.items():
+            matches=[x for x in runs if x["name"]==name and x["event"]!="schedule"]
+            if not matches:
+              raise SystemExit(f"No {ba} workflow run found")
+            latest=matches[0]
+            report[ba]={"run_id":latest["id"],"commit_sha":latest["head_sha"],
+                        "status":latest["status"],"conclusion":latest["conclusion"],
+                        "run_url":latest["html_url"]}
+            if latest["status"]!="completed" or latest["conclusion"]!="success":
+              raise SystemExit(f"Latest {ba} workflow has not passed: {latest['html_url']}")
+          with open("two_ba_engineering_acceptance.json","w") as f:
+            json.dump(report,f,indent=2)
+          print(json.dumps(report,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: project-b-two-ba-acceptance
+          path: two_ba_engineering_acceptance.json
+          retention-days: 90
