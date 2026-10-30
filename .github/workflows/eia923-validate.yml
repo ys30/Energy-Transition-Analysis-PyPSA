@@ -118,9 +118,12 @@ jobs:
           from pathlib import Path
           year = os.environ["YEAR"]
           audit = json.loads(Path(f"outputs/eia923/eia923_source_{year}.json").read_text())
+          import math
           included = float(audit["included_abs_generation_mwh"])
           lost = float(audit["excluded_valid_numeric_abs_generation_mwh"])
           unknown = float(audit["unmapped_fuel_abs_generation_mwh"])
+          if not all(math.isfinite(x) and x >= 0 for x in (included, lost, unknown)):
+              raise ValueError("Invalid EIA-923 normalization coverage totals")
           print(f"Included abs MWh: {included:,.1f}")
           print(f"Excluded valid monthly absolute MWh: {lost:,.1f}")
           print(f"Unmapped-fuel abs MWh (may overlap exclusions): {unknown:,.1f}")
