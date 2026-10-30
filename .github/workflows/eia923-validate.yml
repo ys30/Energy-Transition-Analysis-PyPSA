@@ -23,6 +23,10 @@ on:
       - 'tests/test_eia923_download.py'
       - 'tests/test_eia923_normalize.py'
       - 'tests/test_eia923_validation.py'
+      - 'src/energy_transition/eia860_capacity.py'
+      - 'src/energy_transition/eia860_plant_ba.py'
+      - 'src/energy_transition/eia930_west.py'
+      - 'tests/test_eia860_capacity.py'
 permissions:
   contents: read
 jobs:
