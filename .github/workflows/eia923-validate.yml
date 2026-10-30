@@ -189,6 +189,33 @@ jobs:
             --year "$YEAR" \
             --bas CISO BPAT \
             --output outputs/eia923_validation
+      - name: Summarize observed versus modeled annual generation
+        env:
+          YEAR: ${{ inputs.year || '2024' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          year = os.environ["YEAR"]
+          p = Path(f"outputs/eia923_validation/eia923_validation_manifest_{year}.json")
+          audit = json.loads(p.read_text())
+          keys = (
+              "bas", "comparison_carriers",
+              "selected_ba_observed_net_generation_all_fuels_mwh",
+              "selected_ba_observed_net_generation_comparable_fuels_mwh",
+              "selected_ba_observed_generation_comparable_fraction_abs",
+              "national_plant_id_match_fraction_abs_not_ba_coverage",
+              "unmapped_national_generation_abs_mwh",
+              "selected_ba_completeness",
+              "observed_only_fuels_excluded_from_comparison_mwh",
+              "interpretation",
+          )
+          lines = ["## EIA-923 versus PyPSA annual comparison audit", ""]
+          lines.extend(f"- **{key}**: {audit.get(key, 'not recorded')}" for key in keys)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(chr(10).join(lines) + chr(10))
+          print(chr(10).join(lines))
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
