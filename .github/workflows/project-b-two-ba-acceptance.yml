@@ -17,7 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Verify successful CISO and BPAT run evidence
+      - run: python -m pip install pandas
+      - name: Verify paired successful BA runs and actual numerical artifacts
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPOSITORY: ${{ github.repository }}
@@ -55,17 +56,79 @@ jobs:
             "BPAT":"EIA-930 BPAT full-year hourly independent pilot",
           }
           report={"acceptance_scope":"Verified workflows for independent gas-only 2024 BA pilots; not a calibrated multi-BA grid"}
+          # Pair latest successful runs on the same revision, rather than
+          # incorrectly rejecting an independent newer run on one BA.
+          by_ba={}
           for ba,name in names.items():
-            matches=[x for x in runs if x["name"]==name and x["event"]!="schedule"]
+            matches=[x for x in runs if x["name"]==name and x["event"]!="schedule"
+                     and x["status"]=="completed" and x["conclusion"]=="success"]
             if not matches:
-              raise SystemExit(f"No {ba} workflow run found")
-            latest=matches[0]
-            report[ba]={"run_id":latest["id"],"commit_sha":latest["head_sha"],
-                        "status":latest["status"],"conclusion":latest["conclusion"],
-                        "run_url":latest["html_url"]}
-            if latest["status"]!="completed" or latest["conclusion"]!="success":
-              raise SystemExit(f"Latest {ba} workflow has not passed: {latest['html_url']}")
-          # Persist inspected run evidence even if acceptance subsequently fails.
+              raise SystemExit(f"No verified {ba} hourly run")
+            by_ba[ba]={x["head_sha"]:x for x in reversed(matches)}
+          common=set(by_ba["CISO"]) & set(by_ba["BPAT"])
+          if not common:
+            raise SystemExit("No same-revision successful CISO/BPAT pair")
+          sha=max(common,key=lambda x:max(by_ba["CISO"][x]["created_at"],
+                                         by_ba["BPAT"][x]["created_at"]))
+          report["common_commit_sha"]=sha
+          import io,zipfile,hashlib
+          import pandas as pd
+          for ba in names:
+            selected=by_ba[ba][sha]
+            report[ba]={"run_id":selected["id"],"commit_sha":sha,
+                        "status":selected["status"],"conclusion":selected["conclusion"],
+                        "run_url":selected["html_url"]}
+            areq=urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/actions/runs/{selected['id']}/artifacts",
+              headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
+                       "Accept":"application/vnd.github+json",
+                       "User-Agent":"project-b-acceptance"})
+            with urllib.request.urlopen(areq,timeout=45) as resp:
+              artifacts=json.load(resp)["artifacts"]
+            expected_name=("eia930-full-year-ciso-assumption-driven-2024"
+                           if ba=="CISO" else "eia930-bpat-hourly-2024-assumption-driven")
+            found=[a for a in artifacts if a["name"]==expected_name and not a["expired"]]
+            if not found:
+              raise SystemExit(f"{ba}: missing retained artifact")
+            zreq=urllib.request.Request(found[0]["archive_download_url"],
+              headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
+                       "Accept":"application/vnd.github+json",
+                       "User-Agent":"project-b-acceptance"})
+            with urllib.request.urlopen(zreq,timeout=120) as resp:
+              payload=resp.read()
+            with zipfile.ZipFile(io.BytesIO(payload)) as z:
+              names_in_zip={n.rsplit("/",1)[-1]:n for n in z.namelist()}
+              required=["ba_hourly_error_summary.csv","hourly_balance_audit.json",
+                        "execution_manifest.json"]
+              if any(x not in names_in_zip for x in required):
+                raise SystemExit(f"{ba}: incomplete numerical artifact")
+              manifest=json.loads(z.read(names_in_zip["execution_manifest.json"]))
+              for basename in required[:2]:
+                expected_digest=manifest["sha256"][basename]
+                actual=hashlib.sha256(z.read(names_in_zip[basename])).hexdigest()
+                if actual!=expected_digest:
+                  raise SystemExit(f"{ba}: checksum mismatch on {basename}")
+              metrics=pd.read_csv(io.BytesIO(z.read(names_in_zip[required[0]]))).iloc[0]
+              balance=json.loads(z.read(names_in_zip[required[1]]))
+              if str(metrics["ba_code"])!=ba or int(metrics["expected_hours"])!=8784:
+                raise SystemExit(f"{ba}: unexpected BA/year evidence")
+              if int(metrics["modeled_hours"])!=8784 or int(metrics["paired_hours"])<1:
+                raise SystemExit(f"{ba}: insufficient paired dispatch evidence")
+              if balance["max_absolute_residual_mw"]>balance["tolerance_mw"]:
+                raise SystemExit(f"{ba}: energy-balance tolerance exceeded")
+              report[ba]["numerical_evidence"]={
+                "paired_hours":int(metrics["paired_hours"]),
+                "paired_coverage":float(metrics["paired_coverage"]),
+                "mae_mw":float(metrics["mae_mw"]),
+                "rmse_mw":float(metrics["rmse_mw"]),
+                "max_hourly_balance_residual_mw":float(balance["max_absolute_residual_mw"]),
+                "validated_calibration":False,
+              }
+          report["acceptance_limitations"]=[
+            "Independent BA gas-only baseline, not interconnected or historically calibrated",
+            "Observed EIA-930 NG difference measures assumed model mismatch",
+            "Evidence is paired from the latest shared successful commit, not necessarily latest individual run",
+          ]
           with open("two_ba_engineering_acceptance.json","w") as f:
             json.dump(report,f,indent=2)
           # Ensure the two independently passed pilots used identical source revision.
