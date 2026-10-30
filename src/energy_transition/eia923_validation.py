@@ -60,6 +60,9 @@ def compare_generation(
     if observed.fuel.astype("string").str.strip().eq("").any():
         raise ValueError("Blank EIA-923 fuel")
     observed["fuel"] = observed.fuel.astype("string").str.strip()
+    x["ba_code"] = x.ba_code.astype("string").str.strip()
+    if x.ba_code.eq("").fillna(True).any():
+        raise ValueError("Crosswalk contains blank BA after normalization")
     if not set(bas).issubset(set(x.ba_code)):
         raise ValueError(f"Requested BAs missing from crosswalk: {sorted(set(bas) - set(x.ba_code))}")
     if observed.duplicated(["plant_id", "report_year", "month", "fuel"]).any():
