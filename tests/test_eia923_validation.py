@@ -105,3 +105,9 @@ def test_comparable_fraction_uses_row_absolute_generation_before_netting():
     result, audit = compare_generation(g, x, m, year=2024, bas=("CISO",))
     assert result.set_index("carrier").loc["gas", "observed_eia923_net_generation_mwh"] == 95
     assert audit["selected_ba_observed_generation_comparable_fraction_abs"] == pytest.approx(105 / 145)
+
+
+def test_reject_requested_ba_absent_from_plant_crosswalk():
+    g, x, m = _fixtures()
+    with pytest.raises(ValueError, match="Requested BAs missing from crosswalk: \\['BPAT'\\]"):
+        compare_generation(g, x, m, year=2024, bas=("CISO", "BPAT"))
