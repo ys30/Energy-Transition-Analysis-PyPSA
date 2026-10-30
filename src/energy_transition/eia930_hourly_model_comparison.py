@@ -63,6 +63,51 @@ def compare_hourly(observed: pd.DataFrame, modeled: pd.DataFrame, year: int, bas
     return pairs, pd.DataFrame(result)
 
 
+
+def extract_full_year_dispatch(network, year: int, bas):
+    """Export BA hourly generator production only for real full-year UTC snapshots.
+
+    Storage, cross-border flows and synthetic unserved energy are excluded;
+    generation alone is not the full accounting identity.
+    """
+    expected=pd.date_range(f"{year}-01-01",f"{year+1}-01-01",
+                           freq="h",inclusive="left",tz="UTC")
+    snapshots=pd.DatetimeIndex(network.snapshots)
+    if snapshots.tz is None:
+        raise ValueError("PyPSA snapshots require an explicit UTC timezone")
+    if not snapshots.tz_convert("UTC").equals(expected):
+        raise ValueError("Full-year hourly UTC snapshots required; representative hours cannot be expanded")
+    dispatch=network.generators_t.p
+    if not dispatch.index.equals(network.snapshots):
+        raise ValueError("PyPSA dispatch index differs from snapshots")
+    if network.generators.index.has_duplicates or dispatch.columns.has_duplicates:
+        raise ValueError("Duplicate PyPSA generators")
+    records=[]
+    for ba in bas:
+        columns=[]
+        for name,row in network.generators.iterrows():
+            if str(row.bus)!=ba:
+                continue
+            if not str(name).startswith(ba+"_"):
+                raise ValueError("Ambiguous BA generator prefix")
+            if str(name)==ba+"_unserved":
+                continue
+            if name not in dispatch.columns:
+                raise ValueError("Missing PyPSA generator dispatch")
+            columns.append(name)
+        if not columns:
+            continue
+        production=dispatch[columns].apply(pd.to_numeric,errors="coerce")
+        if not np.isfinite(production.to_numpy(dtype=float)).all():
+            raise ValueError("Nonfinite PyPSA generation")
+        records.append(pd.DataFrame({
+            "respondent":ba,"period":expected,
+            "value":production.sum(axis=1).to_numpy(dtype=float)
+        }))
+    return pd.concat(records,ignore_index=True) if records else pd.DataFrame(
+        columns=["respondent","period","value"])
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--observed",type=Path,required=True)
