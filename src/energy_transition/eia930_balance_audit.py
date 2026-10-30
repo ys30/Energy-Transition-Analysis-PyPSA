@@ -119,6 +119,14 @@ def monthly_balance_audit(frame):
     monthly["coverage"]=monthly.common_hours/monthly.expected_hours
     monthly["residual_share_of_demand"]=monthly.official_residual_mwh/monthly.demand_mwh
     monthly["mae_share_of_load"]=monthly.official_mae_mw/(monthly.demand_mwh/monthly.common_hours)
+    # Tail diagnostics use complete hourly triples only. A small monthly
+    # signed residual or MAE can conceal a handful of extreme hours.
+    tails=valid.groupby(["respondent","month"])["residual_d_minus_ng_plus_ti"].agg(
+        p95_absolute_residual_mw=lambda v: float(v.abs().quantile(0.95)),
+        max_absolute_residual_mw=lambda v: float(v.abs().max()),
+    ).reset_index()
+    monthly=monthly.merge(tails,on=["respondent","month"],how="left")
+    monthly["p95_residual_share_of_load"]=monthly.p95_absolute_residual_mw/(monthly.demand_mwh/monthly.common_hours)
     import numpy as np
     monthly["quality_flag"]=monthly.apply(
         lambda row: "review_required" if (
@@ -126,6 +134,7 @@ def monthly_balance_audit(frame):
             pd.isna(row.demand_mwh) or row.demand_mwh <= 0 or
             not np.isfinite(row.residual_share_of_demand) or
             not np.isfinite(row.mae_share_of_load) or
+            not np.isfinite(row.p95_residual_share_of_load) or
             abs(row.residual_share_of_demand) > 0.10 or
             row.mae_share_of_load > 0.10
         ) else "screening_only_not_verified", axis=1)
