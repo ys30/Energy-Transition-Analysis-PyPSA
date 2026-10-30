@@ -1,0 +1,28 @@
+name: Project B synthetic AC Line solver smoke
+on:
+  push:
+    paths:
+      - 'src/energy_transition/synthetic_line_solver_smoke.py'
+      - 'src/energy_transition/pypsa_line_evidence_adapter.py'
+      - 'src/energy_transition/transmission_evidence_gate.py'
+      - '.github/workflows/project-b-synthetic-line-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[model,dev]'
+      - name: Check explicitly synthetic two-bus PyPSA AC Line capacity constraint
+        run: python -m energy_transition.synthetic_line_solver_smoke | tee synthetic_line_smoke.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: project-b-synthetic-ac-line-smoke
+          path: synthetic_line_smoke.json
+          retention-days: 90
