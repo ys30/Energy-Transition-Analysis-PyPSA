@@ -63,7 +63,6 @@ def test_reject_invalid_annual_supply_inputs():
         "withheld_reported_annual_mwh": 0.0, "source_rows": 2, "qualified_rows": 1,
     }])
     for field, invalid in [
-        ("qualified_annual_mwh", -1),
         ("qualified_annual_mwh", float("inf")),
         ("source_rows", -1),
         ("qualified_rows", 3),
@@ -76,3 +75,16 @@ def test_reject_invalid_annual_supply_inputs():
     bad_capacity.loc[0, "capacity_mw"] = float("nan")
     with pytest.raises(ValueError):
         screen(bad_capacity, qualified)
+
+
+def test_negative_net_generation_is_retained_and_flagged():
+    capacity = pd.DataFrame([{"ba_code": "CISO", "fuel": "NG", "capacity_mw": 10.0}])
+    qualified = pd.DataFrame([{
+        "ba_code": "CISO", "fuel": "NG", "qualified_annual_mwh": -25.0,
+        "withheld_reported_annual_mwh": 0.0, "source_rows": 1, "qualified_rows": 1,
+    }])
+    row = screen(capacity, qualified).iloc[0]
+    assert row.qualified_mwh == -25.0
+    assert row.annual_screen_status == "negative_net_generation"
+    assert pd.isna(row.qualified_generation_over_nameplate)
+    assert not bool(row.ready_for_hourly_calibration)
