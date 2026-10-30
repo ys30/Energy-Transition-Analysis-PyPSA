@@ -60,6 +60,8 @@ def compare_generation(
     if observed.fuel.astype("string").str.strip().eq("").any():
         raise ValueError("Blank EIA-923 fuel")
     observed["fuel"] = observed.fuel.astype("string").str.strip()
+    if not set(bas).issubset(set(x.ba_code)):
+        raise ValueError(f"Requested BAs missing from crosswalk: {sorted(set(bas) - set(x.ba_code))}")
     if observed.duplicated(["plant_id", "report_year", "month", "fuel"]).any():
         raise ValueError("Duplicate normalized EIA-923 plant-month-fuel rows")
     observed["net_generation_mwh"] = pd.to_numeric(observed.net_generation_mwh, errors="raise")
