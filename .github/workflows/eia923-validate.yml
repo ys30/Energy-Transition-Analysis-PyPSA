@@ -189,6 +189,36 @@ jobs:
             --bas CISO BPAT \
             --eia860-capacity "outputs/eia860_model_subset/ba_operating_nameplate_by_fuel_${YEAR}.csv" \
             --output outputs/eia930_west
+      - name: Record model and input artifact provenance
+        env:
+          YEAR: ${{ inputs.year || '2024' }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          year = os.environ["YEAR"]
+          files = {
+              "eia923_normalized": Path(f"outputs/eia923/eia923_normalized_{year}.csv"),
+              "eia860_crosswalk": Path(f"outputs/eia860/plant_ba_crosswalk_{year}.csv"),
+              "eia860_supported_capacity": Path(f"outputs/eia860_model_subset/ba_operating_nameplate_by_fuel_{year}.csv"),
+              "pypsa_metrics": Path(f"outputs/eia930_west/{year}/metrics.json"),
+          }
+          checksums = {}
+          for name, path in files.items():
+              if not path.is_file():
+                  raise FileNotFoundError(f"Missing required empirical validation artifact: {path}")
+              checksums[name] = {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+          manifest = {
+              "analysis_year": int(year),
+              "commit": os.environ.get("GITHUB_SHA", subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "inputs": checksums,
+              "interpretation": "Checksums establish provenance, not empirical completeness or model validity.",
+          }
+          out = Path("outputs/eia923_validation")
+          out.mkdir(parents=True, exist_ok=True)
+          (out / f"input_provenance_{year}.json").write_text(json.dumps(manifest, indent=2) + chr(10))
+          PY
       - name: Compare observed EIA-923 generation against PyPSA dispatch
         run: |
           python -m energy_transition.eia923_validation \
