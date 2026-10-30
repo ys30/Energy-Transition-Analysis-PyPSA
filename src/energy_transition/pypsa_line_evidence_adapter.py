@@ -28,10 +28,17 @@ def add_screened_ba_lines(network, lines: pd.DataFrame, bas=("CISO","BPAT")):
         raise ValueError("Invalid AC line impedance or voltage")
     if not data.evidence_status.eq("independently_verified").all():
         raise ValueError("All branches must have independently verified physical parameters")
-    for ba in bas:
-        voltage=network.buses.loc[ba,"v_nom"]
-        if abs(float(voltage)-float(data.loc[(data.from_ba.eq(ba)|data.to_ba.eq(ba)),"nominal_kv"].iloc[0]))>1e-6:
-            raise ValueError("Line nominal voltage incompatible with BA bus")
+    # Validate every branch endpoint, not just the first line touching each BA.
+    for _, row in data.iterrows():
+        for ba in (row.from_ba, row.to_ba):
+            if ba not in network.buses.index:
+                raise ValueError(f"Unknown line endpoint: {ba}")
+            voltage = pd.to_numeric(pd.Series([network.buses.loc[ba, "v_nom"]]),
+                                    errors="coerce").iloc[0]
+            if pd.isna(voltage) or not (float(voltage) > 0):
+                raise ValueError(f"Missing nominal bus voltage for {ba}")
+            if abs(float(voltage) - float(row.nominal_kv)) > 1e-6:
+                raise ValueError(f"Line voltage incompatible with bus {ba}")
     for i,row in data.reset_index(drop=True).iterrows():
         network.add("Line",f"evidence_line_{i}",bus0=row.from_ba,bus1=row.to_ba,
                     r=float(row.resistance_ohm),x=float(row.reactance_ohm),
