@@ -146,6 +146,8 @@ def compare_generation(
             str(k): float(v) for k, v in mapped.assign(abs_mwh=mapped.net_generation_mwh.abs()).groupby("ba_code").abs_mwh.sum().items()
         },
         "negative_net_generation_rows": int(observed.net_generation_mwh.lt(0).sum()),
+        "negative_net_generation_rows_selected_ba": int(mapped.net_generation_mwh.lt(0).sum()),
+        "negative_net_generation_rows_unmapped_national": int(unmapped.net_generation_mwh.lt(0).sum()),
         "observed_only_fuels_excluded_from_comparison_mwh": observed_only,
         "observed_only_fuels_net_generation_mwh": float(sum(observed_only.values())),
         "modeled_only_carriers_not_comparable": sorted(set(modeled) - set(observed_by_fuel)),
