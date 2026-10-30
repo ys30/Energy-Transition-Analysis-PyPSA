@@ -503,6 +503,10 @@ def main():
         counts["peak_units"] = "MW"
         counts["expected_hours"] = 8784 if calendar.isleap(year) else 8760
         counts["coverage_fraction"] = counts["observations"] / counts["expected_hours"]
+        counts["peak_hour_utc"] = counts["respondent"].map(
+            hourly.loc[hourly.groupby("respondent")["value"].idxmax()]
+                  .set_index("respondent")["period"].astype("string")
+        )
         if "raw_value" in hourly:
             raw_audit = hourly.groupby("respondent").agg(
                 raw_observed_energy_mwh=("raw_value", "sum"),
