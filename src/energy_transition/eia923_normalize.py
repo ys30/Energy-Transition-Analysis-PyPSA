@@ -183,17 +183,7 @@ def main():
         "unmapped_fuel_abs_generation_mwh": float(unmapped.net_generation_mwh.abs().sum()) if unmapped is not None else 0,
         "included_net_generation_mwh": float(result.net_generation_mwh.sum()),
         "included_abs_generation_mwh": float(result.net_generation_mwh.abs().sum()),
-        "included_generation_share_of_known_numeric_abs": (
-            float(result.net_generation_mwh.abs().sum()) /
-            float(result.net_generation_mwh.abs().sum()
-                  + excluded_numeric.net_generation_mwh.abs().sum()
-                  + unmapped.net_generation_mwh.abs().sum())
-            if a.allow_incomplete and (
-                result.net_generation_mwh.abs().sum()
-                + excluded_numeric.net_generation_mwh.abs().sum()
-                + unmapped.net_generation_mwh.abs().sum()) > 0 else None
-        ),
-        "coverage_caveat": "Ratio is diagnostic only; unknown missing-cell MWh cannot be quantified and overlapping exclusions may exist.",
+        "coverage_caveat": "Missing-value generation is unknown; exclusion and unmapped-fuel audits can overlap and must not be added without deduplication.",
         "selected_fuel_coverage": "unmapped official source codes withheld and audited; extended observed-only fuel groups do not imply PyPSA carrier support",
         "warning": "Normalized official plant-month data; not automatically verified against EIA-930 BA totals."
     }, indent=2))
