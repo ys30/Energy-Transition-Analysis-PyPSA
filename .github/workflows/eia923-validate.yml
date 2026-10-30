@@ -170,6 +170,30 @@ jobs:
             echo "::error::EIA_API_KEY secret required for observed EIA-930 demand"
             exit 1
           fi
+      - name: Record empirical validation environment
+        run: |
+          python - <<'PY'
+          import importlib.metadata as md
+          import json, os, platform
+          from pathlib import Path
+          packages = ("python", "pypsa", "pandas", "numpy", "scipy", "highspy")
+          versions = {"python": platform.python_version()}
+          for package in packages:
+              if package == "python":
+                  continue
+              try:
+                  versions[package] = md.version(package)
+              except md.PackageNotFoundError:
+                  versions[package] = "not installed"
+          out = Path("outputs/eia923_validation")
+          out.mkdir(parents=True, exist_ok=True)
+          (out / "environment.json").write_text(json.dumps({
+              "versions": versions,
+              "commit": os.environ.get("GITHUB_SHA"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+          }, indent=2) + chr(10))
+          print(json.dumps(versions, indent=2))
+          PY
       - name: Download and audit same-year EIA-860 operating generators
         run: |
           python -m energy_transition.eia860_capacity --year "$YEAR" --output outputs/eia860
