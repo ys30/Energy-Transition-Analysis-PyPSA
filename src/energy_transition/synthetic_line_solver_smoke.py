@@ -7,7 +7,7 @@ import pandas as pd
 from energy_transition.pypsa_line_evidence_adapter import add_screened_ba_lines
 
 
-def run_synthetic_line_smoke():
+def run_synthetic_line_smoke(capacity_mw=50.):
     network=pypsa.Network()
     network.set_snapshots(pd.date_range("2024-01-01",periods=1,freq="h"))
     for ba in ("CISO","BPAT"):
@@ -15,7 +15,7 @@ def run_synthetic_line_smoke():
     # This is an explicitly synthetic engineering fixture. The mock evidence
     # status only permits testing the adapter API, not real-world calibration.
     fixture=pd.DataFrame([{
-        "from_ba":"CISO","to_ba":"BPAT","capacity_mw":50.,
+        "from_ba":"CISO","to_ba":"BPAT","capacity_mw":float(capacity_mw),
         "reactance_pu":0.1,"source_url":"https://example.org/synthetic-test-fixture",
         "source_year":2024,"reactance_ohm":8.,"resistance_ohm":0.1,
         "nominal_kv":230.,"evidence_status":"independently_verified"
@@ -29,12 +29,20 @@ def run_synthetic_line_smoke():
         raise RuntimeError(f"PyPSA failed: {status}/{condition}")
     flow=float(network.lines_t.p0.iloc[0,0])
     backup=float(network.generators_t.p.loc[network.snapshots[0],"local_backup"])
-    if not 49.9<=flow<=50.1 or backup<49.9:
-        raise AssertionError(f"Line constraint not binding: flow={flow}, backup={backup}")
-    return {"synthetic_fixture":True,"line_capacity_mw":50.,
-            "line_flow_mw":flow,"backup_mw":backup,"status":status}
+    expected_flow=min(float(capacity_mw),100.)
+    if abs(flow-expected_flow)>0.11 or abs(backup-(100.-expected_flow))>0.11:
+        raise AssertionError(f"Line-capacity response failed: rating={capacity_mw}, flow={flow}, backup={backup}")
+    total_cost=float(network.objective)
+    expected_cost=expected_flow*1.+(100.-expected_flow)*100.
+    if abs(total_cost-expected_cost)>1.:
+        raise AssertionError(f"Cost response failed: expected={expected_cost}, actual={total_cost}")
+    return {"synthetic_fixture":True,"line_capacity_mw":float(capacity_mw),
+            "line_flow_mw":flow,"backup_mw":backup,"objective_cost":total_cost,"status":status}
 
 
 if __name__=="__main__":
     import json
-    print(json.dumps(run_synthetic_line_smoke(),indent=2))
+    outcomes=[run_synthetic_line_smoke(capacity) for capacity in (25.,50.,125.)]
+    if not (outcomes[0]["objective_cost"]>outcomes[1]["objective_cost"]>outcomes[2]["objective_cost"]):
+        raise AssertionError("Increasing transmission rating did not reduce synthetic dispatch cost")
+    print(json.dumps({"synthetic_capacity_sweep":outcomes},indent=2))
