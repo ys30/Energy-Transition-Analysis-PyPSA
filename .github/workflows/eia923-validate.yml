@@ -277,7 +277,15 @@ jobs:
           if not isinstance(dispatch, dict) or not dispatch:
               raise ValueError("Annual model metrics missing dispatch_mwh_by_carrier")
           print(f"Requested analysis year: {year}; model carrier count: {len(dispatch)}")
-          print("Note: year is checked when explicitly recorded; output path alone is not proof of temporal coverage.")
+          for key in ("snapshot_count", "n_snapshots", "hours", "n_hours"):
+              if key in metrics:
+                  import calendar
+                  expected = 8784 if calendar.isleap(year) else 8760
+                  actual = int(metrics[key])
+                  if actual != expected:
+                      raise ValueError(f"Model metrics {key}={actual} does not equal {expected} annual hourly snapshots")
+                  print(f"Verified {key}={actual} matches {year} hourly calendar length")
+          print("Note: year and optional snapshot counts are checked; missing temporal metadata does not certify full-year coverage.")
           PY
       - name: Compare observed EIA-923 generation against PyPSA dispatch
         run: |
