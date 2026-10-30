@@ -24,6 +24,13 @@ def screen(capacity,qualified):
     d.loc[d.annual_nameplate_ceiling_mwh.le(0),"qualified_generation_over_nameplate"]=float("nan")
     d["qualified_rows_complete"]=d.source_rows.eq(d.qualified_rows)
     d["energy_exceeds_nameplate"]=d.qualified_mwh.gt(d.annual_nameplate_ceiling_mwh).where(d.annual_nameplate_ceiling_mwh.notna())
+    # Annual plausibility is not hourly dispatch calibration.
+    d["annual_screen_status"] = "annual_plausibility_only"
+    d.loc[d.qualified_mwh.isna(), "annual_screen_status"] = "no_qualified_generation"
+    d.loc[d.nameplate_mw.isna() | d.nameplate_mw.le(0), "annual_screen_status"] = "no_supported_nameplate"
+    d.loc[d.energy_exceeds_nameplate.eq(True), "annual_screen_status"] = "exceeds_nameplate_ceiling"
+    d.loc[(d.annual_screen_status == "annual_plausibility_only") &
+          ~d.qualified_rows_complete.fillna(False), "annual_screen_status"] = "partial_qualified_source_coverage"
     d["ready_for_hourly_calibration"]=False
     d["interpretation"]="BA+technology annual matched-source screening only; capacity and generation accounting may differ; no hourly dispatchability inferred"
     return d.sort_values(["ba_code","technology"])
