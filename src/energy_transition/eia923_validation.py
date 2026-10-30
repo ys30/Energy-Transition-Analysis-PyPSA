@@ -131,6 +131,15 @@ def compare_generation(
         "selected_ba_mapped_observation_count": int(len(mapped)),
         "selected_ba_mapped_generation_abs_mwh": float(mapped.net_generation_mwh.abs().sum()),
         "selected_ba_mapped_generation_net_mwh": float(mapped.net_generation_mwh.sum()),
+        "selected_ba_mapped_plant_count_by_ba": {
+            str(k): int(v) for k, v in mapped.groupby("ba_code").plant_id.nunique().items()
+        },
+        "selected_ba_mapped_generation_net_mwh_by_ba": {
+            str(k): float(v) for k, v in mapped.groupby("ba_code").net_generation_mwh.sum().items()
+        },
+        "selected_ba_mapped_generation_abs_mwh_by_ba": {
+            str(k): float(v) for k, v in mapped.assign(abs_mwh=mapped.net_generation_mwh.abs()).groupby("ba_code").abs_mwh.sum().items()
+        },
         "negative_net_generation_rows": int(observed.net_generation_mwh.lt(0).sum()),
         "observed_only_fuels_excluded_from_comparison_mwh": observed_only,
         "observed_only_fuels_net_generation_mwh": float(sum(observed_only.values())),
