@@ -72,3 +72,21 @@ def test_existing_line_dispatch_rejected_without_mutation():
     with pytest.raises(ValueError,match="after line dispatch exists"):
         add_screened_ba_lines(n,record())
     assert not n.added
+
+
+def test_each_branch_endpoint_voltage_is_validated():
+    n=FakeNetwork()
+    n.buses.loc["BPAT","v_nom"]=115.
+    with pytest.raises(ValueError,match="voltage incompatible"):
+        add_screened_ba_lines(n,record())
+    assert not n.added
+
+
+@pytest.mark.parametrize("bad_voltage", [0, -230, float("nan"), "unknown"])
+def test_invalid_bus_voltage_is_rejected(bad_voltage):
+    n=FakeNetwork()
+    n.buses["v_nom"]=n.buses["v_nom"].astype(object)
+    n.buses.loc["BPAT","v_nom"]=bad_voltage
+    with pytest.raises(ValueError,match="Missing nominal bus voltage"):
+        add_screened_ba_lines(n,record())
+    assert not n.added
