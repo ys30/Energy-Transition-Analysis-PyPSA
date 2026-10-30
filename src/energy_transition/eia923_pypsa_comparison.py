@@ -79,6 +79,39 @@ def compare(qualified, network):
     joined["interpretation"]="Descriptive benchmark, not calibrated model accuracy; incomplete EIA-923 rows and BA boundary mismatches limit inference"
     return joined.sort_values(["ba_code","tech"])
 
+
+def summarize_comparison(joined):
+    """BA-level descriptive coverage, never an hourly model-accuracy score."""
+    required = {"ba_code", "comparison_status", "benchmark_evidence_status",
+                "eia923_qualified_mwh", "pypsa_dispatch_mwh"}
+    if required - set(joined):
+        raise ValueError("Annual comparison columns missing")
+    rows = []
+    for ba, part in joined.groupby("ba_code", dropna=False):
+        comparable = part.comparison_status.eq("both_sources")
+        qualified = part.benchmark_evidence_status.eq("qualified_annual_comparison")
+        rows.append({
+            "ba_code": ba,
+            "technology_rows": int(len(part)),
+            "matched_technology_rows": int(comparable.sum()),
+            "qualified_annual_comparison_rows": int(qualified.sum()),
+            "observed_only_rows": int(part.comparison_status.eq("observed_only").sum()),
+            "model_only_rows": int(part.comparison_status.eq("model_only").sum()),
+            "partial_coverage_rows": int(part.benchmark_evidence_status.eq("partial_source_coverage").sum()),
+            "nonpositive_generation_rows": int(part.benchmark_evidence_status.eq("nonpositive_net_generation").sum()),
+            "matched_qualified_eia923_mwh": float(part.loc[qualified, "eia923_qualified_mwh"].sum()),
+            "matched_pypsa_mwh": float(part.loc[qualified, "pypsa_dispatch_mwh"].sum()),
+            "validated_hourly_calibration": False,
+        })
+    return pd.DataFrame(rows, columns=[
+        "ba_code", "technology_rows", "matched_technology_rows",
+        "qualified_annual_comparison_rows", "observed_only_rows",
+        "model_only_rows", "partial_coverage_rows",
+        "nonpositive_generation_rows", "matched_qualified_eia923_mwh",
+        "matched_pypsa_mwh", "validated_hourly_calibration",
+    ])
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--qualification",type=Path,required=True)
@@ -89,6 +122,7 @@ def main():
     network=pypsa.Network(a.network)
     joined=compare(pd.read_csv(a.qualification),network)
     joined.to_csv(a.output/"eia923_vs_pypsa_2024.csv",index=False)
+    summarize_comparison(joined).to_csv(a.output/"ba_comparison_coverage_2024.csv", index=False)
     manifest={"period":2024,"observed":"EIA-923 Page 1 annual qualified BA/fuel rows",
       "model":"2024 two-BA representative-hour PyPSA dispatch with assumed costs and availability",
       "limits":["EIA-923 reported BA may include plant reporting boundaries different from EIA-930 balancing operations.",
