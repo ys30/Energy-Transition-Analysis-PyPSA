@@ -33,12 +33,13 @@ def compare_hourly(observed: pd.DataFrame, modeled: pd.DataFrame, year: int, bas
             raise ValueError(f"{label}: outside calendar year or non-hourly timestamp")
         if data.duplicated(["respondent", "period"]).any():
             raise ValueError(f"{label}: duplicate BA-hour observations")
+        raw_nonmissing = data["value"].notna().to_numpy()
         data["value"] = pd.to_numeric(data.value, errors="coerce")
         if np.isinf(data.value.to_numpy(dtype=float)).any():
             raise ValueError(f"{label}: infinite MW values")
         # Explicitly reject nonnumeric strings instead of silently turning
         # malformed source values into missing-hour coverage.
-        raw_nonmissing = frame["value"].notna().to_numpy()
+        # Compare original non-null values with parsed numeric results.
         if (raw_nonmissing & data["value"].isna().to_numpy()).any():
             raise ValueError(f"{label}: nonnumeric MW value")
 
