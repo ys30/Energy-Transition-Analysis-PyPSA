@@ -16,7 +16,7 @@ This record reports **descriptive model mismatch**, not calibrated historical ac
 | Maximum hourly model energy-balance residual (MW) | 0.0 | 0.0 |
 | Validated historical generation calibration | No | No |
 
-The CISO 24 missing observed hours have **not** been imputed and their specific timestamps/cause have not been independently verified. A calendar-year leap-year model still has 8,784 hours. Missing observed generation hours are distinct from model hours. The zero model balance residual follows from the simplified gas-plus-synthetic-unserved accounting identity; it is **not** proof of physical system fidelity.
+The CISO 24 missing observed hours have **not** been imputed. The acceptance workflow now exports the missing UTC timestamps into its JSON artifact, but the specific timestamps and causes have not yet been independently reviewed in this document. A calendar-year leap-year model still has 8,784 hours. Missing observed generation hours are distinct from model hours. The zero model balance residual follows from the simplified gas-plus-synthetic-unserved accounting identity; it is **not** proof of physical system fidelity.
 
 The artifact checks covered checksum-verified modeled generation, observed generation, hourly balance and error summary for each BA. Upstream source revision, plant/technology supply completeness, BA interchange accounting, 2024 observed-vs-modeled discrepancies and BPAT renewable reconciliation remain separate empirical research concerns.
 
