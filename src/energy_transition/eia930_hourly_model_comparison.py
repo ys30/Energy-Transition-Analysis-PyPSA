@@ -36,6 +36,12 @@ def compare_hourly(observed: pd.DataFrame, modeled: pd.DataFrame, year: int, bas
         data["value"] = pd.to_numeric(data.value, errors="coerce")
         if np.isinf(data.value.to_numpy(dtype=float)).any():
             raise ValueError(f"{label}: infinite MW values")
+        # Explicitly reject nonnumeric strings instead of silently turning
+        # malformed source values into missing-hour coverage.
+        raw_nonmissing = frame["value"].notna().to_numpy()
+        if (raw_nonmissing & data["value"].isna().to_numpy()).any():
+            raise ValueError(f"{label}: nonnumeric MW value")
+
         # Missing observations remain NaN for coverage accounting, but
         # negative net generation is not a valid positive-output comparison.
         if label == "modeled" and (data["value"].dropna() < -1e-6).any():
