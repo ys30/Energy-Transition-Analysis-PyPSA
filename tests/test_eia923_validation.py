@@ -180,3 +180,13 @@ def test_reject_ambiguous_model_carrier_label():
     m["dispatch_mwh_by_carrier"] = {" Gas ": 110, "wind": 35}
     with pytest.raises(ValueError, match="Model carrier labels must be lowercase"):
         compare_generation(g, x, m, year=2024, bas=("CISO",))
+
+
+def test_normalizing_fuel_names_rejects_colliding_plant_month_rows():
+    g, x, m = _fixtures()
+    extra = g.iloc[[0]].copy()
+    extra["fuel"] = " GAS "
+    extra["net_generation_mwh"] = 2
+    g = pd.concat([g, extra], ignore_index=True)
+    with pytest.raises(ValueError, match="Duplicate normalized EIA-923"):
+        compare_generation(g, x, m, year=2024, bas=("CISO",))
