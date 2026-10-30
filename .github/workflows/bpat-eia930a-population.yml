@@ -1,0 +1,35 @@
+name: BPAT EIA930A generator reporting population reconciliation
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/bpat-eia930a-population.yml'
+      - 'src/energy_transition/bpat_wind_eia930a_population.py'
+jobs:
+  population:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]' openpyxl
+      - uses: actions/download-artifact@v4
+        with:
+          name: bpat-wind-plant-concentration-2024
+          run-id: 41086750022
+          github-token: ${{ github.token }}
+          path: inputs/wind
+      - run: |
+          python -m energy_transition.bpat_wind_eia930a_population \
+            --wind inputs/wind/bpat_wind_qualified_plant_concentration.csv \
+            --output outputs/930a
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bpat-eia930a-reported-population-2024
+          path: outputs/930a/
