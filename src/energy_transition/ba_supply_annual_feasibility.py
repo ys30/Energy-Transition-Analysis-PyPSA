@@ -18,7 +18,7 @@ def screen(capacity,qualified):
             numeric = pd.to_numeric(frame[field], errors="coerce")
             if numeric.isna().any() or (~numeric.map(lambda value: bool(pd.notna(value) and value < float("inf")))).any():
                 raise ValueError(f"Invalid or missing numeric values in {field}")
-            if numeric.lt(0).any():
+            if field != "qualified_annual_mwh" and numeric.lt(0).any():
                 raise ValueError(f"Negative values in {field}")
             frame[field] = numeric
     if q.qualified_rows.gt(q.source_rows).any():
@@ -35,6 +35,7 @@ def screen(capacity,qualified):
     d["coverage"]=d["_merge"].astype(str);d=d.drop(columns="_merge")
     d["annual_nameplate_ceiling_mwh"]=d.nameplate_mw*8784
     d["qualified_generation_over_nameplate"]=d.qualified_mwh/d.annual_nameplate_ceiling_mwh
+    d.loc[d.qualified_mwh.lt(0), "qualified_generation_over_nameplate"] = float("nan")
     d.loc[d.annual_nameplate_ceiling_mwh.le(0),"qualified_generation_over_nameplate"]=float("nan")
     d["qualified_rows_complete"]=d.source_rows.eq(d.qualified_rows)
     d["energy_exceeds_nameplate"]=d.qualified_mwh.gt(d.annual_nameplate_ceiling_mwh).where(d.annual_nameplate_ceiling_mwh.notna())
@@ -42,6 +43,7 @@ def screen(capacity,qualified):
     d["annual_screen_status"] = "annual_plausibility_only"
     d.loc[d.qualified_mwh.isna(), "annual_screen_status"] = "no_qualified_generation"
     d.loc[d.nameplate_mw.isna() | d.nameplate_mw.le(0), "annual_screen_status"] = "no_supported_nameplate"
+    d.loc[d.qualified_mwh.lt(0), "annual_screen_status"] = "negative_net_generation"
     d.loc[d.energy_exceeds_nameplate.eq(True), "annual_screen_status"] = "exceeds_nameplate_ceiling"
     d.loc[(d.annual_screen_status == "annual_plausibility_only") &
           ~d.qualified_rows_complete.fillna(False), "annual_screen_status"] = "partial_qualified_source_coverage"
