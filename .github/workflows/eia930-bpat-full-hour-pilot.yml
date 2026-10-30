@@ -1,0 +1,74 @@
+name: EIA-930 BPAT full-year hourly independent pilot
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia930-bpat-full-hour-pilot.yml'
+      - 'src/energy_transition/eia930_full_hour_pilot.py'
+      - 'src/energy_transition/eia930_hourly_model_comparison.py'
+jobs:
+  bpat_hourly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[model,dev]'
+      - name: Fetch independently observed BPAT demand and NG
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        run: |
+          test -n "$EIA_API_KEY"
+          python - <<'PY'
+          from pathlib import Path
+          from energy_transition.eia930_west import fetch_eia_demand
+          from energy_transition.eia930_generation_audit import fetch_net_generation
+          out=Path("outputs/bpat_hourly")
+          out.mkdir(parents=True,exist_ok=True)
+          fetch_eia_demand(2024,["BPAT"]).to_csv(out/"observed_demand_hourly.csv",index=False)
+          fetch_net_generation(2024,["BPAT"]).to_csv(out/"observed_net_generation_hourly.csv",index=False)
+          PY
+      - name: Run 2024 chronological BPAT engineering baseline
+        run: |
+          python -m energy_transition.eia930_full_hour_pilot \
+            --demand outputs/bpat_hourly/observed_demand_hourly.csv \
+            --year 2024 --bas BPAT --output outputs/bpat_hourly
+      - name: Compute descriptive observed NG comparison
+        run: |
+          python -m energy_transition.eia930_hourly_model_comparison \
+            --observed outputs/bpat_hourly/observed_net_generation_hourly.csv \
+            --modeled outputs/bpat_hourly/modeled_generation_hourly.csv \
+            --year 2024 --bas BPAT --output outputs/bpat_hourly
+      - name: Check output and record SHA-256 provenance
+        run: |
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          import pandas as pd
+          out=Path("outputs/bpat_hourly")
+          summary=pd.read_csv(out/"ba_hourly_error_summary.csv").iloc[0]
+          balance=json.loads((out/"hourly_balance_audit.json").read_text())
+          assert summary["ba_code"]=="BPAT"
+          assert summary["expected_hours"]==8784 and summary["modeled_hours"]==8784
+          assert summary["paired_hours"]>0 and not bool(summary["validated_calibration"])
+          assert balance["hours_per_ba"]==8784
+          assert balance["max_absolute_residual_mw"]<=balance["tolerance_mw"]
+          files=sorted(p for p in out.iterdir() if p.is_file())
+          manifest={"commit":os.environ["GITHUB_SHA"],"run_id":os.environ["GITHUB_RUN_ID"],
+            "scope":"BPAT gas-only full-year diagnostic, not calibrated grid simulation",
+            "sha256":{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in files}}
+          (out/"execution_manifest.json").write_text(json.dumps(manifest,indent=2))
+          for name,digest in manifest["sha256"].items():
+            assert hashlib.sha256((out/name).read_bytes()).hexdigest()==digest
+          print("BPAT 8784h run: hourly balance, descriptive NG coverage, and hashes verified")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia930-bpat-hourly-2024-assumption-driven
+          path: outputs/bpat_hourly/
+          retention-days: 90
