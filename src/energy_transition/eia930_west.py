@@ -532,6 +532,10 @@ def main():
             "relative_energy_difference": abs(raw_energy - represented_energy) / raw_energy,
             "peak_observed_mw": float(hourly.groupby("period")["value"].sum().max()),
             "peak_representative_mw": float(rep["value"].max()),
+            "peak_loss_mw": float(hourly.groupby("period")["value"].sum().max() - rep["value"].max()),
+            "peak_loss_fraction": float(
+                1.0 - rep["value"].max() / hourly.groupby("period")["value"].sum().max()
+            ),
             "peak_information_loss_warning": "Representative hours smooth observed peaks; do not use for adequacy or extreme-weather claims.",
         }
         (args.output / f"energy_audit_{year}.json").write_text(json.dumps(energy_audit, indent=2))
