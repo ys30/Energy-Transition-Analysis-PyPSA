@@ -65,6 +65,9 @@ jobs:
                         "run_url":latest["html_url"]}
             if latest["status"]!="completed" or latest["conclusion"]!="success":
               raise SystemExit(f"Latest {ba} workflow has not passed: {latest['html_url']}")
+          # Persist inspected run evidence even if acceptance subsequently fails.
+          with open("two_ba_engineering_acceptance.json","w") as f:
+            json.dump(report,f,indent=2)
           # Ensure the two independently passed pilots used identical source revision.
           ciso_sha=report["CISO"]["commit_sha"]
           bpat_sha=report["BPAT"]["commit_sha"]
