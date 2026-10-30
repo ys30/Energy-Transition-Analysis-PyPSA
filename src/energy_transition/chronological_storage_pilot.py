@@ -25,7 +25,8 @@ def validate_window(hourly, hours=168):
 
 def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
                  generation_mw=55000.,generation_cost=50.,
-                 peaker_mw=20000.,peaker_cost=250.,require_activity=True,\n                 voll_usd_per_mwh=10000.):
+                 peaker_mw=20000.,peaker_cost=250.,require_activity=True,
+                 voll_usd_per_mwh=10000.):
     import pypsa
     demand=validate_window(hourly)
     if min(battery_mw,duration_h,generation_mw,generation_cost,peaker_mw,peaker_cost,voll_usd_per_mwh)<=0:
@@ -80,7 +81,8 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
                  index=demand.index).to_csv(output/"chronological_storage_dispatch.csv")
     report={"status":condition,"hours":len(demand),"battery_mw_assumed":battery_mw,
             "assumed_firm_generation_mw":generation_mw,"assumed_peaker_mw":peaker_mw,
-            "assumed_peaker_cost_usd_per_mwh":peaker_cost,\n            "assumed_voll_usd_per_mwh":voll_usd_per_mwh,
+            "assumed_peaker_cost_usd_per_mwh":peaker_cost,
+            "assumed_voll_usd_per_mwh":voll_usd_per_mwh,
             "battery_charge_mwh":float(charge.sum()),
             "battery_discharge_mwh":float(discharge.sum()),
             "peaker_generation_mwh":float(n.generators_t.p["assumed_peaker"].sum()),
