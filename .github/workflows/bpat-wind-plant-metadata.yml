@@ -1,0 +1,35 @@
+name: BPAT wind 2024 official plant metadata audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/bpat-wind-plant-metadata.yml'
+      - 'src/energy_transition/bpat_wind_plant_metadata.py'
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]' openpyxl xlrd
+      - uses: actions/download-artifact@v4
+        with:
+          name: bpat-wind-plant-concentration-2024
+          run-id: 41086750022
+          github-token: ${{ github.token }}
+          path: inputs/wind
+      - run: |
+          python -m energy_transition.bpat_wind_plant_metadata \
+            --wind inputs/wind/bpat_wind_qualified_plant_concentration.csv \
+            --output outputs/plant_metadata
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bpat-wind-official-plant-metadata-2024
+          path: outputs/plant_metadata/
