@@ -34,6 +34,11 @@ def add_screened_ba_lines(network, lines: pd.DataFrame, bas=("CISO","BPAT")):
         raise ValueError("Physical line ratings must be finite positive MW values")
     if not data.evidence_status.eq("independently_verified").all():
         raise ValueError("All branches must have independently verified physical parameters")
+    # Require source-backed physical ohms as well as source-backed per-unit
+    # reactance: neither quantity may silently stand in for the other.
+    for col in ("source_url", "source_year"):
+        if col not in data.columns or data[col].isna().any():
+            raise ValueError(f"Missing transmission provenance: {col}")
     # Validate every branch endpoint, not just the first line touching each BA.
     for _, row in data.iterrows():
         for ba in (row.from_ba, row.to_ba):
