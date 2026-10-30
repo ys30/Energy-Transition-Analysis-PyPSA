@@ -166,3 +166,17 @@ def test_crosswalk_ba_codes_are_whitespace_normalized():
     result, audit = compare_generation(g, x, m, year=2024, bas=("CISO",))
     assert audit["selected_ba_mapped_plant_count"] == 2
     assert result.set_index("carrier").loc["gas", "observed_eia923_net_generation_mwh"] == pytest.approx(95)
+
+
+def test_observed_fuel_labels_normalize_case_and_whitespace():
+    g, x, m = _fixtures()
+    g.loc[0, "fuel"] = " GAS "
+    result, _ = compare_generation(g, x, m, year=2024, bas=("CISO",))
+    assert result.set_index("carrier").loc["gas", "observed_eia923_net_generation_mwh"] == pytest.approx(95)
+
+
+def test_reject_ambiguous_model_carrier_label():
+    g, x, m = _fixtures()
+    m["dispatch_mwh_by_carrier"] = {" Gas ": 110, "wind": 35}
+    with pytest.raises(ValueError, match="Model carrier labels must be lowercase"):
+        compare_generation(g, x, m, year=2024, bas=("CISO",))
