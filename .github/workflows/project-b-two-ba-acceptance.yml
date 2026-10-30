@@ -106,6 +106,10 @@ jobs:
                   if (balance["hours_per_ba"]!=8784
                           or balance["max_absolute_residual_mw"]>balance["tolerance_mw"]):
                       raise SystemExit(f"{ba}: hourly demand balance failed")
+                  # Do not treat a single matched hour as adequate evidence
+                  # for a full-year empirical comparison.
+                  if int(m["paired_hours"])!=8784:
+                      raise SystemExit(f"{ba}: full-year observed NG pairing incomplete")
                   report[ba]={
                       "run_id":run["id"],"url":run["html_url"],
                       "paired_hours":int(m["paired_hours"]),
