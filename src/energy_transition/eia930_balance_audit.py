@@ -38,7 +38,21 @@ def balance_audit(demand,generation,interchange,bas,year):
     idx=pd.MultiIndex.from_product([bas,pd.date_range(f"{year}-01-01",f"{year+1}-01-01",freq="h",inclusive="left",tz="UTC")],names=["respondent","period"])
     outputs={}
     for label,df in [("demand",demand),("generation",generation),("interchange",interchange)]:
-        outputs[label]=df.set_index(["respondent","period"])["value"].reindex(idx)
+        required={"respondent","period","value"}
+        if required-set(df):
+            raise ValueError(f"{label}: missing respondent/period/value columns")
+        source=df.copy()
+        source["period"]=pd.to_datetime(source["period"],utc=True,errors="coerce")
+        if source["period"].isna().any():
+            raise ValueError(f"{label}: invalid hourly timestamps")
+        if source.duplicated(["respondent","period"]).any():
+            raise ValueError(f"{label}: duplicate BA-hour observations")
+        source["value"]=pd.to_numeric(source["value"],errors="coerce")
+        import numpy as np
+        if np.isinf(source["value"].to_numpy(dtype=float)).any():
+            raise ValueError(f"{label}: infinite observed values")
+        # Missing measurements are retained as NaN, never imputed to zero.
+        outputs[label]=source.set_index(["respondent","period"])["value"].reindex(idx)
     merged=pd.DataFrame(outputs).reset_index()
     merged["residual_d_minus_ng_minus_ti"]=merged.demand-merged.generation-merged.interchange
     merged["residual_d_minus_ng_plus_ti"]=merged.demand-merged.generation+merged.interchange
