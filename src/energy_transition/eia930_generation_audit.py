@@ -37,7 +37,13 @@ def fetch_net_generation(year, bas, api_key=None):
     frame=pd.DataFrame(rows)
     frame=frame[["period","respondent","value"]].copy()
     frame["period"]=pd.to_datetime(frame.period,utc=True)
-    frame["value"]=pd.to_numeric(frame.value,errors="coerce")
+    raw=frame["value"]
+    parsed=pd.to_numeric(raw,errors="coerce")
+    # Preserve explicit nulls, but reject malformed non-null numeric strings.
+    malformed=raw.notna() & parsed.isna()
+    if malformed.any():
+        raise ValueError(f"EIA NG API returned {int(malformed.sum())} malformed non-null numeric values")
+    frame["value"]=parsed
     if frame.duplicated(["period","respondent"]).any():
         raise ValueError("Duplicate BA-hour NG measurements")
     return frame
