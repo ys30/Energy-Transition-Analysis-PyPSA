@@ -46,7 +46,14 @@ jobs:
           assert result["respondent"].eq("CISO").all()
           assert np.isfinite(result["value"]).all()
           assert (result["value"]>=0).all()
-          print("Verified 8784 model dispatch values; assumption-driven only")
+          audit=__import__("json").loads((out/"unserved_load_audit.json").read_text())
+          unmet=pd.read_csv(out/"unserved_load_hourly.csv")
+          assert len(unmet)==8784
+          assert np.isfinite(unmet["unserved_mw"]).all()
+          assert (unmet["unserved_mw"]>=-1e-6).all()
+          assert abs(float(unmet["unserved_mw"].sum())-float(audit["total_unserved_mwh"]))<1e-5
+          assert audit["unserved_positive_hours"]==int((unmet["unserved_mw"]>1e-6).sum())
+          print("Verified 8784 model dispatch values and separate synthetic unserved-load audit")
           PY
       - uses: actions/upload-artifact@v4
         if: always()
