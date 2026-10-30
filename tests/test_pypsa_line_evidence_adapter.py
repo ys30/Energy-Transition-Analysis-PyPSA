@@ -16,6 +16,7 @@ def record():
 class FakeNetwork:
     def __init__(self):
         self.buses=pd.DataFrame({"v_nom":[230.,230.]},index=["CISO","BPAT"])
+        self.lines=pd.DataFrame(index=pd.Index([],name="Line"))
         self.added=[]
     def add(self,*args,**kwargs):
         self.added.append((args,kwargs))
