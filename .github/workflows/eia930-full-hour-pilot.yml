@@ -101,6 +101,10 @@ jobs:
           assert row["paired_hours"]>0
           assert 0 < row["paired_coverage"] <= 1
           assert row["observed_hours"] >= row["paired_hours"]
+          assert "observed_negative_hours" in row and "observed_zero_hours" in row
+          assert 0 <= row["observed_negative_hours"] <= row["observed_hours"]
+          assert 0 <= row["observed_zero_hours"] <= row["observed_hours"]
+          assert row["observed_negative_hours"]+row["observed_zero_hours"]<=row["observed_hours"]
           assert row["modeled_hours"] == 8784
           assert pd.notna(row["mae_mw"]) and row["mae_mw"] >= 0
           assert pd.notna(row["rmse_mw"]) and row["rmse_mw"] >= row["mae_mw"] - 1e-8
