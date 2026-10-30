@@ -36,6 +36,11 @@ def compare_hourly(observed: pd.DataFrame, modeled: pd.DataFrame, year: int, bas
         data["value"] = pd.to_numeric(data.value, errors="coerce")
         if np.isinf(data.value.to_numpy(dtype=float)).any():
             raise ValueError(f"{label}: infinite MW values")
+        # Missing observations remain NaN for coverage accounting, but
+        # negative net generation is not a valid positive-output comparison.
+        if label == "modeled" and (data["value"].dropna() < -1e-6).any():
+            raise ValueError("modeled: negative generator production")
+
         values[label] = data.set_index(["respondent", "period"]).value.reindex(grid)
     pairs = pd.DataFrame(values).reset_index()
     pairs["complete_pair"] = pairs[["observed", "modeled"]].notna().all(axis=1)
