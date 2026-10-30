@@ -38,3 +38,14 @@ def test_missing_observed_hours_do_not_count_as_zero():
     assert row["observed_negative_hours"] == 0
     assert row["paired_hours"] == 1
     assert not pairs.loc[0, "complete_pair"]
+
+
+def test_malformed_observed_mw_is_not_silently_missing():
+    with pytest.raises(ValueError, match="nonnumeric MW"):
+        compare_hourly(_frame(["bad"]), _frame([1.0]), 2024, ["CISO"])
+
+
+def test_explicit_null_observed_mw_remains_missing():
+    pairs, summary = compare_hourly(_frame([None]), _frame([1.0]), 2024, ["CISO"])
+    assert summary.iloc[0]["paired_hours"] == 0
+    assert not pairs.loc[0, "complete_pair"]
