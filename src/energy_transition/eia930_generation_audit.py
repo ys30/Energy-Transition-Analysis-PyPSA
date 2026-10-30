@@ -31,8 +31,12 @@ def fetch_net_generation(year, bas, api_key=None):
         page=response.get("data")
         if page is None: raise ValueError("EIA NG API response missing data")
         if not page: break
-        rows.extend(page);offset+=len(page)
-        if offset>=int(response.get("total",offset)):break
+        total=int(response.get("total",offset+len(page)))
+        if total < 0:
+            raise ValueError("EIA NG API returned invalid total count")
+        rows.extend(page)
+        offset+=len(page)
+        if offset>=total:break
     if not rows:raise ValueError("No EIA-930 net generation data")
     frame=pd.DataFrame(rows)
     frame=frame[["period","respondent","value"]].copy()
