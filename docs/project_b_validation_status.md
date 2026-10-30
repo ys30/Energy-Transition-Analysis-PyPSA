@@ -41,4 +41,18 @@ The repository now contains an independent **full-year hourly demand/dispatch pi
 
 For an empirical hourly comparison, require a solved PyPSA NetCDF with genuine UTC hourly snapshots, matching BA identities and a separately audited EIA-930 generation series. Compare only aligned observed hours, report missing-hour coverage and the distribution of hourly residuals (not just annual totals), and inspect interchange/balancing residuals before interpreting discrepancies as model error. Do not infer hourly generation validation from the annual EIA-923 comparison.
 
-**Acceptance status:** implementation exists, but no independently verified end-to-end hourly pilot run, hourly BA comparison artifact, or calibrated hourly error statistic has been established here. Keep this track separate from the annual EIA-923 evidence gate above.
+**Acceptance status, updated 2026-10-30:** The assumption-driven 2024 CISO chronological pilot has **verified successful GitHub Actions execution**, including observed EIA-930 NG comparison, hourly gas-plus-unserved demand identity, artifact SHA-256 verification, and provenance output:
+- [full-hour pilot run 41121054415](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41121054415), commit `2db5d78a`, success;
+- [full-hour pilot run 41123841820](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41123841820), commit `bc59cc1c`, success;
+- [CI run 41123841738](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41123841738), success.
+
+Artifacts are published through the successful workflow runs for a limited retention window (currently 30 days). The run writes `execution_manifest.json`, which records source/output SHA-256 hashes, versions and commit identity; its contents are re-checked by the workflow. **The numerical MAE/RMSE have not been independently transcribed or interpreted in this document.** The NG comparison is *descriptive only*, because independent BA gas-only supply with assumed capacity and costs omits the observed mix, interchange, storage and other system components. The separate 288 representative-hour model and its assumptions are unchanged.
+
+### Engineering delivery criteria still outstanding
+
+1. Preserve a durable snapshot of successful workflow artifacts beyond GitHub's 30-day retention period for long-term reproducibility.
+2. Publish an evidence-grounded, run-specific table of observed NG comparison metrics, paired hours and any missing/negative observations, with explicit caveats.
+3. Demonstrate repeatable CI for any subsequently added BA, year or realistic capacity/availability inputs before claiming general coverage.
+4. Resolve or explicitly scope out the BPAT accounting discrepancy, source-alignment caveats, and all research-calibration assertions.
+
+**Engineering progress is an informal estimate rather than a binary 100% certification.** The tested CISO hourly gas-only *pilot track* has a repeatable verified workflow, but a calibrated regional electric-grid model is not yet delivered.
