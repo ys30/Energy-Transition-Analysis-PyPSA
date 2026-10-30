@@ -1,5 +1,8 @@
 name: Project B two-BA engineering acceptance
 on:
+  push:
+    paths:
+      - '.github/workflows/project-b-two-ba-acceptance.yml'
   workflow_dispatch:
   workflow_run:
     workflows:
