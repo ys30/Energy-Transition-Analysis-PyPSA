@@ -218,6 +218,24 @@ jobs:
           )
           lines = ["## EIA-923 versus PyPSA annual comparison audit", ""]
           lines.extend(f"- **{key}**: {audit.get(key, 'not recorded')}" for key in keys)
+          import csv
+          comparison = Path(f"outputs/eia923_validation/eia923_vs_pypsa_{year}.csv")
+          with comparison.open(newline="") as f:
+              records = list(csv.DictReader(f))
+          if not records:
+              raise ValueError("No observed-versus-modeled comparison records")
+          lines.extend(["", "### Comparable annual generation by carrier", "",
+                        "| Carrier | Observed MWh | Modeled MWh | Difference MWh | Relative error |",
+                        "|---|---:|---:|---:|---:|"])
+          for record in records:
+              carrier = record["carrier"]
+              observed = float(record["observed_eia923_net_generation_mwh"])
+              modeled = float(record["modeled_pypsa_dispatch_mwh"])
+              difference = float(record["model_minus_observed_mwh"])
+              error = record["relative_error_if_nonzero"]
+              error_text = f"{100 * float(error):+.1f}%" if error else "n/a"
+              lines.append(f"| {carrier} | {observed:,.0f} | {modeled:,.0f} | {difference:+,.0f} | {error_text} |")
+          lines.extend(["", "Comparison is diagnostic only; plant-to-BA completeness is not certified."])
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
               f.write(chr(10).join(lines) + chr(10))
           print(chr(10).join(lines))
