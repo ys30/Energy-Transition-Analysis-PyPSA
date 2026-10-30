@@ -2,20 +2,20 @@ import pandas as pd
 import pytest
 from energy_transition.eia2024_technology_utilization_screen import calculate
 
-def test_utilization_retains_qualification_flag_and_never_claims_calibration():
+def test_two_ba_aggregate_screen_no_fake_ba_calibration():
     c=pd.DataFrame([{"ba_code":"CISO","fuel":"NG","capacity_mw":100.},
+      {"ba_code":"BPAT","fuel":"NG","capacity_mw":100.},
       {"ba_code":"BPAT","fuel":"WAT","capacity_mw":200.}])
-    q=pd.DataFrame([{"ba_code":"CISO","fuel":"NG","qualified_annual_mwh":87840.,
-      "source_rows":4,"qualified_rows":3}])
-    x=calculate(c,q)
-    ng=x[x.technology.eq("gas")].iloc[0]
-    assert ng.qualified_generation_over_nameplate_hours==.1
-    assert not bool(ng.qualified_rows_complete)
-    assert not x.ratio_calibrated.any()
-    assert x[x.technology.eq("hydro")].qualified_generation_over_nameplate_hours.isna().all()
+    q=pd.DataFrame([{"carrier":"gas","observed_eia923_net_generation_mwh":87840.}])
+    out=calculate(c,q)
+    gas=out[out.carrier.eq("gas")].iloc[0]
+    assert gas.capacity_mw==200
+    assert gas.qualified_generation_over_nameplate_hours==.05
+    assert not out.capacity_calibrated.any()
+    assert out[out.carrier.eq("hydro")].qualified_generation_over_nameplate_hours.isna().all()
 
-def test_duplicate_source_fuel_rejected():
+def test_duplicate_ba_fuel_rejected():
     c=pd.DataFrame([{"ba_code":"CISO","fuel":"NG","capacity_mw":100.}]*2)
-    q=pd.DataFrame(columns=["ba_code","fuel","qualified_annual_mwh","source_rows","qualified_rows"])
+    q=pd.DataFrame(columns=["carrier","observed_eia923_net_generation_mwh"])
     with pytest.raises(ValueError,match="Duplicate"):
         calculate(c,q)
