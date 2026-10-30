@@ -87,7 +87,7 @@ jobs:
           )
           lines = ["## Official EIA-923 normalization audit", ""]
           lines.extend(f"- **{k}**: {audit.get(k, 'not recorded')}" for k in keys)
-          report = "\\n".join(lines) + "\\n"
+          report = chr(10).join(lines) + chr(10)
           print(report)
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
               f.write(report)
