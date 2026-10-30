@@ -43,6 +43,12 @@ def add_screened_ba_lines(network, lines: pd.DataFrame, bas=("CISO","BPAT")):
     collisions=set(network.lines.index).intersection(names)
     if collisions:
         raise ValueError(f"Existing PyPSA Line names would collide: {sorted(collisions)}")
+    # PyPSA may retain stale topology if lines are added after a prior solve;
+    # reject networks with existing optimized line dispatch rather than mutate them.
+    if hasattr(network, "lines_t") and hasattr(network.lines_t, "p0"):
+        prior_flow=network.lines_t.p0
+        if prior_flow is not None and not prior_flow.empty:
+            raise ValueError("Cannot add screened lines after line dispatch exists; rebuild network")
     for i,row in data.reset_index(drop=True).iterrows():
         network.add("Line",f"evidence_line_{i}",bus0=row.from_ba,bus1=row.to_ba,
                     r=float(row.resistance_ohm),x=float(row.reactance_ohm),
