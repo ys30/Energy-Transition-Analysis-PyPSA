@@ -87,10 +87,16 @@ def balance_audit(demand,generation,interchange,bas,year):
     audit["official_balance_residual_mwh"]=audit.common_residual_plus_mwh
     audit["official_balance_mae_mw"]=audit.mae_d_minus_ng_plus_ti
     audit["official_balance_mae_share_of_load"]=audit.candidate_plus_mae_share_of_load
+    # A zero/negative or undefined average load cannot normalize an error.
+    # Require finite residual diagnostics before any screening-only outcome.
+    import numpy as np
     audit["accounting_gate"]=audit.apply(
-        lambda r: "review_required" if r.complete_triple_share < 0.99 or
-        r.official_balance_mae_share_of_load>0.10
-        else "screening_only_not_verified",axis=1)
+        lambda r: "review_required" if (
+            r.complete_triple_share < 0.99 or
+            not np.isfinite(r.official_balance_mae_share_of_load) or
+            r.common_demand_mwh <= 0 or
+            r.official_balance_mae_share_of_load > 0.10
+        ) else "screening_only_not_verified", axis=1)
     return merged,audit
 
 def monthly_balance_audit(frame):
@@ -112,10 +118,14 @@ def monthly_balance_audit(frame):
     monthly["missing_triples"]=monthly.expected_hours-monthly.common_hours.fillna(0)
     monthly["coverage"]=monthly.common_hours/monthly.expected_hours
     monthly["residual_share_of_demand"]=monthly.official_residual_mwh/monthly.demand_mwh
+    import numpy as np
     monthly["quality_flag"]=monthly.apply(
-        lambda row:"review_required" if row.coverage<0.99 or
-            abs(row.residual_share_of_demand)>0.10 else "screening_only_not_verified",
-        axis=1)
+        lambda row: "review_required" if (
+            row.coverage < 0.99 or
+            pd.isna(row.demand_mwh) or row.demand_mwh <= 0 or
+            not np.isfinite(row.residual_share_of_demand) or
+            abs(row.residual_share_of_demand) > 0.10
+        ) else "screening_only_not_verified", axis=1)
     return monthly
 
 
