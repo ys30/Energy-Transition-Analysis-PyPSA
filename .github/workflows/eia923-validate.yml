@@ -277,15 +277,20 @@ jobs:
           if not isinstance(dispatch, dict) or not dispatch:
               raise ValueError("Annual model metrics missing dispatch_mwh_by_carrier")
           print(f"Requested analysis year: {year}; model carrier count: {len(dispatch)}")
-          for key in ("snapshot_count", "n_snapshots", "hours", "n_hours"):
-              if key in metrics:
-                  import calendar
-                  expected = 8784 if calendar.isleap(year) else 8760
-                  actual = int(metrics[key])
-                  if actual != expected:
-                      raise ValueError(f"Model metrics {key}={actual} does not equal {expected} annual hourly snapshots")
-                  print(f"Verified {key}={actual} matches {year} hourly calendar length")
-          print("Note: year and optional snapshot counts are checked; missing temporal metadata does not certify full-year coverage.")
+          import calendar
+          expected = 8784 if calendar.isleap(year) else 8760
+          representation = metrics.get("temporal_representation")
+          if representation == "288_weighted_month_hour_snapshots_not_chronological_hourly":
+              if int(metrics.get("snapshot_count", -1)) != 288:
+                  raise ValueError("Representative-month-hour model must have 288 snapshots")
+              if abs(float(metrics.get("represented_hours", -1)) - expected) > 1e-6:
+                  raise ValueError("Representative model weights do not cover annual calendar hours")
+              print(f"Verified 288 representative snapshots weighted to {expected} hours; NOT chronological hourly validation.")
+          else:
+              for key in ("snapshot_count", "n_snapshots", "hours", "n_hours"):
+                  if key in metrics and int(metrics[key]) != expected:
+                      raise ValueError(f"Model metrics {key} does not equal {expected} annual hourly snapshots")
+              print("Temporal representation unspecified or hourly; full-year hourly coverage not independently certified.")
           PY
       - name: Compare observed EIA-923 generation against PyPSA dispatch
         run: |
