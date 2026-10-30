@@ -240,6 +240,38 @@ jobs:
           if not manifests:
               print("::warning::No separate annual hourly coverage manifest found; annual dispatch comparison alone does not certify 8784-hour input completeness.")
           PY
+      - name: Verify and publish observed-to-representative demand energy audit
+        env:
+          YEAR: ${{ inputs.year || '2024' }}
+        run: |
+          python - <<'PY'
+          import json, math, os
+          from pathlib import Path
+          year = int(os.environ["YEAR"])
+          path = Path(f"outputs/eia930_west/energy_audit_{year}.json")
+          audit = json.loads(path.read_text())
+          if int(audit["year"]) != year:
+              raise ValueError("Demand audit year does not match requested year")
+          raw = float(audit["raw_demand_mwh_after_qc"])
+          represented = float(audit["representative_demand_mwh"])
+          if not all(math.isfinite(x) for x in (raw, represented)) or raw <= 0:
+              raise ValueError("Demand energy audit has invalid totals")
+          difference = abs(raw - represented)
+          if difference > max(1e-6, abs(raw) * 1e-10):
+              raise ValueError(f"Annual demand energy not conserved: {difference} MWh")
+          lines = ["### Observed-demand aggregation audit", "",
+                   f"- Year: {year}",
+                   f"- EIA-930 hourly demand after QC: {raw:,.2f} MWh",
+                   f"- 288 weighted month-hour demand: {represented:,.2f} MWh",
+                   f"- Absolute aggregation difference: {difference:.8f} MWh",
+                   f"- Observed coincident peak: {float(audit['peak_observed_mw']):,.2f} MW",
+                   f"- Representative peak: {float(audit['peak_representative_mw']):,.2f} MW",
+                   "- Annual MWh conservation does not preserve chronological peaks or validate resource adequacy.",
+                   ""]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("\\n".join(lines) + "\\n")
+          print("\\n".join(lines))
+          PY
       - name: Record model and input artifact provenance
         env:
           YEAR: ${{ inputs.year || '2024' }}
