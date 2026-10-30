@@ -21,3 +21,10 @@ The CISO 24 missing observed hours have **not** been imputed. The acceptance wor
 The artifact checks covered checksum-verified modeled generation, observed generation, hourly balance and error summary for each BA. Upstream source revision, plant/technology supply completeness, BA interchange accounting, 2024 observed-vs-modeled discrepancies and BPAT renewable reconciliation remain separate empirical research concerns.
 
 **Engineering closure boundary:** The narrow *independent gas-only hourly pilot* has successful computational and artifact-verification evidence. Project B as a physically calibrated, interconnected regional power-system research model has **not** reached full completion.
+
+
+## Observed CISO NG missing-hour investigation (verified)
+
+[Two-BA acceptance run 41145410855](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41145410855) independently reconstructed the exact missing UTC hours from the retained EIA-930 NG source artifact. All **24 missing CISO observations form a single continuous block**, from **2024-11-02 08:00 UTC through 2024-11-03 07:00 UTC inclusive** (end-exclusive boundary 2024-11-03 08:00 UTC). **BPAT has no missing NG hours** in this paired run. No missing records were interpolated or treated as zeros. This block overlaps the US daylight-saving transition weekend, but the cause is **not established** from the time correlation alone; data-source auditing is required before attributing it to timezone or EIA publication issues.
+
+The observed NG comparison therefore covers **8,760 / 8,784 hours (99.7268%)** for CISO and **8,784 / 8,784 (100%)** for BPAT. Chronological model demand dispatch remains full-year in both BA baselines. The reported gas-only MAE/RMSE exclude unmatched CISO hours and are not calibrated-grid skill scores.
