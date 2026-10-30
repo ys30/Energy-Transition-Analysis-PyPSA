@@ -138,3 +138,7 @@ def test_two_ba_audit_separates_signed_and_absolute_generation():
     assert audit["selected_ba_mapped_generation_abs_mwh_by_ba"]["BPAT"] == pytest.approx(22)
     assert audit["selected_ba_mapped_generation_net_mwh_by_ba"]["CISO"] == pytest.approx(135)
     assert result.set_index("carrier").loc["wind", "observed_eia923_net_generation_mwh"] == pytest.approx(58)
+    assert audit["selected_ba_observed_generation_by_ba_and_fuel_net_mwh"] == {
+        "CISO": {"gas": 95.0, "wind": 40.0},
+        "BPAT": {"wind": 18.0},
+    }
