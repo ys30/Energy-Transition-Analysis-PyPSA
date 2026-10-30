@@ -287,12 +287,14 @@ jobs:
               raise ValueError("Annual model metrics missing dispatch_mwh_by_carrier")
           print(f"Requested analysis year: {year}; model carrier count: {len(dispatch)}")
           import calendar
+          import math
           expected = 8784 if calendar.isleap(year) else 8760
           representation = metrics.get("temporal_representation")
           if representation == "288_weighted_month_hour_snapshots_not_chronological_hourly":
               if int(metrics.get("snapshot_count", -1)) != 288:
                   raise ValueError("Representative-month-hour model must have 288 snapshots")
-              if abs(float(metrics.get("represented_hours", -1)) - expected) > 1e-6:
+              represented_hours = float(metrics.get("represented_hours", float("nan")))
+              if not math.isfinite(represented_hours) or abs(represented_hours - expected) > 1e-6:
                   raise ValueError("Representative model weights do not cover annual calendar hours")
               if metrics.get("representative_hour_weight_sum_valid") is not True:
                   raise ValueError("Representative-hour weight-integrity indicator missing or false")
