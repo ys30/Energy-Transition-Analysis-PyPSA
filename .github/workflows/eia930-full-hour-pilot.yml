@@ -176,4 +176,4 @@ jobs:
         with:
           name: eia930-full-year-ciso-assumption-driven-2024
           path: outputs/hourly_dispatch_pilot/
-          retention-days: 30
+          retention-days: 90
