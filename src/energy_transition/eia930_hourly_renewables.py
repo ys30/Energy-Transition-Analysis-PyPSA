@@ -68,6 +68,33 @@ def audit(frame, year, bas=("CISO","BPAT")):
               "complete_nonnegative":bool(not len(missing) and not nulls and not negatives)})
     return pd.DataFrame(rows)
 
+SEASON_STARTS = {
+    "winter": "2024-01-08T00:00:00Z",
+    "spring": "2024-04-08T00:00:00Z",
+    "summer": "2024-07-08T00:00:00Z",
+    "autumn": "2024-10-07T00:00:00Z",
+}
+
+def season_profiles(frame, bas=("CISO", "BPAT"), starts=SEASON_STARTS):
+    """Export signed, observed BA fuel MWh only when all 168xBAxfuel rows exist."""
+    data=frame.copy()
+    data["period"]=pd.to_datetime(data.period,utc=True)
+    if data.duplicated(["period","respondent","fueltype"]).any():
+        raise ValueError("Duplicate BA/fuel-hour records in week")
+    result=[]
+    for name,start in starts.items():
+        begin=pd.Timestamp(start)
+        expected=pd.date_range(begin,periods=168,freq="h")
+        index=pd.MultiIndex.from_product([expected,bas,FUEL],names=["period","respondent","fueltype"])
+        x=data.set_index(["period","respondent","fueltype"])["value"].reindex(index)
+        if x.isna().any():
+            raise ValueError(f"{name} observed renewable week incomplete: {int(x.isna().sum())} missing values")
+        part=x.rename("reported_signed_net_mwh").reset_index()
+        part.insert(0,"season",name)
+        result.append(part)
+    return pd.concat(result,ignore_index=True)
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--year",type=int,default=2024)
@@ -78,6 +105,8 @@ def main():
     frame.to_csv(a.output/"renewable_hourly_observed.csv",index=False)
     results=audit(frame,a.year,a.bas)
     results.to_csv(a.output/"renewable_hourly_coverage.csv",index=False)
+    if a.year==2024 and set(a.bas)=={"CISO","BPAT"}:
+        season_profiles(frame,a.bas).to_csv(a.output/"seasonal_observed_renewables.csv",index=False)
     (a.output/"provenance.json").write_text(json.dumps({
       "api":API,"year":a.year,"bas":a.bas,"fueltypes":FUEL,
       "units":"EIA reported megawatthours per hour; numerically equivalent to average MW during each hourly interval",
