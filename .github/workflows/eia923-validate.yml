@@ -92,6 +92,29 @@ jobs:
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
               f.write(report)
           PY
+      - name: Gate EIA-923 usable generation share for downstream interpretation
+        env:
+          YEAR: ${{ inputs.year || '2024' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          year = os.environ["YEAR"]
+          audit = json.loads(Path(f"outputs/eia923/eia923_source_{year}.json").read_text())
+          included = float(audit["included_abs_generation_mwh"])
+          lost = abs(float(audit["excluded_valid_numeric_net_generation_mwh"]))
+          unknown = float(audit["unmapped_fuel_abs_generation_mwh"])
+          print(f"Included abs MWh: {included:,.1f}")
+          print(f"Excluded valid monthly net MWh (absolute net only): {lost:,.1f}")
+          print(f"Unmapped-fuel abs MWh (may overlap exclusions): {unknown:,.1f}")
+          print("These diagnostics are not a certified completeness fraction.")
+          if included <= 0:
+              raise ValueError("No included generation to support empirical comparison")
+          if lost > 0.05 * included:
+              print("::warning::Excluded valid generation exceeds 5% of included generation; review incomplete-record policy.")
+          if unknown > 0.05 * included:
+              print("::warning::Unmapped fuel generation exceeds 5% of included generation; review fuel harmonization.")
+          PY
       - name: Show EIA-923 schema diagnostics if normalization failed
         if: failure()
         run: |
