@@ -57,7 +57,8 @@ jobs:
   # are required for empirical validation. The workflow intentionally does
   # not label unit tests as an observed-data validation.
   official-download:
-    needs: validate-code
+    # Run the independent source audit even when unit tests fail, so the
+    # workflow exposes both failures in a single run.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -157,7 +158,8 @@ jobs:
           path: outputs/eia923/
           retention-days: 30
   observed-versus-model:
-    needs: official-download
+    # Model comparison requires both successful code tests and source audit.
+    needs: [validate-code, official-download]
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
