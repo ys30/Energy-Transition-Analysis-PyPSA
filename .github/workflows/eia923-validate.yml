@@ -283,6 +283,9 @@ jobs:
           audit = json.loads(p.read_text())
           keys = (
               "bas", "comparison_carriers",
+              "selected_ba_mapped_plant_count_by_ba",
+              "selected_ba_mapped_generation_net_mwh_by_ba",
+              "selected_ba_mapped_generation_abs_mwh_by_ba",
               "selected_ba_observed_net_generation_all_fuels_mwh",
               "selected_ba_observed_net_generation_comparable_fuels_mwh",
               "selected_ba_observed_generation_comparable_fraction_abs",
@@ -311,6 +314,16 @@ jobs:
               error = record["relative_error_if_nonzero"]
               error_text = f"{100 * float(error):+.1f}%" if error else "n/a"
               lines.append(f"| {carrier} | {observed:,.0f} | {modeled:,.0f} | {difference:+,.0f} | {error_text} |")
+          lines.extend(["", "### Selected BA source coverage (mapped plants only)", "",
+                        "| BA | Mapped plants | Net generation MWh | Absolute generation MWh |",
+                        "|---|---:|---:|---:|"])
+          counts = audit.get("selected_ba_mapped_plant_count_by_ba", {})
+          net = audit.get("selected_ba_mapped_generation_net_mwh_by_ba", {})
+          absolute = audit.get("selected_ba_mapped_generation_abs_mwh_by_ba", {})
+          for ba in audit["bas"]:
+              if ba not in counts or ba not in net or ba not in absolute:
+                  raise ValueError(f"Missing source coverage for requested BA {ba}")
+              lines.append(f"| {ba} | {int(counts[ba]):,} | {float(net[ba]):,.0f} | {float(absolute[ba]):,.0f} |")
           lines.extend(["", "Comparison is diagnostic only; plant-to-BA completeness is not certified."])
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
               f.write(chr(10).join(lines) + chr(10))
