@@ -106,7 +106,8 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
     # Reject concentrated nonpositive/missing values in reported rows before
     # creating the full-year grid. This also yields the correct diagnostic
     # for partial-year API fixtures with a known BA-specific anomaly.
-    raw_bad = data["value"].isna() | data["value"].le(0)
+    import numpy as np
+    raw_bad = ~np.isfinite(data["value"]) | data["value"].le(0)
     raw_rates = data.assign(_bad=raw_bad).groupby("respondent")["_bad"].agg(["sum","count"])
     excessive_raw = raw_rates[raw_rates["sum"] / raw_rates["count"] > 0.01]
     if not excessive_raw.empty:
@@ -128,7 +129,7 @@ def fetch_eia_demand(year: int, bas=DEFAULT_BAS, api_key=None, length=5000):
             raise ValueError("More than 1% of BA-hour API records are absent")
         data = (data.set_index(["respondent", "period"])
                 .reindex(required_pairs).reset_index())
-    bad = data["value"].isna() | (data["value"] <= 0)
+    bad = ~np.isfinite(data["value"]) | (data["value"] <= 0)
     data["raw_value"] = data["value"]
     data["qc_flag"] = bad.map({True: "missing_or_nonpositive", False: "observed"})
     if len(absent_pairs):
