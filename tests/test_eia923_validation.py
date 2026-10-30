@@ -111,3 +111,12 @@ def test_reject_requested_ba_absent_from_plant_crosswalk():
     g, x, m = _fixtures()
     with pytest.raises(ValueError, match="Requested BAs missing from crosswalk: \\['BPAT'\\]"):
         compare_generation(g, x, m, year=2024, bas=("CISO", "BPAT"))
+
+
+def test_reject_requested_ba_with_crosswalk_but_no_observed_generation():
+    g, x, m = _fixtures()
+    x = pd.concat([x, pd.DataFrame({
+        "plant_id": ["999"], "ba_code": ["BPAT"], "mapping_year": [2024],
+    })], ignore_index=True)
+    with pytest.raises(ValueError, match="no mapped EIA-923 observations"):
+        compare_generation(g, x, m, year=2024, bas=("CISO", "BPAT"))
