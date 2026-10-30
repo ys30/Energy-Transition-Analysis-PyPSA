@@ -40,6 +40,9 @@ def compare_hourly(observed: pd.DataFrame, modeled: pd.DataFrame, year: int, bas
         # negative net generation is not a valid positive-output comparison.
         if label == "modeled" and (data["value"].dropna() < -1e-6).any():
             raise ValueError("modeled: negative generator production")
+        # EIA-930 BA net-generation may legitimately be negative at some
+        # hours; preserve its sign and report those observations separately.
+
 
         values[label] = data.set_index(["respondent", "period"]).value.reindex(grid)
     pairs = pd.DataFrame(values).reset_index()
@@ -57,6 +60,8 @@ def compare_hourly(observed: pd.DataFrame, modeled: pd.DataFrame, year: int, bas
             "modeled_hours": int(data.modeled.notna().sum()),
             "paired_hours": len(good),
             "paired_coverage": len(good)/len(expected),
+            "observed_negative_hours": int((data.observed < 0).sum()),
+            "observed_zero_hours": int(data.observed.eq(0).sum()),
             "mae_mw": float(residual.abs().mean()) if len(good) else np.nan,
             "rmse_mw": float(np.sqrt((residual**2).mean())) if len(good) else np.nan,
             "peak_absolute_error_mw": float(residual.abs().max()) if len(good) else np.nan,
