@@ -88,3 +88,13 @@ def test_strip_observed_fuel_whitespace_before_comparison():
     g.loc[0, 'fuel'] = ' gas '
     result, audit = compare_generation(g, x, m, year=2024, bas=('CISO',))
     assert result.set_index('carrier').loc['gas', 'observed_eia923_net_generation_mwh'] == 95
+
+
+def test_comparable_fraction_uses_row_absolute_generation_before_netting():
+    g, x, m = _fixtures()
+    # Gas is 100 MWh and -5 MWh; absolute activity is 105, not 95.
+    # Wind remains 40 MWh and is not comparable in this model scenario.
+    m["dispatch_mwh_by_carrier"] = {"gas": 110}
+    result, audit = compare_generation(g, x, m, year=2024, bas=("CISO",))
+    assert result.set_index("carrier").loc["gas", "observed_eia923_net_generation_mwh"] == 95
+    assert audit["selected_ba_observed_generation_comparable_fraction_abs"] == pytest.approx(105 / 145)
