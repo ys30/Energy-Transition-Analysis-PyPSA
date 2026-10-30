@@ -86,7 +86,9 @@ def normalize_schedule3(frame: pd.DataFrame, year: int, *, allow_incomplete=Fals
     if allow_incomplete:
         # Exclude an entire source record if ANY of its twelve months is not numeric.
         # Preserve the original offending cells for a separate CSV audit.
-        long.attrs["excluded_cells"] = long.loc[missing, ["source_row_id", "plant_id", "fuel_code", "month", "net_generation_mwh"]].copy()
+        excluded_audit = long.loc[missing, ["source_row_id", "plant_id", "fuel_code", "month", "net_generation_mwh"]].copy()
+        excluded_audit["original_cell_text"] = raw.loc[missing].tolist()
+        long.attrs["excluded_cells"] = excluded_audit
         complete_ids = long.groupby("source_row_id").net_generation_mwh.transform(lambda x: x.notna().all())
         long = long.loc[complete_ids].copy()
     excluded_cells = long.attrs.get("excluded_cells")
@@ -166,6 +168,7 @@ def main():
         "observations": len(result), "units": "net generation MWh",
         "strict_source_record_exclusion": a.allow_incomplete,
         "excluded_monthly_cells": len(excluded) if excluded is not None else 0,
+        "excluded_source_rows": int(excluded.source_row_id.nunique()) if excluded is not None else 0,
         "unmapped_fuel_cells": len(unmapped) if unmapped is not None else 0,
         "selected_fuel_coverage": "unmapped official source codes withheld and audited; extended observed-only fuel groups do not imply PyPSA carrier support",
         "warning": "Normalized official plant-month data; not automatically verified against EIA-930 BA totals."
