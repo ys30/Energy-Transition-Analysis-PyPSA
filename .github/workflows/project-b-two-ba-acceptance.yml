@@ -15,136 +15,107 @@ permissions:
 jobs:
   acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - run: python -m pip install pandas
-      - name: Verify paired successful BA runs and actual numerical artifacts
+      - name: Verify same-revision BA runs and numerical artifacts
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPOSITORY: ${{ github.repository }}
         run: |
           python - <<'PY'
-          import json,os,urllib.request
-          repo=os.environ["GH_REPOSITORY"]
-          req=urllib.request.Request(
-            f"https://api.github.com/repos/{repo}/actions/runs?per_page=100",
-            headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
-                     "Accept":"application/vnd.github+json",
-                     "User-Agent":"project-b-acceptance"})
-          with urllib.request.urlopen(req,timeout=30) as f:
-            runs=json.load(f)["workflow_runs"]
-          # API listing is paginated. Never infer "latest" from an
-          # incomplete first page when the repository has many workflows.
-          page=2
-          while len(runs)>=100 and len(runs)%100==0:
-            next_req=urllib.request.Request(
-              f"https://api.github.com/repos/{repo}/actions/runs?per_page=100&page={page}",
-              headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
-                       "Accept":"application/vnd.github+json",
-                       "User-Agent":"project-b-acceptance"})
-            with urllib.request.urlopen(next_req,timeout=30) as f:
-              batch=json.load(f)["workflow_runs"]
-            runs.extend(batch)
-            if len(batch)<100:
-              break
-            page+=1
-            if page>10:
-              raise SystemExit("Workflow listing exceeded 1000 runs; refuse incomplete evidence")
-
-          names={
-            "CISO":"EIA-930 full-year hourly dispatch pilot",
-            "BPAT":"EIA-930 BPAT full-year hourly independent pilot",
-          }
-          report={"acceptance_scope":"Verified workflows for independent gas-only 2024 BA pilots; not a calibrated multi-BA grid"}
-          # Pair latest successful runs on the same revision, rather than
-          # incorrectly rejecting an independent newer run on one BA.
-          by_ba={}
-          for ba,name in names.items():
-            matches=[x for x in runs if x["name"]==name and x["event"]!="schedule"
-                     and x["status"]=="completed" and x["conclusion"]=="success"]
-            if not matches:
-              raise SystemExit(f"No verified {ba} hourly run")
-            by_ba[ba]={x["head_sha"]:x for x in reversed(matches)}
-          common=set(by_ba["CISO"]) & set(by_ba["BPAT"])
-          if not common:
-            raise SystemExit("No same-revision successful CISO/BPAT pair")
-          sha=max(common,key=lambda x:max(by_ba["CISO"][x]["created_at"],
-                                         by_ba["BPAT"][x]["created_at"]))
-          report["common_commit_sha"]=sha
-          import io,zipfile,hashlib
+          import hashlib,json,os,subprocess,tempfile,urllib.request
+          from pathlib import Path
           import pandas as pd
-          for ba in names:
-            selected=by_ba[ba][sha]
-            report[ba]={"run_id":selected["id"],"commit_sha":sha,
-                        "status":selected["status"],"conclusion":selected["conclusion"],
-                        "run_url":selected["html_url"]}
-            areq=urllib.request.Request(
-              f"https://api.github.com/repos/{repo}/actions/runs/{selected['id']}/artifacts",
-              headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
-                       "Accept":"application/vnd.github+json",
-                       "User-Agent":"project-b-acceptance"})
-            with urllib.request.urlopen(areq,timeout=45) as resp:
-              artifacts=json.load(resp)["artifacts"]
-            expected_name=("eia930-full-year-ciso-assumption-driven-2024"
-                           if ba=="CISO" else "eia930-bpat-hourly-2024-assumption-driven")
-            found=[a for a in artifacts if a["name"]==expected_name and not a["expired"]]
-            if not found:
-              raise SystemExit(f"{ba}: missing retained artifact")
-            zreq=urllib.request.Request(found[0]["archive_download_url"],
-              headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
-                       "Accept":"application/vnd.github+json",
-                       "User-Agent":"project-b-acceptance"})
-            with urllib.request.urlopen(zreq,timeout=120) as resp:
-              payload=resp.read()
-            with zipfile.ZipFile(io.BytesIO(payload)) as z:
-              names_in_zip={n.rsplit("/",1)[-1]:n for n in z.namelist()}
-              required=["ba_hourly_error_summary.csv","hourly_balance_audit.json",
-                        "execution_manifest.json"]
-              if any(x not in names_in_zip for x in required):
-                raise SystemExit(f"{ba}: incomplete numerical artifact")
-              manifest=json.loads(z.read(names_in_zip["execution_manifest.json"]))
-              for basename in required[:2]:
-                expected_digest=manifest["sha256"][basename]
-                actual=hashlib.sha256(z.read(names_in_zip[basename])).hexdigest()
-                if actual!=expected_digest:
-                  raise SystemExit(f"{ba}: checksum mismatch on {basename}")
-              metrics=pd.read_csv(io.BytesIO(z.read(names_in_zip[required[0]]))).iloc[0]
-              balance=json.loads(z.read(names_in_zip[required[1]]))
-              if str(metrics["ba_code"])!=ba or int(metrics["expected_hours"])!=8784:
-                raise SystemExit(f"{ba}: unexpected BA/year evidence")
-              if int(metrics["modeled_hours"])!=8784 or int(metrics["paired_hours"])<1:
-                raise SystemExit(f"{ba}: insufficient paired dispatch evidence")
-              if balance["max_absolute_residual_mw"]>balance["tolerance_mw"]:
-                raise SystemExit(f"{ba}: energy-balance tolerance exceeded")
-              report[ba]["numerical_evidence"]={
-                "paired_hours":int(metrics["paired_hours"]),
-                "paired_coverage":float(metrics["paired_coverage"]),
-                "mae_mw":float(metrics["mae_mw"]),
-                "rmse_mw":float(metrics["rmse_mw"]),
-                "max_hourly_balance_residual_mw":float(balance["max_absolute_residual_mw"]),
-                "validated_calibration":False,
-              }
-          report["acceptance_limitations"]=[
-            "Independent BA gas-only baseline, not interconnected or historically calibrated",
-            "Observed EIA-930 NG difference measures assumed model mismatch",
-            "Evidence is paired from the latest shared successful commit, not necessarily latest individual run",
-          ]
-          with open("two_ba_engineering_acceptance.json","w") as f:
-            json.dump(report,f,indent=2)
-          # Ensure the two independently passed pilots used identical source revision.
-          ciso_sha=report["CISO"]["commit_sha"]
-          bpat_sha=report["BPAT"]["commit_sha"]
-          if ciso_sha!=bpat_sha:
-            raise SystemExit(
-              f"Different tested source revisions: CISO={ciso_sha}, BPAT={bpat_sha}")
-          report["common_commit_sha"]=ciso_sha
-          report["acceptance_limitations"]=[
-            "Checks successful upstream workflow evidence, not numerical comparisons across BA",
-            "Both models are independent gas-only baselines without physical interconnection",
-            "Observed EIA-930 NG differences are descriptive, not calibrated predictions",
-          ]
-          with open("two_ba_engineering_acceptance.json","w") as f:
-            json.dump(report,f,indent=2)
+
+          repo=os.environ["GH_REPOSITORY"]
+          def api(path):
+              request=urllib.request.Request(
+                  f"https://api.github.com/repos/{repo}/{path}",
+                  headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
+                           "Accept":"application/vnd.github+json",
+                           "User-Agent":"project-b-acceptance"})
+              with urllib.request.urlopen(request,timeout=45) as response:
+                  return json.load(response)
+
+          runs=[]
+          for page in range(1,11):
+              batch=api(f"actions/runs?per_page=100&page={page}")["workflow_runs"]
+              runs.extend(batch)
+              if len(batch)<100:
+                  break
+          else:
+              raise SystemExit("More than 1000 workflow runs; paging incomplete")
+
+          names={"CISO":"EIA-930 full-year hourly dispatch pilot",
+                 "BPAT":"EIA-930 BPAT full-year hourly independent pilot"}
+          by_ba={}
+          for ba,workflow in names.items():
+              successful=[r for r in runs if r["name"]==workflow
+                          and r["status"]=="completed"
+                          and r["conclusion"]=="success"]
+              if not successful:
+                  raise SystemExit(f"No successful {ba} workflow")
+              by_ba[ba]={r["head_sha"]:r for r in reversed(successful)}
+
+          shared=set(by_ba["CISO"])&set(by_ba["BPAT"])
+          if not shared:
+              raise SystemExit("No successful same-commit CISO/BPAT runs")
+          sha=max(shared,key=lambda s:max(by_ba["CISO"][s]["created_at"],
+                                           by_ba["BPAT"][s]["created_at"]))
+          report={
+              "common_commit_sha":sha,
+              "acceptance_scope":"2024 independent CISO/BPAT gas-only hourly pilot engineering evidence",
+              "limitations":"Not an interconnected, historically calibrated electric-grid model",
+          }
+          with tempfile.TemporaryDirectory() as temporary:
+              for ba in names:
+                  run=by_ba[ba][sha]
+                  artifact_name=("eia930-full-year-ciso-assumption-driven-2024"
+                                 if ba=="CISO" else "eia930-bpat-hourly-2024-assumption-driven")
+                  out=Path(temporary)/ba
+                  out.mkdir()
+                  subprocess.run([
+                      "gh","run","download",str(run["id"]),"--repo",repo,
+                      "--name",artifact_name,"--dir",str(out)
+                  ],check=True)
+                  def find_unique(name):
+                      matches=list(out.rglob(name))
+                      if len(matches)!=1:
+                          raise SystemExit(f"{ba}: expected one {name}, found {len(matches)}")
+                      return matches[0]
+                  manifest=json.loads(find_unique("execution_manifest.json").read_text())
+                  required=["ba_hourly_error_summary.csv","hourly_balance_audit.json",
+                            "modeled_generation_hourly.csv","observed_net_generation_hourly.csv"]
+                  for name in required:
+                      path=find_unique(name)
+                      digest=manifest["sha256"].get(name)
+                      if not digest or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:
+                          raise SystemExit(f"{ba}: bad or missing SHA-256 for {name}")
+                  m=pd.read_csv(find_unique(required[0])).iloc[0]
+                  balance=json.loads(find_unique(required[1]).read_text())
+                  if (m["ba_code"]!=ba or int(m["expected_hours"])!=8784
+                          or int(m["modeled_hours"])!=8784 or int(m["paired_hours"])<1):
+                      raise SystemExit(f"{ba}: coverage/BA numerical gate failed")
+                  if (not pd.notna(m["mae_mw"]) or not pd.notna(m["rmse_mw"])
+                          or float(m["rmse_mw"])<float(m["mae_mw"])-1e-8):
+                      raise SystemExit(f"{ba}: error metric gate failed")
+                  if (balance["hours_per_ba"]!=8784
+                          or balance["max_absolute_residual_mw"]>balance["tolerance_mw"]):
+                      raise SystemExit(f"{ba}: hourly demand balance failed")
+                  report[ba]={
+                      "run_id":run["id"],"url":run["html_url"],
+                      "paired_hours":int(m["paired_hours"]),
+                      "paired_coverage":float(m["paired_coverage"]),
+                      "mae_mw":float(m["mae_mw"]),
+                      "rmse_mw":float(m["rmse_mw"]),
+                      "max_hourly_balance_residual_mw":float(balance["max_absolute_residual_mw"]),
+                      "validated_calibration":False,
+                  }
+          Path("two_ba_engineering_acceptance.json").write_text(json.dumps(report,indent=2))
           print(json.dumps(report,indent=2))
           PY
       - uses: actions/upload-artifact@v4
