@@ -1,0 +1,38 @@
+name: EIA-923 BA technology qualification coverage
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/eia923-ba-technology-coverage.yml'
+      - 'src/energy_transition/eia923_ba_technology_coverage.py'
+      - 'tests/test_eia923_ba_technology_coverage.py'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_eia923_ba_technology_coverage.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia923-official-2024
+          run-id: 40964541770
+          github-token: ${{ github.token }}
+          path: inputs/eia923
+      - name: Audit BA technology qualification and withheld source rows
+        run: |
+          python -m energy_transition.eia923_ba_technology_coverage \
+            --input inputs/eia923/generation_qualified_ba_fuel.csv \
+            --output outputs/ba_technology
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia923-ba-technology-qualification-2024
+          path: outputs/ba_technology/
