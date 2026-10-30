@@ -32,6 +32,24 @@ jobs:
                      "User-Agent":"project-b-acceptance"})
           with urllib.request.urlopen(req,timeout=30) as f:
             runs=json.load(f)["workflow_runs"]
+          # API listing is paginated. Never infer "latest" from an
+          # incomplete first page when the repository has many workflows.
+          page=2
+          while len(runs)==100:
+            next_req=urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/actions/runs?per_page=100&page={page}",
+              headers={"Authorization":f"Bearer {os.environ['GH_TOKEN']}",
+                       "Accept":"application/vnd.github+json",
+                       "User-Agent":"project-b-acceptance"})
+            with urllib.request.urlopen(next_req,timeout=30) as f:
+              batch=json.load(f)["workflow_runs"]
+            runs.extend(batch)
+            if len(batch)<100:
+              break
+            page+=1
+            if page>10:
+              raise SystemExit("Workflow listing exceeded 1000 runs; refuse incomplete evidence")
+
           names={
             "CISO":"EIA-930 full-year hourly dispatch pilot",
             "BPAT":"EIA-930 BPAT full-year hourly independent pilot",
