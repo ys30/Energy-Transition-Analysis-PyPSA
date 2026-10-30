@@ -259,13 +259,26 @@ jobs:
           difference = abs(raw - represented)
           if difference > max(1e-6, abs(raw) * 1e-10):
               raise ValueError(f"Annual demand energy not conserved: {difference} MWh")
+          observed_peak = float(audit["peak_observed_mw"])
+          representative_peak = float(audit["peak_representative_mw"])
+          if not all(math.isfinite(x) and x > 0 for x in (observed_peak, representative_peak)):
+              raise ValueError("Demand peak audit contains invalid values")
+          if representative_peak > observed_peak + max(1e-6, observed_peak * 1e-10):
+              raise ValueError("Representative month-hour mean exceeds observed hourly peak")
+          peak_loss_mw = observed_peak - representative_peak
+          peak_loss_fraction = peak_loss_mw / observed_peak
+          audit["peak_information_loss_mw"] = peak_loss_mw
+          audit["peak_information_loss_fraction"] = peak_loss_fraction
+          audit["annual_energy_conservation_verified"] = True
+          path.write_text(json.dumps(audit, indent=2) + chr(10))
           lines = ["### Observed-demand aggregation audit", "",
                    f"- Year: {year}",
                    f"- EIA-930 hourly demand after QC: {raw:,.2f} MWh",
                    f"- 288 weighted month-hour demand: {represented:,.2f} MWh",
                    f"- Absolute aggregation difference: {difference:.8f} MWh",
                    f"- Observed coincident peak: {float(audit['peak_observed_mw']):,.2f} MW",
-                   f"- Representative peak: {float(audit['peak_representative_mw']):,.2f} MW",
+                   f"- Representative peak: {representative_peak:,.2f} MW",
+                   f"- Peak smoothing: {peak_loss_mw:,.2f} MW ({peak_loss_fraction:.2%} of observed peak)",
                    "- Annual MWh conservation does not preserve chronological peaks or validate resource adequacy.",
                    ""]
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
