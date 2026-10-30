@@ -73,3 +73,29 @@ def test_extract_full_year_dispatch_sums_supported_generator_production():
     assert len(out)==8784
     assert out.value.eq(15.).all()
     assert out.period.iloc[-1]==pd.Timestamp("2024-12-31T23:00:00Z")
+
+
+def test_cli_reads_solved_full_year_network_without_expanding_representatives(tmp_path,monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from energy_transition.eia930_hourly_model_comparison import main
+    idx=pd.date_range("2024-01-01","2025-01-01",freq="h",inclusive="left",tz="UTC")
+    network=SimpleNamespace(
+        snapshots=idx,
+        generators=pd.DataFrame({"bus":["CISO"]},index=["CISO_gas"]),
+        generators_t=SimpleNamespace(p=pd.DataFrame({"CISO_gas":10.0},index=idx)),
+    )
+    monkeypatch.setitem(sys.modules,"pypsa",SimpleNamespace(Network=lambda path:network))
+    observed=tmp_path/"observed.csv"
+    pd.DataFrame({"respondent":"CISO","period":idx,"value":10.0}).to_csv(observed,index=False)
+    monkeypatch.setattr(sys,"argv",[
+        "hourly-compare","--observed",str(observed),
+        "--network",str(tmp_path/"solved_network.nc"),
+        "--year","2024","--bas","CISO","--output",str(tmp_path/"result"),
+    ])
+    main()
+    summary=pd.read_csv(tmp_path/"result"/"ba_hourly_error_summary.csv").iloc[0]
+    assert summary.paired_hours==8784
+    assert summary.mae_mw==0.0
+    assert summary.comparison_status=="complete_hourly_descriptive"
+    assert not bool(summary.validated_calibration)
