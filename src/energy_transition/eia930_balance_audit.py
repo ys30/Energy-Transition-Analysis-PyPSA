@@ -118,13 +118,16 @@ def monthly_balance_audit(frame):
     monthly["missing_triples"]=monthly.expected_hours-monthly.common_hours.fillna(0)
     monthly["coverage"]=monthly.common_hours/monthly.expected_hours
     monthly["residual_share_of_demand"]=monthly.official_residual_mwh/monthly.demand_mwh
+    monthly["mae_share_of_load"]=monthly.official_mae_mw/(monthly.demand_mwh/monthly.common_hours)
     import numpy as np
     monthly["quality_flag"]=monthly.apply(
         lambda row: "review_required" if (
             row.coverage < 0.99 or
             pd.isna(row.demand_mwh) or row.demand_mwh <= 0 or
             not np.isfinite(row.residual_share_of_demand) or
-            abs(row.residual_share_of_demand) > 0.10
+            not np.isfinite(row.mae_share_of_load) or
+            abs(row.residual_share_of_demand) > 0.10 or
+            row.mae_share_of_load > 0.10
         ) else "screening_only_not_verified", axis=1)
     return monthly
 
