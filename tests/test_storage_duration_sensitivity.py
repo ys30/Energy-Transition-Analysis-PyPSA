@@ -3,7 +3,7 @@ import pytest
 from energy_transition.storage_duration_sensitivity import run_sensitivity
 
 def test_duration_sensitivity_consistent_baselines(monkeypatch,tmp_path):
-    def mock_solver(hourly,path,*,duration_h):
+    def mock_solver(hourly,path,*,duration_h,require_activity=True):
         return {
             "battery_mw_assumed":1000,
             "capacity_mwh_assumed":1000*duration_h,
