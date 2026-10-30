@@ -1,41 +1,38 @@
-"""Audited technology capacity-to-qualified-generation ratios for two 2024 BAs.
+"""Audited two-BA aggregate EIA-860 nameplate vs qualified EIA-923 generation.
 
-These ratios are LOWER-BOUND SCREENING INDICATORS when EIA-923 qualified
-generation does not cover all source rows. They are not physical availability,
-hourly capacity factors, or calibrated generator constraints.
+The archived EIA-923 comparison is aggregated across BAs and includes only
+qualified mapped rows. This is a descriptive coverage-limited screening ratio.
 """
 import argparse,json
 from pathlib import Path
 import pandas as pd
 from .eia923_pypsa_comparison import FUEL_TECH
 
-def calculate(capacity, qualified, bas=("CISO","BPAT")):
+def calculate(capacity,qualified,bas=("CISO","BPAT")):
+    needed={"ba_code","fuel","capacity_mw"}
+    if needed-set(capacity):raise ValueError("Missing EIA-860 columns")
+    qcols={"carrier","observed_eia923_net_generation_mwh"}
+    if qcols-set(qualified):raise ValueError("Missing qualified EIA-923 aggregate columns")
     c=capacity[capacity.ba_code.isin(bas)].copy()
-    q=qualified[qualified.ba_code.isin(bas)].copy()
-    if c.duplicated(["ba_code","fuel"]).any() or q.duplicated(["ba_code","fuel"]).any():
-        raise ValueError("Duplicate BA-fuel aggregate")
+    if c.duplicated(["ba_code","fuel"]).any():raise ValueError("Duplicate BA/fuel capacity")
     c["capacity_mw"]=pd.to_numeric(c.capacity_mw,errors="raise")
-    q["qualified_annual_mwh"]=pd.to_numeric(q.qualified_annual_mwh,errors="raise")
-    if c.capacity_mw.isna().any() or c.capacity_mw.lt(0).any() or q.qualified_annual_mwh.isna().any():
-        raise ValueError("Invalid historical input")
-    c["technology"]=c.fuel.map(FUEL_TECH)
-    q["technology"]=q.fuel.map(FUEL_TECH)
-    c=c[c.technology.notna()].groupby(["ba_code","technology"],as_index=False).capacity_mw.sum()
-    q=q[q.technology.notna()].groupby(["ba_code","technology"],as_index=False).agg(
-        qualified_mwh=("qualified_annual_mwh","sum"),
-        source_rows=("source_rows","sum"),qualified_rows=("qualified_rows","sum"))
-    joined=c.merge(q,on=["ba_code","technology"],how="outer",indicator=True)
+    if c.capacity_mw.isna().any() or c.capacity_mw.lt(0).any():raise ValueError("Invalid capacity")
+    c["carrier"]=c.fuel.map(FUEL_TECH)
+    c=c[c.carrier.notna()].groupby("carrier",as_index=False).capacity_mw.sum()
+    q=qualified[["carrier","observed_eia923_net_generation_mwh"]].copy()
+    if q.carrier.duplicated().any():raise ValueError("Duplicate aggregate carrier")
+    q["observed_eia923_net_generation_mwh"]=pd.to_numeric(q.observed_eia923_net_generation_mwh,errors="raise")
+    joined=c.merge(q,on="carrier",how="outer",indicator=True)
     joined["source_coverage_status"]=joined["_merge"].map({
-        "both":"capacity_and_qualified_generation","left_only":"capacity_only",
-        "right_only":"generation_only"}).astype(str)
+      "both":"capacity_and_qualified_generation","left_only":"capacity_only",
+      "right_only":"qualified_generation_only"}).astype(str)
     joined=joined.drop(columns="_merge")
-    valid=joined.capacity_mw.gt(0)&joined.qualified_mwh.notna()
+    eligible=joined.capacity_mw.gt(0)&joined.observed_eia923_net_generation_mwh.notna()
     joined["qualified_generation_over_nameplate_hours"]=(
-        joined.qualified_mwh/(joined.capacity_mw*8784)).where(valid)
-    joined["qualified_rows_complete"]=joined.source_rows.eq(joined.qualified_rows).where(joined.source_rows.notna())
-    joined["ratio_calibrated"]=False
-    joined["caveat"]="Qualified EIA-923 generation may omit source rows; matched EIA-860 BA nameplate and Page 1 net generation have different coverage. Not hourly availability, capacity credit, or fitted dispatch."
-    return joined.sort_values(["ba_code","technology"])
+      joined.observed_eia923_net_generation_mwh/(8784*joined.capacity_mw)).where(eligible)
+    joined["capacity_calibrated"]=False
+    joined["caveat"]="Both BAs aggregate, qualified observed generation only; incomplete EIA-923 may understate actual output. Not hourly availability, dispatch, or firm capacity."
+    return joined.sort_values("carrier")
 
 def main():
     p=argparse.ArgumentParser()
@@ -46,10 +43,10 @@ def main():
     frame=calculate(pd.read_csv(a.capacity),pd.read_csv(a.qualified))
     frame.to_csv(a.output/"eia2024_qualified_generation_nameplate_ratios.csv",index=False)
     (a.output/"provenance.json").write_text(json.dumps({
-      "year":2024,"hours":8784,
-      "scope":"EIA-860 2024 two-BA supported generator nameplate and EIA-923 qualified Page 1 annual BA-fuel generation",
-      "interpretation":"Coverage-constrained descriptive utilization screening only, not calibrated availability or dependable capacity",
-      "restriction":"Never force the qualified-row utilization ratio into p_max_pu without complete BA/plant data and hourly dispatch evidence."
+     "year":2024,"denominator_hours":8784,"scope":"CISO+BPAT combined (not separate BA ratios)",
+     "qualified_source":"EIA-923 qualified mapped observations, previously audited two-BA comparison",
+     "interpretation":"Coverage-constrained screening ratio, never calibrated hourly availability or capacity credit",
+     "restriction":"Never use a qualified-source subset directly as p_max_pu or actual dispatch calibration."
     },indent=2))
     print(frame.to_string(index=False))
 if __name__=="__main__":main()
