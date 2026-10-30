@@ -93,3 +93,19 @@ def test_monthly_signed_residual_cancellation_cannot_hide_hourly_imbalance():
     assert jan.official_residual_mwh==0.0
     assert jan.mae_share_of_load==0.2
     assert jan.quality_flag=="review_required"
+
+
+def test_monthly_tail_metrics_detect_extreme_hour_even_with_low_mae():
+    from energy_transition.eia930_balance_audit import monthly_balance_audit
+    hours=pd.date_range("2024-01-01","2024-02-01",freq="h",inclusive="left",tz="UTC")
+    demand=pd.DataFrame({"respondent":"CISO","period":hours,"value":100.0})
+    generation=demand.copy()
+    generation.loc[0,"value"]=0.0
+    interchange=demand.copy()
+    interchange["value"]=0.0
+    hourly,_=balance_audit(demand,generation,interchange,["CISO"],2024)
+    jan=monthly_balance_audit(hourly).iloc[0]
+    assert jan.max_absolute_residual_mw==100.0
+    assert jan.p95_absolute_residual_mw==0.0
+    assert jan.mae_share_of_load < 0.01
+    assert jan.quality_flag=="screening_only_not_verified"
