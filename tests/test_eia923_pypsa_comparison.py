@@ -88,3 +88,29 @@ def test_observed_only_when_network_has_no_supported_generators():
     assert row.benchmark_evidence_status == "unmatched_source_boundary"
     assert pd.isna(row.pypsa_dispatch_mwh)
     assert pd.isna(row.absolute_percentage_difference)
+
+
+def test_ambiguous_generator_ba_prefix_fails_loudly():
+    import pytest
+    network = FakeNetwork()
+    network.generators = network.generators.rename(index={"CISO_gas": "gas"})
+    qualified = pd.DataFrame({
+        "ba_code": ["CISO"], "fuel": ["NG"],
+        "qualified_annual_mwh": [45.0],
+        "withheld_reported_annual_mwh": [0.0], "source_rows": [1], "qualified_rows": [1],
+    })
+    with pytest.raises(ValueError, match="BA prefix"):
+        compare(qualified, network)
+
+
+def test_missing_generator_dispatch_column_fails_loudly():
+    import pytest
+    network = FakeNetwork()
+    network.generators_t.p = network.generators_t.p.drop(columns=["CISO_gas"])
+    qualified = pd.DataFrame({
+        "ba_code": ["CISO"], "fuel": ["NG"],
+        "qualified_annual_mwh": [45.0],
+        "withheld_reported_annual_mwh": [0.0], "source_rows": [1], "qualified_rows": [1],
+    })
+    with pytest.raises(ValueError, match="Missing dispatch series"):
+        compare(qualified, network)
