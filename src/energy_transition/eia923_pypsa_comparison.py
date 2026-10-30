@@ -28,6 +28,16 @@ def compare(qualified, network):
         source_rows=("source_rows","sum"),qualified_rows=("qualified_rows","sum"))
     records=[]
     weight=network.snapshot_weightings.generators
+    dispatch=network.generators_t.p
+    if not dispatch.index.equals(weight.index):
+        raise ValueError("Generator dispatch snapshots and generator weights must match exactly")
+    if not weight.index.is_unique or weight.isna().any() or not pd.to_numeric(weight, errors="coerce").notna().all():
+        raise ValueError("Generator weights must be unique, finite and nonmissing")
+    import numpy as np
+    if not np.isfinite(weight.to_numpy(dtype=float)).all() or (weight <= 0).any():
+        raise ValueError("Generator weights must be finite and strictly positive")
+    if not dispatch.index.is_unique or not np.isfinite(dispatch.to_numpy(dtype=float)).all():
+        raise ValueError("Generator dispatch must have unique snapshots and finite values")
     for name,row in network.generators.iterrows():
         ba=str(row.bus)
         tech=str(name).removeprefix(ba+"_")
