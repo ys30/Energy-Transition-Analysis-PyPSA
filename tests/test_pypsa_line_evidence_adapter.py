@@ -90,3 +90,22 @@ def test_invalid_bus_voltage_is_rejected(bad_voltage):
     with pytest.raises(ValueError,match="Missing nominal bus voltage"):
         add_screened_ba_lines(n,record())
     assert not n.added
+
+
+@pytest.mark.parametrize("field", ["source_url", "source_year"])
+def test_missing_provenance_rejected_before_network_mutation(field):
+    n=FakeNetwork()
+    data=record()
+    data=data.drop(columns=[field])
+    with pytest.raises(ValueError,match="Missing required transmission evidence"):
+        add_screened_ba_lines(n,data)
+    assert not n.added
+
+
+def test_null_source_url_rejected_before_network_mutation():
+    n=FakeNetwork()
+    data=record()
+    data.loc[0,"source_url"]=None
+    with pytest.raises(ValueError,match="Traceable transmission evidence URLs"):
+        add_screened_ba_lines(n,data)
+    assert not n.added
