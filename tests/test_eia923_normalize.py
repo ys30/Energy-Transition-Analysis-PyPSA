@@ -98,3 +98,16 @@ def test_unknown_fuel_kept_in_separate_audit_with_partial_mode():
     excluded = result.attrs["unmapped_fuel_cells"]
     assert len(excluded) == 12
     assert set(excluded.fuel_code) == {"UNLISTED"}
+
+
+def test_reject_all_unknown_fuels_after_exclusion():
+    frame = _schedule(fuel='UNLISTED', value=5)
+    with pytest.raises(ValueError, match='No usable EIA-923'):
+        normalize_schedule3(frame, 2024, allow_incomplete=True)
+
+
+def test_reject_all_incomplete_source_rows():
+    frame = _schedule(value=5)
+    frame['Netgen February'] = ['not reported']
+    with pytest.raises(ValueError, match='No usable EIA-923'):
+        normalize_schedule3(frame, 2024, allow_incomplete=True)
