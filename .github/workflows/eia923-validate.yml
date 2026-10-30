@@ -382,7 +382,13 @@ jobs:
                   raise ValueError(f"Missing BA-by-fuel observed generation for {ba}")
               for fuel, mwh in sorted(breakdown[ba].items()):
                   lines.append(f"| {ba} | {fuel} | {float(mwh):,.0f} |")
-          lines.extend(["", "Comparison is diagnostic only; plant-to-BA completeness is not certified."])
+          lines.extend(["", "### Validation boundaries", "",
+                        "- Model dispatch uses 288 calendar-weighted month-hour snapshots, not chronological hourly dispatch.",
+                        "- Annual modeled-versus-observed deviations are diagnostics, not calibrated forecast errors.",
+                        "- Mapped EIA-923 plants do not establish complete balancing-authority coverage.",
+                        "- Missing renewable observations and their gap-fill scenarios must be assessed separately.",
+                        "- A passing workflow establishes execution reproducibility, not independent empirical calibration.",
+                        "", "Comparison is diagnostic only; plant-to-BA completeness is not certified."])
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
               f.write(chr(10).join(lines) + chr(10))
           print(chr(10).join(lines))
