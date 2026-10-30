@@ -108,4 +108,5 @@ def test_monthly_tail_metrics_detect_extreme_hour_even_with_low_mae():
     assert jan.max_absolute_residual_mw==100.0
     assert jan.p95_absolute_residual_mw==0.0
     assert jan.mae_share_of_load < 0.01
-    assert jan.quality_flag=="screening_only_not_verified"
+    assert jan.max_residual_share_of_load==1.0
+    assert jan.quality_flag=="review_required"
