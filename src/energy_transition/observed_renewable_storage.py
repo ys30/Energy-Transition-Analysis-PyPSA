@@ -54,10 +54,17 @@ def compare(hourly,renewables,output):
                 "unserved_without_battery_mwh":result["unserved_mwh_without_storage"],
                 "battery_charge_mwh":result["battery_charge_mwh"],
                 "battery_discharge_mwh":result["battery_discharge_mwh"],
+                "peaker_avoided_mwh":result["peaker_generation_mwh_without_storage"]-result["peaker_generation_mwh"],
+                "firm_extra_mwh":result["firm_generation_mwh_with_storage"]-result["firm_generation_mwh_without_storage"],
+                "avoided_unserved_mwh":result["unserved_mwh_without_storage"]-result["unserved_mwh"],
+                "avoided_unserved_penalty_usd":(result["unserved_mwh_without_storage"]-result["unserved_mwh"])*result["assumed_voll_usd_per_mwh"],
+                "other_dispatch_savings_usd":result["operating_savings_usd_assumed"]-(result["unserved_mwh_without_storage"]-result["unserved_mwh"])*result["assumed_voll_usd_per_mwh"],
                 "assumed_operating_savings_usd":result["operating_savings_usd_assumed"],
                 "max_soc_error_mwh":result["max_storage_conservation_error_mwh"],
             })
     out=pd.DataFrame(rows)
+    if (out["avoided_unserved_penalty_usd"]+out["other_dispatch_savings_usd"]-out["assumed_operating_savings_usd"]).abs().gt(0.01).any():
+        raise ValueError("Observed-renewables storage operating attribution does not reconcile")
     output.mkdir(parents=True,exist_ok=True)
     out.to_csv(output/"observed_renewable_storage_comparison.csv",index=False)
     (output/"provenance.json").write_text(json.dumps({
