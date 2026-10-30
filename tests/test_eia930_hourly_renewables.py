@@ -14,6 +14,9 @@ def test_hourly_wind_solar_audit_retains_missing_and_negative_values():
     assert sun.missing_timestamp_hours==8782
     assert sun.negative_generation_hours==1
     assert sun.reported_generation_mwh_valid_nonnegative_only==0
+    assert sun.reported_signed_net_generation_mwh==-5
+    assert sun.negative_net_generation_mwh==-5
+    assert sun.minimum_hourly_net_generation_mwh==-5
     assert not bool(sun.complete_nonnegative)
 
 def test_renewables_reject_duplicate_hourly_fuel():
