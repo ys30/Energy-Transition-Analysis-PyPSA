@@ -28,6 +28,10 @@ def test_eia923_validation_preserves_negative_net_generation():
     assert gas.observed_eia923_net_generation_mwh == 95
     assert gas.model_minus_observed_mwh == 15
     assert audit["negative_net_generation_rows"] == 1
+    assert audit["selected_ba_mapped_plant_count"] == 2
+    assert audit["selected_ba_mapped_observation_count"] == 3
+    assert audit["selected_ba_mapped_generation_abs_mwh"] == pytest.approx(145)
+    assert audit["selected_ba_mapped_generation_net_mwh"] == pytest.approx(135)
 
 
 def test_eia923_rejects_wrong_crosswalk_year():
