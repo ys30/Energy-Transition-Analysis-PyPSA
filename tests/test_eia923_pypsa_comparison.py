@@ -114,3 +114,27 @@ def test_missing_generator_dispatch_column_fails_loudly():
     })
     with pytest.raises(ValueError, match="Missing dispatch series"):
         compare(qualified, network)
+
+
+def test_ba_coverage_summary_excludes_partial_and_unmatched_annual_totals():
+    from energy_transition.eia923_pypsa_comparison import summarize_comparison
+    q = pd.DataFrame({
+        "ba_code": ["CISO", "CISO", "BPAT"],
+        "fuel": ["NG", "WND", "WAT"],
+        "qualified_annual_mwh": [45.0, 20.0, 100.0],
+        "withheld_reported_annual_mwh": [0.0, 5.0, 0.0],
+        "source_rows": [1, 2, 1],
+        "qualified_rows": [1, 1, 1],
+    })
+    # CISO gas is comparable, while CISO wind and BPAT hydro
+    # have no modeled counterpart.
+    result = summarize_comparison(compare(q, FakeNetwork()))
+    ciso = result[result.ba_code == "CISO"].iloc[0]
+    bpat = result[result.ba_code == "BPAT"].iloc[0]
+    assert ciso.qualified_annual_comparison_rows == 1
+    assert ciso.observed_only_rows == 1
+    assert ciso.matched_qualified_eia923_mwh == 45.0
+    assert ciso.matched_pypsa_mwh == 50.0
+    assert bpat.observed_only_rows == 1
+    assert bpat.matched_qualified_eia923_mwh == 0.0
+    assert not bool(result.validated_hourly_calibration.any())
