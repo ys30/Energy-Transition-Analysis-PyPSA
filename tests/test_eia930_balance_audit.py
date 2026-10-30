@@ -32,3 +32,27 @@ def test_monthly_residual_uses_only_complete_triples():
     assert monthly.iloc[0].missing_triples==1
     assert monthly.iloc[0].official_residual_mwh==0
     assert monthly.iloc[0].quality_flag=="review_required"
+
+
+def test_balance_audit_rejects_duplicate_ba_hours():
+    import pytest
+    hour=pd.Timestamp("2024-01-01T00:00:00Z")
+    d=pd.DataFrame({"respondent":["CISO","CISO"],"period":[hour,hour],"value":[10.,11.]})
+    single=pd.DataFrame({"respondent":["CISO"],"period":[hour],"value":[10.]})
+    with pytest.raises(ValueError,match="duplicate BA-hour"):
+        balance_audit(d,single,single,["CISO"],2024)
+
+
+def test_balance_audit_preserves_missing_and_rejects_infinite_measurements():
+    import pytest
+    hour=pd.Timestamp("2024-01-01T00:00:00Z")
+    missing=pd.DataFrame({"respondent":["CISO"],"period":[hour],"value":[float("nan")]})
+    good=pd.DataFrame({"respondent":["CISO"],"period":[hour],"value":[10.]})
+    frame,summary=balance_audit(missing,good,good,["CISO"],2024)
+    assert pd.isna(frame.loc[0,"demand"])
+    assert summary.iloc[0].complete_triples==0
+    assert summary.iloc[0].accounting_gate=="review_required"
+    infinite=good.copy()
+    infinite.loc[0,"value"]=float("inf")
+    with pytest.raises(ValueError,match="infinite"):
+        balance_audit(good,infinite,good,["CISO"],2024)
