@@ -84,6 +84,7 @@ def compare_generation(
     # This is a national plant-ID match rate, NOT BA-specific coverage.
     # It cannot be used to certify the completeness of selected BA totals.
     observed_by_fuel = mapped.groupby("fuel").net_generation_mwh.sum().to_dict()
+    observed_abs_by_fuel = mapped.assign(abs_mwh=mapped.net_generation_mwh.abs()).groupby("fuel").abs_mwh.sum().to_dict()
     modeled = model_metrics.get("dispatch_mwh_by_carrier")
     if not isinstance(modeled, dict) or not modeled:
         raise ValueError("Missing model dispatch_mwh_by_carrier")
@@ -134,9 +135,9 @@ def compare_generation(
         "selected_ba_observed_net_generation_all_fuels_mwh": float(sum(observed_by_fuel.values())),
         "selected_ba_observed_net_generation_comparable_fuels_mwh": float(sum(observed_by_fuel[k] for k in comparable)),
         "selected_ba_observed_generation_comparable_fraction_abs": (
-            float(sum(abs(observed_by_fuel[k]) for k in comparable)) /
-            float(sum(abs(v) for v in observed_by_fuel.values()))
-            if sum(abs(v) for v in observed_by_fuel.values()) else None
+            float(sum(observed_abs_by_fuel[k] for k in comparable)) /
+            float(sum(observed_abs_by_fuel.values()))
+            if sum(observed_abs_by_fuel.values()) else None
         ),
         "comparison_scope": "Only fuel categories common to both datasets; omitted fuels are not modeled as zero.",
         "interpretation": "Diagnostic comparison only; no parameter fitting or hourly validation.",
