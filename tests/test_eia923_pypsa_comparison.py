@@ -49,3 +49,23 @@ def test_nonpositive_observed_net_generation_is_not_percentage_accuracy():
     assert out.benchmark_evidence_status == "nonpositive_net_generation"
     assert pd.isna(out.absolute_percentage_difference)
     assert pd.isna(out.relative_difference_vs_qualified_observed)
+
+
+def test_annual_comparison_rejects_misaligned_snapshots_and_bad_weights():
+    import pytest
+    qualified = pd.DataFrame({
+        "ba_code": ["CISO"], "fuel": ["NG"], "qualified_annual_mwh": [45.0],
+        "withheld_reported_annual_mwh": [0.0], "source_rows": [1], "qualified_rows": [1],
+    })
+    shifted = FakeNetwork()
+    shifted.snapshot_weightings.index = shifted.snapshot_weightings.index + pd.Timedelta(hours=1)
+    with pytest.raises(ValueError, match="snapshots and generator weights"):
+        compare(qualified, shifted)
+    invalid = FakeNetwork()
+    invalid.snapshot_weightings.loc[invalid.snapshot_weightings.index[0], "generators"] = float("inf")
+    with pytest.raises(ValueError, match="finite"):
+        compare(qualified, invalid)
+    negative = FakeNetwork()
+    negative.snapshot_weightings.loc[negative.snapshot_weightings.index[0], "generators"] = 0.0
+    with pytest.raises(ValueError, match="positive"):
+        compare(qualified, negative)
