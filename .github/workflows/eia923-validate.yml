@@ -33,6 +33,7 @@ on:
       - 'tests/test_eia930_representative_solver_guards.py'
       - 'tests/test_eia930_capacity_scenario.py'
       - 'tests/test_eia860_supported_subset.py'
+      - 'tests/test_eia860_plant_ba.py'
 concurrency:
   group: eia923-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'push' }}
