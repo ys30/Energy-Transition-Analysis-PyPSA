@@ -57,6 +57,18 @@ jobs:
           assert (unmet["unserved_mw"]>=-1e-6).all()
           assert abs(float(unmet["unserved_mw"].sum())-float(audit["total_unserved_mwh"]))<1e-5
           assert audit["unserved_positive_hours"]==int((unmet["unserved_mw"]>1e-6).sum())
+          # Verify BA-hour physical accounting rather than only row counts.
+          demand=observed[["respondent","period","value"]].copy()
+          gas=result[["respondent","period","value"]].rename(columns={"value":"gas_mw"})
+          shed=unmet[["respondent","period","unserved_mw"]]
+          for frame in (demand,gas,shed):
+            frame["period"]=pd.to_datetime(frame["period"],utc=True)
+            assert not frame.duplicated(["respondent","period"]).any()
+          check=demand.merge(gas,on=["respondent","period"],validate="one_to_one").merge(
+            shed,on=["respondent","period"],validate="one_to_one")
+          assert len(check)==8784
+          mismatch=(check["gas_mw"]+check["unserved_mw"]-check["value"]).abs()
+          assert float(mismatch.max())<=1e-4, f"BA-hour energy balance failed: {mismatch.max()} MW"
           # Verify actual per-hour load balance, not just output row counts.
           demand=observed.assign(period=pd.to_datetime(observed["period"],utc=True)).set_index("period")["value"].sort_index()
           gas=result.assign(period=pd.to_datetime(result["period"],utc=True)).set_index("period")["value"].sort_index()
