@@ -40,10 +40,16 @@ def compare(qualified, network):
         raise ValueError("Generator dispatch must have unique snapshots and finite values")
     for name,row in network.generators.iterrows():
         ba=str(row.bus)
-        tech=str(name).removeprefix(ba+"_")
+        # Refuse to silently misclassify a generator whose name does not
+        # encode the expected BA prefix. No heuristic fuel assignment.
+        if not str(name).startswith(ba + "_"):
+            raise ValueError(f"Generator {name!r} lacks expected BA prefix {ba!r}")
+        tech=str(name)[len(ba) + 1:]
         if tech=="unserved":continue
         if tech not in ("gas","coal","nuclear","hydro","wind","solar"):continue
-        generation=float((network.generators_t.p[name]*weight).sum())
+        if name not in dispatch.columns:
+            raise ValueError(f"Missing dispatch series for generator {name}")
+        generation=float((dispatch[name]*weight).sum())
         records.append({"ba_code":ba,"tech":tech,"pypsa_dispatch_mwh":generation})
     # A network with no supported thermal/renewable generators still has a
     # meaningful observed-only comparison; do not crash on an empty groupby.
