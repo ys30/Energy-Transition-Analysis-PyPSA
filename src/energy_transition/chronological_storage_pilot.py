@@ -26,15 +26,25 @@ def validate_window(hourly, hours=168):
 def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
                  generation_mw=55000.,generation_cost=50.,
                  peaker_mw=20000.,peaker_cost=250.,require_activity=True,
-                 voll_usd_per_mwh=10000.):
+                 voll_usd_per_mwh=10000.,renewable_net_mw=None):
     import pypsa
     demand=validate_window(hourly)
     if min(battery_mw,duration_h,generation_mw,generation_cost,peaker_mw,peaker_cost,voll_usd_per_mwh)<=0:
         raise ValueError("Storage scenario parameters must be positive")
+    renewable=None
+    if renewable_net_mw is not None:
+        renewable=pd.Series(renewable_net_mw).copy()
+        renewable.index=pd.to_datetime(renewable.index,utc=True)
+        renewable=renewable.reindex(demand.index)
+        if renewable.isna().any() or not pd.api.types.is_numeric_dtype(renewable):
+            raise ValueError("Renewable injections must match all observed demand hours")
+        renewable=renewable.astype(float)
     n=pypsa.Network()
     n.add("Bus","pilot")
     n.set_snapshots(demand.index.tz_convert(None))
     n.add("Load","observed_EIA930",bus="pilot",p_set=demand.to_numpy())
+    if renewable is not None:
+        n.add("Load","signed_observed_renewables",bus="pilot",p_set=-renewable.to_numpy())
     n.add("Generator","assumed_firm_supply",bus="pilot",p_nom=generation_mw,
           marginal_cost=generation_cost)
     n.add("Generator","assumed_peaker",bus="pilot",p_nom=peaker_mw,
@@ -62,6 +72,8 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
     no_storage.add("Bus","pilot")
     no_storage.set_snapshots(demand.index.tz_convert(None))
     no_storage.add("Load","observed_EIA930",bus="pilot",p_set=demand.to_numpy())
+    if renewable is not None:
+        no_storage.add("Load","signed_observed_renewables",bus="pilot",p_set=-renewable.to_numpy())
     no_storage.add("Generator","assumed_firm_supply",bus="pilot",p_nom=generation_mw,
                    marginal_cost=generation_cost)
     no_storage.add("Generator","assumed_peaker",bus="pilot",p_nom=peaker_mw,
@@ -83,6 +95,8 @@ def solve_window(hourly, output, *, battery_mw=1000.,duration_h=4.,
             "assumed_firm_generation_mw":generation_mw,"assumed_peaker_mw":peaker_mw,
             "assumed_peaker_cost_usd_per_mwh":peaker_cost,
             "assumed_voll_usd_per_mwh":voll_usd_per_mwh,
+            "observed_signed_renewable_mwh":float(renewable.sum()) if renewable is not None else None,
+            "observed_renewable_input":"fixed_signed_hourly_net_injection" if renewable is not None else "not_included",
             "battery_charge_mwh":float(charge.sum()),
             "battery_discharge_mwh":float(discharge.sum()),
             "peaker_generation_mwh":float(n.generators_t.p["assumed_peaker"].sum()),
