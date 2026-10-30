@@ -57,6 +57,16 @@ jobs:
           assert (unmet["unserved_mw"]>=-1e-6).all()
           assert abs(float(unmet["unserved_mw"].sum())-float(audit["total_unserved_mwh"]))<1e-5
           assert audit["unserved_positive_hours"]==int((unmet["unserved_mw"]>1e-6).sum())
+          # Verify actual per-hour load balance, not just output row counts.
+          demand=observed.assign(period=pd.to_datetime(observed["period"],utc=True)).set_index("period")["value"].sort_index()
+          gas=result.assign(period=pd.to_datetime(result["period"],utc=True)).set_index("period")["value"].sort_index()
+          shortfall=unmet.assign(period=pd.to_datetime(unmet["period"],utc=True)).set_index("period")["unserved_mw"].sort_index()
+          assert demand.index.equals(gas.index) and demand.index.equals(shortfall.index)
+          residual=(gas+shortfall-demand).abs()
+          assert np.isfinite(residual).all()
+          tolerance=np.maximum(1e-4, demand.abs()*1e-7)
+          assert (residual.to_numpy()<=tolerance.to_numpy()).all(), f"Maximum load-balance residual: {residual.max():.6f} MW"
+          print(f"Maximum chronological load-balance residual: {residual.max():.6f} MW")
           print("Verified 8784 model dispatch values and separate synthetic unserved-load audit")
           PY
       - uses: actions/upload-artifact@v4
