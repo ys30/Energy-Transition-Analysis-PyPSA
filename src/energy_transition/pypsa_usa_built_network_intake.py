@@ -6,6 +6,8 @@ infer LAF shares, calibrate dispatch, or establish source geographic validity.
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import hashlib
 import json
 from pathlib import Path
@@ -31,6 +33,23 @@ def inspect_built_network(network_path: Path, membership_path: Path) -> dict:
     missing = sorted(required - observed)
     if western.empty or missing:
         raise ValueError(f"Built source lacks Western ReEDS zone coverage: {missing}")
+    membership_rows = list(csv.DictReader(
+        io.StringIO(membership_path.read_text(encoding="utf-8-sig"))
+    ))
+    official_states = {
+        row["ba"]: row["st"].strip()
+        for row in membership_rows if row.get("ba") in required
+    }
+    if len(official_states) != len(required) or any(not st for st in official_states.values()):
+        raise ValueError("Official Western membership has missing state assignments")
+    observed_owners = western[["reeds_zone", "reeds_state"]].astype(str)
+    mismatches = [
+        (zone, state, official_states[zone])
+        for zone, state in observed_owners.itertuples(index=False, name=None)
+        if state != official_states[zone]
+    ]
+    if mismatches:
+        raise ValueError(f"Western state-zone ownership mismatch: {mismatches[:10]}")
     if western[["reeds_state", "reeds_zone", "LAF_state"]].isna().any().any():
         raise ValueError("Western bus geography or LAF_state is missing")
     laf = np.asarray(western["LAF_state"], dtype=float)
@@ -44,6 +63,7 @@ def inspect_built_network(network_path: Path, membership_path: Path) -> dict:
         "western_bus_count": len(western),
         "states_observed": sorted(western["reeds_state"].astype(str).unique().tolist()),
         "laf_state_present": True,
+        "official_state_zone_ownership_verified": True,
         "annual_demand_or_dispatch_validated": False,
         "geographic_laf_derivation_independently_verified": False,
     }
