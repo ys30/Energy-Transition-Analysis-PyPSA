@@ -13,6 +13,10 @@ def test_inventory_is_source_hashed_and_not_false_certification(tmp_path):
     assert report["ready_for_pypsa_line"] is False
     assert len(report["sha256"])==64
     assert [x["extension"] for x in report["files"]]==[".dat",".mdb"]
+    assert report["candidate_count"]==2
+    assert report["candidate_model_files"]==["case/branch.dat","case/model.mdb"]
+    assert report["parser_selected"] is False
+    assert report["files"][1]["candidate_type"]=="access_database_candidate"
 
 
 def test_reject_archive_path_traversal(tmp_path):
