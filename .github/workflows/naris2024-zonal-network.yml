@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - src/energy_transition/naris2024_zonal_network.py
+      - src/energy_transition/naris2024_network_roundtrip.py
       - .github/workflows/naris2024-zonal-network.yml
 permissions:
   contents: read
@@ -23,9 +24,15 @@ jobs:
           python -m energy_transition.naris2024_zonal_network \
             --network outputs/naris2024_zonal_links.nc \
             --report outputs/naris2024_zonal_network_summary.json
+      - name: Verify NetCDF round-trip against actual source capacities
+        run: |
+          python -m energy_transition.naris2024_network_roundtrip \
+            --network outputs/naris2024_zonal_links.nc \
+            --output outputs/naris2024_roundtrip_verification.json
       - uses: actions/upload-artifact@v4
         with:
           name: naris2024-source-backed-zonal-pypsa-network
           path: |
             outputs/naris2024_zonal_links.nc
             outputs/naris2024_zonal_network_summary.json
+            outputs/naris2024_roundtrip_verification.json
