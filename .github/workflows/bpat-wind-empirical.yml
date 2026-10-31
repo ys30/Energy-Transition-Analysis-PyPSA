@@ -6,6 +6,8 @@ on:
     paths:
       - src/energy_transition/bpat_wind_reconciliation.py
       - tests/test_bpat_wind_reconciliation.py
+      - src/energy_transition/eia930_*.py
+      - tests/test_eia930*.py
       - src/energy_transition/eia930_bpat_wind_download.py
       - .github/workflows/bpat-wind-empirical.yml
       - src/energy_transition/eia923_normalize.py
