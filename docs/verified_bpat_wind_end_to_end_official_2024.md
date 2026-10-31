@@ -28,3 +28,19 @@ The measured EIA-923-minus-EIA-930 difference is **22.46% of the BPAT-attributed
 The 2024 EIA-930 hourly series has all 8,784 expected UTC-hour timestamps; this rules out **missing EIA-930 timestamps** as the arithmetic explanation for the 1.981-TWh difference. It does not rule out a source definition, BA boundary, plant ownership/operation assignment, negative-value reporting, or differences in the underlying measurement processes.
 
 **Next empirical discriminator:** compare the 28 BPAT-attributed plant IDs with source-level ownership/operating BA metadata and document the official EIA-923 and EIA-930 reporting definitions. Do not add the national unmatched plant population to BPAT totals. Retain the signed wind values, do not clip negatives, and never force the two totals to match through an inferred transmission or curtailment adjustment.
+
+## Plant-level concentration from retained numerical artifact
+
+Independently re-read the `bpat_wind_reconciliation/wind_plant_ba_totals.csv` artifact from successful run [41162114345](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41162114345). The 28 BPAT-attributed plants sum to **8,820,435.41 MWh**, matching the reported BA total.
+
+| EIA plant ID | 2024 EIA-923 wind MWh |
+|---|---:|
+| 57195 | 864,875.00 |
+| 57159 | 671,560.00 |
+| 57549 | 619,466.82 |
+| 57526 | 619,333.48 |
+| 62745 | 616,871.00 |
+
+Top five plants: **3,392,106.30 MWh (38.46%)** of the BPAT-attributed plant generation; top ten plants: **65.11%**. These are **plant-generation concentration metrics, not identified contributions to the 1.981-TWh cross-source difference**. EIA-930 BPAT WND is a BA-level hourly aggregate and does not supply plant-level differences.
+
+The retained EIA-923 normalization manifest also reports **3,894 excluded valid numeric monthly cells** totaling **104,010,865.211 MWh** nationally across fuels. This cannot be assigned to BPAT wind. A subsequent source-exclusion intersection check is needed before drawing a BPAT-specific conclusion.
