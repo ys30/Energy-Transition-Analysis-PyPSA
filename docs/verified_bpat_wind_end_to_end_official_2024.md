@@ -20,3 +20,11 @@ This run independently retrieved EIA-923 plant-month generation, EIA-860 annual 
 The 1.981-TWh gap survived repair of the EIA-860 `mapping_year` output schema and EIA plant-ID decimal-suffix normalization. This confirms the persistence of a descriptive cross-source accounting difference; it does **not** establish loss, curtailment, interchange, or which agency/facilities cause the difference.
 
 Next: audit official definitions and plant populations, including the interpretation of EIA-923 plant accounting and EIA-930 BA operational reports. Do not calibrate transmission transfers from the raw difference.
+
+## Quantitative magnitude and interpretation guardrails
+
+The measured EIA-923-minus-EIA-930 difference is **22.46% of the BPAT-attributed EIA-923 wind total**, or **28.96% of the EIA-930 BPAT hourly wind total**. These ratios use different denominators and must not be described as curtailment rates or measurement-error percentages. The EIA-923/EIA-930 ratio is approximately **1.290**.
+
+The 2024 EIA-930 hourly series has all 8,784 expected UTC-hour timestamps; this rules out **missing EIA-930 timestamps** as the arithmetic explanation for the 1.981-TWh difference. It does not rule out a source definition, BA boundary, plant ownership/operation assignment, negative-value reporting, or differences in the underlying measurement processes.
+
+**Next empirical discriminator:** compare the 28 BPAT-attributed plant IDs with source-level ownership/operating BA metadata and document the official EIA-923 and EIA-930 reporting definitions. Do not add the national unmatched plant population to BPAT totals. Retain the signed wind values, do not clip negatives, and never force the two totals to match through an inferred transmission or curtailment adjustment.
