@@ -7,6 +7,8 @@ on:
       - src/energy_transition/pypsa_usa_archive_download.py
       - src/energy_transition/wecc_ads_archive_inventory.py
       - .github/workflows/pypsa-usa-archive-intake.yml
+      - src/energy_transition/pypsa_usa_bundle_role.py
+      - tests/test_pypsa_usa_bundle_role.py
 permissions:
   contents: read
 jobs:
@@ -44,9 +46,16 @@ jobs:
           for member in sorted(files,key=lambda x:x["size_bytes"],reverse=True)[:35]:
               print("MEMBER:",member["name"],"SIZE:",member["size_bytes"],"TYPE:",member["candidate_type"])
           PY
+      - name: Classify auxiliary versus electrical network contents
+        run: |
+          python -m pytest -q tests/test_pypsa_usa_bundle_role.py
+          python -m energy_transition.pypsa_usa_bundle_role \
+            --inventory outputs/pypsa_usa_archive_inventory.json \
+            --output outputs/pypsa_usa_bundle_role.json
       - uses: actions/upload-artifact@v4
         with:
           name: pypsa-usa-verified-archive-receipt-and-inventory
           path: |
             outputs/pypsa_usa_archive_receipt.json
             outputs/pypsa_usa_archive_inventory.json
+            outputs/pypsa_usa_bundle_role.json
