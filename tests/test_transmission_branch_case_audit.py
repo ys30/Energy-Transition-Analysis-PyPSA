@@ -17,6 +17,8 @@ def test_planning_case_never_becomes_historical_calibration():
     audit=audit_branch_case(sample(),case_year=2034,kind="planning")
     assert audit["ready_for_engineering_review"]
     assert not audit["ready_for_historical_2024_calibration"]
+    assert not audit["ready_for_pypsa_physical_calibration"]
+    assert not audit["source_authenticity_independently_confirmed"]
 
 
 def test_mismatched_source_year_rejected():
