@@ -41,6 +41,11 @@ def prepare_network_loads(
     )
     if set(matrix.columns) - set(network.buses.index):
         raise ValueError("Mapped load buses absent from actual network")
+    # Partial demand coverage is not a valid full-network input. Do not silently
+    # interpret missing demand at other network buses as zero.
+    uncovered = sorted(set(network.buses.index) - set(matrix.columns))
+    if uncovered:
+        raise ValueError(f"Network buses missing demand coverage: {uncovered}")
     if not isinstance(matrix.index, pd.DatetimeIndex) or matrix.index.tz is None:
         raise ValueError("Load matrix must be UTC-aware")
 
