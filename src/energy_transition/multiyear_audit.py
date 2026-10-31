@@ -33,7 +33,11 @@ def run(load_path, weight_path, output_path, *, mapping_path=None, manifest_path
         raise ValueError("load file needs timestamp_utc,state,load_mw")
     if raw[list(needed)].isna().any().any():
         raise ValueError("missing load fields")
-    # Require explicit UTC offsets; utc=True alone silently assumes naive strings are UTC.\n    stamps = raw["timestamp_utc"].astype(str)\n    if not stamps.str.contains(r"(?:Z|[+]00:00)$", case=False, regex=True).all():\n        raise ValueError("timestamp_utc requires explicit UTC Z or +00:00 offset")\n    raw["timestamp_utc"] = pd.to_datetime(stamps, utc=True, errors="raise")
+    # Require explicit UTC offsets; utc=True alone silently assumes naive strings are UTC.
+    stamps = raw["timestamp_utc"].astype(str)
+    if not stamps.str.contains(r"(?:Z|[+]00:00)$", case=False, regex=True).all():
+        raise ValueError("timestamp_utc requires explicit UTC Z or +00:00 offset")
+    raw["timestamp_utc"] = pd.to_datetime(stamps, utc=True, errors="raise")
     raw["load_mw"] = pd.to_numeric(raw["load_mw"], errors="raise")
     if raw.duplicated(["timestamp_utc", "state"]).any():
         raise ValueError("duplicate timestamp/state")
