@@ -97,6 +97,35 @@ jobs:
         run: |
           python -m energy_transition.bpat_wind_reconciliation --plant-month outputs/eia923/eia923_normalized_2024.csv --plant-ba outputs/eia860/plant_ba_crosswalk_2024.csv --hourly outputs/bpat_wind_source/eia930_bpat_wnd_hourly.csv --year 2024 --output outputs/bpat_wind_reconciliation
           cat outputs/bpat_wind_reconciliation/reconciliation.json
+      - name: Audit whether excluded EIA-923 wind records intersect BPAT plants
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          root=Path("outputs")
+          cross=pd.read_csv(root/"eia860/plant_ba_crosswalk_2024.csv",dtype={"plant_id":"string"})
+          bpat=set(cross.loc[cross.ba_code.eq("BPAT"),"plant_id"].str.replace(r"\\.0$","",regex=True))
+          exc=pd.read_csv(root/"eia923/eia923_excluded_monthly_cells_2024.csv",dtype={"plant_id":"string"})
+          numeric=pd.read_csv(root/"eia923/eia923_excluded_numeric_cells_2024.csv",dtype={"plant_id":"string"})
+          for frame in (exc,numeric):
+              frame["plant_id"]=frame.plant_id.str.strip().str.replace(r"\\.0$","",regex=True)
+          # Fuel code WND identifies wind; never count unrelated excluded fuels.
+          exc_wind=exc.loc[exc.fuel_code.astype("string").str.upper().eq("WND") & exc.plant_id.isin(bpat)]
+          num_wind=numeric.loc[numeric.fuel_code.astype("string").str.upper().eq("WND") & numeric.plant_id.isin(bpat)]
+          result={
+            "year":2024,"scope":"BPAT EIA-860 mapped plants, EIA-923 WND fuel only",
+            "excluded_wind_monthly_cells":len(exc_wind),
+            "affected_bpat_wind_plant_ids":sorted(set(exc_wind.plant_id.dropna()) | set(num_wind.plant_id.dropna())),
+            "excluded_valid_numeric_wind_cells":len(num_wind),
+            "excluded_valid_numeric_wind_mwh":float(num_wind.net_generation_mwh.sum()),
+            "caveat":"Missing EIA-923 source values remain unknown; this is not an imputation or explanation of EIA-930 discrepancy."
+          }
+          out=root/"bpat_wind_reconciliation"
+          out.mkdir(parents=True,exist_ok=True)
+          (out/"excluded_source_wind_audit.json").write_text(json.dumps(result,indent=2)+"\\n")
+          print(json.dumps(result,indent=2))
+          PY
       - name: Summarize measured discrepancy without asserting its cause
         if: success()
         run: |
