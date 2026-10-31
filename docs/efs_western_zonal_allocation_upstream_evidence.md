@@ -21,3 +21,28 @@ Verified 2026-10-31. Upstream: https://github.com/PyPSA/pypsa-usa/blob/master/wo
 ## Gate
 
 **Not yet data-ready:** no verified state-to-zone numerical weights or empirical hourly regional loads have been admitted. Existing full-Western dispatch results are synthetic stress tests. This note is a source and scope audit, not a claim of actual EFS integration.
+
+
+## Provenance gate implementation (2026-10-31)
+
+The source metadata check is implemented in `energy_transition.efs_geographic_provenance_gate`.
+It verifies externally supplied weights against a SHA-256 digest and requires:
+`weights_sha256`, `source_url`, `source_revision`, `geographic_method`,
+`geography_vintage`, `population_vintage`, `processing_script_sha256`, and
+`coverage_note`.
+
+Example CLI after obtaining **actual** externally computed and reviewed files:
+
+```bash
+python -m energy_transition.efs_geographic_provenance_gate \\
+  --mapping input/reeds_state_membership.json \\
+  --weights input/efs_state_reeds_weights.csv \\
+  --manifest input/efs_weights_provenance.json \\
+  --report outputs/efs_geographic_evidence_gate.json
+```
+
+The validator does not download or calculate weights; an arbitrary URL or fabricated
+metadata can still pass format checks. A green unit test **does not** establish
+empirical validity, accurate state boundaries, independent reproduction, a correct
+crosswalk, or a calibrated PyPSA Western network. Independent review of the
+upstream geographic calculation and archived raw source assets remains mandatory.
