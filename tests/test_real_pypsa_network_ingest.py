@@ -17,7 +17,9 @@ def test_real_pypsa_loads_t_p_set():
     ids = attach_bus_loads(network, demand)
     assert ids == ["demand_CA_bus", "demand_NV_bus"]
     actual = network.loads_t.p_set.loc[snapshots.tz_localize(None), ids]
-    pd.testing.assert_frame_equal(actual, demand.set_axis(ids, axis=1).set_axis(snapshots.tz_localize(None), axis=0),
-                                  check_names=False, check_freq=False)
+    expected = demand.copy()
+    expected.index = snapshots.tz_localize(None)
+    expected.columns = pd.Index(ids, dtype=object)
+    pd.testing.assert_frame_equal(actual, expected, check_names=False, check_freq=False)
     assert network.loads.loc["demand_CA_bus", "bus"] == "CA_bus"
     assert network.loads.loc["demand_NV_bus", "bus"] == "NV_bus"
