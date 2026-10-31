@@ -49,6 +49,20 @@ def preflight(root: Path) -> dict:
     absent = [str(path) for path in config_files if not path.is_file()]
     if absent:
         raise ValueError(f"Missing merged upstream config files: {absent}")
+    # Parse every merged YAML file instead of only confirming its existence.
+    # Reject configs whose data structure cannot safely participate in merge.
+    for path in config_files:
+        parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if parsed is not None and not isinstance(parsed, dict):
+            raise ValueError(f"Upstream configuration must be a YAML mapping: {path.name}")
+    # The cloned repository must be clean: uncommitted edits invalidate the
+    # meaning of the pinned SHA even if git rev-parse still reports the pin.
+    dirty = subprocess.check_output(
+        ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+        text=True,
+    ).strip()
+    if dirty:
+        raise ValueError("Pinned PyPSA-USA tracked working tree has modifications")
     digests = {
         path.name: hashlib.sha256(path.read_bytes()).hexdigest()
         for path in config_files
