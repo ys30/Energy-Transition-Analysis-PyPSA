@@ -19,14 +19,24 @@ def derive_state_zone_weights(buses: pd.DataFrame, mapping: dict) -> pd.DataFram
     if not targets:
         raise ValueError("Empty ReEDS state-zone membership")
     df = buses.loc[:, ["reeds_state", "reeds_zone", "LAF_state"]].copy()
+    # An upstream PyPSA-USA network may contain non-Western interconnections.
+    # Select the authoritative Western state-zone pairs before checking LAF.
+    allowed = {(st, z) for st, zones in targets.items() for z in zones}
+    selected = pd.Series(
+        [(str(st), str(zone)) in allowed for st, zone in
+         zip(df["reeds_state"], df["reeds_zone"])],
+        index=df.index,
+    )
+    df = df.loc[selected].copy()
+    if df.empty:
+        raise ValueError("No Western ReEDS buses found in source network")
     if df.isna().any().any():
-        raise ValueError("Missing state, zone or LAF_state in source buses")
+        raise ValueError("Missing state, zone or LAF_state in Western source buses")
     df["LAF_state"] = pd.to_numeric(df["LAF_state"], errors="raise")
     values = df["LAF_state"].to_numpy(dtype=float)
     if not np.isfinite(values).all() or (values < 0).any():
         raise ValueError("Invalid source LAF_state values")
     observed = set(zip(df["reeds_state"].astype(str), df["reeds_zone"].astype(str)))
-    allowed = {(st, z) for st, zones in targets.items() for z in zones}
     if observed - allowed:
         raise ValueError(f"Source has unrecognized state-zone pairs: {sorted(observed - allowed)}")
     grouped = df.groupby(["reeds_state", "reeds_zone"])["LAF_state"].sum()
