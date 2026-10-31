@@ -7,45 +7,7 @@ import pandas as pd
 import pytest
 
 
-def allocate_hourly_load(state_load, weights):
-    """Allocate state hourly MW to zones; reject ambiguous ownership and bad weights."""
-    required = {"state", "zone", "weight"}
-    if not required.issubset(weights.columns):
-        raise ValueError("missing weight columns")
-    if weights.empty or weights[list(required)].isna().any().any():
-        raise ValueError("empty or missing allocation values")
-    if weights.duplicated(["state", "zone"]).any():
-        raise ValueError("duplicate state-zone pair")
-    if weights["zone"].duplicated().any():
-        raise ValueError("zone owned by more than one state")
-    if not np.isfinite(weights["weight"].to_numpy(dtype=float)).all():
-        raise ValueError("nonfinite weight")
-    if (weights["weight"] < 0).any():
-        raise ValueError("negative weight")
-    sums = weights.groupby("state")["weight"].sum()
-    if not np.allclose(sums.to_numpy(), 1.0, atol=1e-10, rtol=0):
-        raise ValueError("state weights do not sum to one")
-    if set(state_load.columns) != set(sums.index):
-        raise ValueError("state coverage mismatch")
-    if state_load.index.has_duplicates or state_load.isna().any().any():
-        raise ValueError("duplicate timestamps or missing load")
-    pieces = {r.zone: state_load[r.state] * r.weight for r in weights.itertuples(index=False)}
-    allocated = pd.DataFrame(pieces, index=state_load.index)
-    if not np.allclose(allocated.sum(axis=1), state_load.sum(axis=1), atol=1e-7, rtol=1e-12):
-        raise ValueError("hourly conservation failed")
-    return allocated
-
-
-def validate_utc_year(index, year):
-    """Require complete hourly UTC calendar, including leap days."""
-    if not isinstance(index, pd.DatetimeIndex) or index.tz is None:
-        raise ValueError("timezone-aware UTC timestamps required")
-    if str(index.tz) != "UTC":
-        raise ValueError("timestamps must be UTC")
-    expected = pd.date_range(f"{year}-01-01", f"{year + 1}-01-01", freq="h", inclusive="left", tz="UTC")
-    if not index.equals(expected):
-        raise ValueError("missing, duplicated, unordered or out-of-year hours")
-    return len(expected)
+from energy_transition.zonal_conservation import allocate_hourly_load, validate_utc_year, conservation_audit
 
 
 @pytest.mark.parametrize("year,hours", [(2023, 8760), (2024, 8784), (2025, 8760)])
@@ -84,3 +46,13 @@ def test_invalid_weights_rejected(bad_weights):
     weights = pd.DataFrame({"state": ["CA", "CA"], "zone": ["z1", "z2"], "weight": bad_weights})
     with pytest.raises(ValueError):
         allocate_hourly_load(load, weights)
+
+
+def test_annual_audit_by_state():
+    idx = pd.date_range("2024-01-01", periods=8784, freq="h", tz="UTC")
+    load = pd.DataFrame({"CA": 100.0, "NV": 40.0}, index=idx)
+    weights = pd.DataFrame([("CA", "z1", 0.3), ("CA", "z2", 0.7), ("NV", "z3", 1.0)], columns=["state", "zone", "weight"])
+    zones = allocate_hourly_load(load, weights)
+    audit = conservation_audit(load, zones, weights)
+    assert set(audit["state"]) == {"CA", "NV"}
+    np.testing.assert_allclose(audit["difference_mwh"], 0, atol=1e-8)
