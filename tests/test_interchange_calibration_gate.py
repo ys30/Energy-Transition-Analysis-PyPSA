@@ -47,3 +47,15 @@ def test_interchange_gate_rejects_nonfinite_monthly_indicators():
     } for month in range(1,13)])
     monthly.loc[0,"residual_share_of_demand"]=float("nan")
     assert not evaluate(summary,monthly)[0]["interchange_calibration_eligible"]
+
+
+def test_gate_rejects_mixed_month_vintages():
+    import pytest
+    summary=pd.DataFrame([{"respondent":"CISO","complete_triple_share":1.0,
+                           "official_balance_mae_share_of_load":0.01}])
+    monthly=pd.DataFrame([{"respondent":"CISO","month":f"2024-{m:02d}",
+                           "coverage":1.0,"residual_share_of_demand":0.0}
+                          for m in range(1,13)])
+    monthly.loc[0,"month"]="2023-01"
+    with pytest.raises(ValueError,match="January-December"):
+        evaluate(summary,monthly)
