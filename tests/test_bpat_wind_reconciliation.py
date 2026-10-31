@@ -9,7 +9,7 @@ def fixtures():
     cw=pd.DataFrame({"plant_id":["101","102"],"ba_code":["BPAT","CISO"],
                      "mapping_year":[2024]*2})
     hours=pd.date_range("2024-01-01","2025-01-01",freq="h",inclusive="left",tz="UTC")
-    h=pd.DataFrame({"period":hours,"respondent":"BPAT","type":"WND","value":1.0})
+    h=pd.DataFrame({"period":hours,"respondent":"BPAT","fueltype":"WND","value":1.0})
     return pm,cw,h
 
 
@@ -42,4 +42,12 @@ def test_duplicate_hour_rejected():
     pm,cw,h=fixtures()
     h=pd.concat([h,h.iloc[[0]]],ignore_index=True)
     with pytest.raises(ValueError,match="Duplicate"):
+        reconcile(pm,cw,h)
+
+
+def test_total_generation_ng_cannot_be_misrepresented_as_wind():
+    pm,cw,h=fixtures()
+    h=h.rename(columns={"fueltype":"type"})
+    h["type"]="NG"
+    with pytest.raises(ValueError,match="hourly missing columns"):
         reconcile(pm,cw,h)
