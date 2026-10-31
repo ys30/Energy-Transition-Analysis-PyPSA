@@ -18,6 +18,8 @@ def make_checkout(tmp_path, *, horizons=None):
         "model_topology:\n"
         "  transmission_network: reeds\n"
         "  topological_boundaries: reeds_zone\n")
+    for name in ("cluster", "common", "plotting", "api", "sector"):
+        (root / "workflow" / "config" / f"config.{name}.yaml").write_text("{}\n")
     return root
 
 
@@ -29,6 +31,8 @@ def test_pinned_western_preflight(monkeypatch, tmp_path):
     report = preflight(root)
     assert report["upstream_sha"] == PIN
     assert report["real_network_built"] is False
+    assert len(report["config_file_sha256"]) == 6
+    assert len(report["snakefile_sha256"]) == 64
 
 
 def test_preflight_rejects_changed_planning_years(monkeypatch, tmp_path):
