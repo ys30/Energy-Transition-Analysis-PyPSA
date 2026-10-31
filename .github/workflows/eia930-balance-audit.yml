@@ -8,6 +8,7 @@ on:
       - 'src/energy_transition/interchange_calibration_gate.py'
       - 'src/energy_transition/interchange_diagnostics.py'
       - 'src/energy_transition/interchange_calibration_blockers.py'
+      - 'src/energy_transition/eia930_triple_missingness.py'
 jobs:
   audit:
     runs-on: ubuntu-latest
@@ -26,6 +27,11 @@ jobs:
         run: |
           test -n "$EIA_API_KEY"
           python -m energy_transition.eia930_balance_audit --year 2024 --bas CISO BPAT --output outputs/eia930_balance
+      - name: Separate missing demand, generation, and interchange by UTC month
+        run: |
+          python -m energy_transition.eia930_triple_missingness \
+            --hourly outputs/eia930_balance/hourly_balance_audit.csv \
+            --output outputs/eia930_balance/triple_missingness_by_month.csv
       - name: Evaluate BA interchange calibration eligibility
         run: |
           python -m energy_transition.interchange_calibration_gate \
