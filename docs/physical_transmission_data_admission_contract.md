@@ -22,3 +22,9 @@ The pre-ingestion modules `wecc_ads_archive_inventory.py`, `transmission_branch_
 - Empirical 2024 interconnected CISO–BPAT calibration: **not completed**.
 
 No authentic WECC network archive is included in this repository, and no actual historical transmission ratings have been certified here.
+
+## BPAT empirical wind reconciliation status (2024)
+
+The [verified monthly EIA-923 versus EIA-930 wind boundary audit](verified_bpat_wind_monthly_eia923_eia930_2024.md) reports EIA-923 **8,820,435.41 MWh**, EIA-930 **6,839,734 MWh**, and a **1,980,701.41 MWh** discrepancy (**22.46%** of the EIA-923 total). All 8,784 BPAT EIA-930 wind hours were present; therefore missing hourly wind observations cannot explain this annual discrepancy. This comparison is not proof of interchange errors, curtailment, or operational losses.
+
+[BPAT wind empirical reconciliation workflow #41159457058](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41159457058) completed successfully, with **4 regression tests passed**. Its success checks reconciliation code behavior; it does **not** demonstrate that the 1.981-TWh population/accounting difference has been resolved. Until independently reconciled, neither figure should be substituted for the other to calibrate physical cross-BA line flows.
