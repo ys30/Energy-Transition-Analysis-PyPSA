@@ -1,0 +1,36 @@
+name: PyPSA-USA verified public archive intake
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - src/energy_transition/pypsa_usa_archive_download.py
+      - .github/workflows/pypsa-usa-archive-intake.yml
+permissions:
+  contents: read
+jobs:
+  archive-intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Download official data archive and verify publisher checksum
+        run: |
+          python -m energy_transition.pypsa_usa_archive_download \
+            --archive /tmp/pypsa_usa_data.zip \
+            --report outputs/pypsa_usa_archive_receipt.json
+      - name: Inventory verified archive
+        run: |
+          python -m energy_transition.wecc_ads_archive_inventory \
+            --archive /tmp/pypsa_usa_data.zip \
+            --output outputs/pypsa_usa_archive_inventory.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pypsa-usa-verified-archive-receipt-and-inventory
+          path: |
+            outputs/pypsa_usa_archive_receipt.json
+            outputs/pypsa_usa_archive_inventory.json
