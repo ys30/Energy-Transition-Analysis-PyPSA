@@ -20,7 +20,7 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
     if not pm.report_year.eq(year).all() or not cw.mapping_year.eq(year).all():
         raise ValueError("EIA-923 and EIA-860 vintages must match the target year")
     for f in (pm,cw):
-        f["plant_id"]=f.plant_id.astype("string").str.strip().str.replace(r"\\.0$","",regex=True)
+        f["plant_id"]=f.plant_id.astype("string").str.strip().str.replace(r"\.0$","",regex=True)
         if f.plant_id.isna().any() or f.plant_id.eq("").any():
             raise ValueError("Missing plant ID")
     if cw.duplicated("plant_id").any():
