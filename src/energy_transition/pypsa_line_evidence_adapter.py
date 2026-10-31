@@ -6,6 +6,7 @@ BA-level buses are aggregates. Use for sensitivity experiments only.
 from __future__ import annotations
 import pandas as pd
 from .transmission_evidence_gate import screen_transmission_inputs
+from .transmission_impedance_base import check_reactance_base
 
 
 def add_screened_ba_lines(network, lines: pd.DataFrame, bas=("CISO","BPAT")):
@@ -19,6 +20,9 @@ def add_screened_ba_lines(network, lines: pd.DataFrame, bas=("CISO","BPAT")):
     needed={"reactance_ohm","resistance_ohm","nominal_kv","evidence_status"}
     if needed-set(lines.columns):
         raise ValueError("AC line requires sourced ohm parameters, voltage and evidence status")
+    unit_check=check_reactance_base(lines)
+    if not unit_check["ready"]:
+        raise ValueError("Inconsistent branch reactance per-unit/ohm conversion on declared MVA base")
     data=lines.copy()
     for col in ("reactance_ohm","resistance_ohm","nominal_kv"):
         data[col]=pd.to_numeric(data[col],errors="coerce")
