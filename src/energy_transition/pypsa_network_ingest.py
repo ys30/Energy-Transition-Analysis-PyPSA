@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 
-def attach_bus_loads(network, load_matrix, *, prefix="demand_"):
+def attach_bus_loads(network, load_matrix, *, prefix="demand_", allow_existing_bus_loads=False):
     """Create one Load per mapped bus, matching network snapshots exactly.
 
     Return added Load IDs. Refuse overwrites and incomplete snapshots.
@@ -31,6 +31,12 @@ def attach_bus_loads(network, load_matrix, *, prefix="demand_"):
     values = load_matrix.to_numpy(dtype=float)
     if not np.isfinite(values).all() or (values < 0).any():
         raise ValueError("nonfinite or negative demand")
+    if not allow_existing_bus_loads and not network.loads.empty:
+        if "bus" not in network.loads.columns:
+            raise ValueError("existing network loads require bus assignments")
+        occupied = set(network.loads["bus"].dropna()) & set(load_matrix.columns)
+        if occupied:
+            raise ValueError(f"existing bus loads would double-count demand: {sorted(occupied)}")
     names = [prefix + str(bus) for bus in load_matrix.columns]
     if len(set(names)) != len(names) or set(names) & set(network.loads.index):
         raise ValueError("load IDs collide with existing network loads")
