@@ -49,6 +49,8 @@ def allocate_state_demand(state_demand: list[dict], weights: list[dict],
         for zone, fraction in sorted(by_state[state].items()):
             output.append({"state": state, "snapshot": snapshot, "zone": zone,
                            "demand_mw": demand * fraction})
+    if not seen:
+        raise ValueError("No state demand snapshots provided")
     if covered_states != set(by_state):
         raise ValueError(f"State coverage mismatch: {sorted(set(by_state) - covered_states)}")
     reference = next(iter(snapshots_by_state.values()))
