@@ -48,6 +48,8 @@ def build_load_matrix(zonal_csv, zone_bus_csv, *, network_buses_csv=None):
         raise ValueError("missing zone-hour")
     if result.index.has_duplicates:
         raise ValueError("duplicate hours")
+    if len(result.index) > 1 and not (result.index.to_series().diff().iloc[1:] == pd.Timedelta(hours=1)).all():
+        raise ValueError("non-contiguous hourly snapshots")
     result.columns = [mapping.set_index("zone").loc[z, "bus"] for z in result.columns]
     result.columns.name = "bus"
     return result
