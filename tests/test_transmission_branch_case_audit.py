@@ -31,3 +31,15 @@ def test_unverified_provenance_rejected():
     data.loc[0,"evidence_status"]="unknown"
     with pytest.raises(ValueError,match="independently verified"):
         audit_branch_case(data,case_year=2034,kind="planning")
+
+
+def test_inconsistent_electrical_base_is_rejected():
+    data=sample()
+    data.loc[0,"reactance_pu"]=0.5
+    with pytest.raises(ValueError,match="Inconsistent branch reactance"):
+        audit_branch_case(data,case_year=2034,kind="planning")
+
+
+def test_missing_mva_base_is_rejected():
+    with pytest.raises(ValueError,match="base_mva"):
+        audit_branch_case(sample().drop(columns=["base_mva"]),case_year=2034,kind="planning")
