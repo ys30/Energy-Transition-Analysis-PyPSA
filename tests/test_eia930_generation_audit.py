@@ -19,3 +19,49 @@ def test_missing_timestamps_detected():
     assert audit.missing_timestamp_hours==1
     assert "2024-01-05" in audit.first_missing_timestamp_utc
     assert not bool(audit.complete)
+
+
+def test_verified_ciso_24_hour_gap_is_timestamp_gap_not_null_values():
+    hours=pd.date_range("2024-01-01","2025-01-01",freq="h",inclusive="left",tz="UTC")
+    missing=pd.date_range("2024-11-02T08:00Z",periods=24,freq="h")
+    f=pd.DataFrame({"period":hours.difference(missing),"respondent":"CISO","value":1.0})
+    audit=summarize_net_generation(f,2024,["CISO"]).iloc[0]
+    assert audit.received_hours==8760
+    assert audit.missing_timestamp_hours==24
+    assert audit.missing_value_hours==0
+    assert audit.first_missing_timestamp_utc=="2024-11-02T08:00:00+00:00"
+    assert audit.last_missing_timestamp_utc=="2024-11-03T07:00:00+00:00"
+    assert not bool(audit.complete)
+
+
+def test_eia_ng_fetch_rejects_malformed_numeric_payload(monkeypatch):
+    import io, json
+    from energy_transition import eia930_generation_audit as audit
+    class FakeResponse(io.BytesIO):
+        def __enter__(self): return self
+        def __exit__(self,*args): self.close()
+    payload={"response":{"total":"1","data":[
+        {"period":"2024-01-01T00","respondent":"CISO","value":"bad"}]}}
+    monkeypatch.setattr(audit.urllib.request,"urlopen",
+                        lambda *args,**kwargs: FakeResponse(json.dumps(payload).encode()))
+    import pytest
+    with pytest.raises(ValueError,match="malformed"):
+        audit.fetch_net_generation(2024,["CISO"],api_key="dummy")
+
+
+def test_eia_ng_fetch_rejects_early_empty_page(monkeypatch):
+    import io, json
+    from energy_transition import eia930_generation_audit as audit
+    class FakeResponse(io.BytesIO):
+        def __enter__(self): return self
+        def __exit__(self,*args): self.close()
+    payloads=[
+        {"response":{"total":"2","data":[{"period":"2024-01-01T00","respondent":"CISO","value":"5"}]}},
+        {"response":{"total":"2","data":[]}},
+    ]
+    calls=iter(payloads)
+    monkeypatch.setattr(audit.urllib.request,"urlopen",
+                        lambda *args,**kwargs: FakeResponse(json.dumps(next(calls)).encode()))
+    import pytest
+    with pytest.raises(ValueError,match="empty page"):
+        audit.fetch_net_generation(2024,["CISO"],api_key="dummy")
