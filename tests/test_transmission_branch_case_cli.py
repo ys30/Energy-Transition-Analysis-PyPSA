@@ -10,8 +10,8 @@ def test_transmission_cli_records_input_hash(tmp_path):
     report=tmp_path/"audit.json"
     pd.DataFrame([{
         "from_ba":"CISO","to_ba":"BPAT","capacity_mw":100.0,
-        "reactance_pu":0.12,"reactance_ohm":6.0,
-        "resistance_ohm":0.4,"nominal_kv":230.0,
+        "reactance_pu":(6.0*1000.0/230.0**2),"reactance_ohm":6.0,
+        "resistance_ohm":0.4,"nominal_kv":230.,"base_mva":1000.0,
         "source_url":"https://example.org/synthetic-only",
         "source_year":2034,"evidence_status":"independently_verified"
     }]).to_csv(raw,index=False)
