@@ -110,3 +110,19 @@ def test_strict_requires_both_evidence_files(tmp_path):
     _, load, weights = make_inputs(tmp_path, years=(2024,))
     with pytest.raises(ValueError, match="provided together"):
         run(load, weights, tmp_path / "audit.csv", mapping_path="missing.json")
+
+
+def test_timezone_naive_input_rejected(tmp_path):
+    raw, load, weights = make_inputs(tmp_path, years=(2024,))
+    raw["timestamp_utc"] = raw["timestamp_utc"].dt.strftime("%Y-%m-%d %H:%M:%S")
+    raw.to_csv(load, index=False)
+    with pytest.raises(ValueError, match="explicit UTC"):
+        run(load, weights, tmp_path / "audit.csv")
+
+
+def test_non_utc_offset_rejected(tmp_path):
+    raw, load, weights = make_inputs(tmp_path, years=(2024,))
+    raw["timestamp_utc"] = raw["timestamp_utc"].dt.strftime("%Y-%m-%dT%H:%M:%S-07:00")
+    raw.to_csv(load, index=False)
+    with pytest.raises(ValueError, match="explicit UTC"):
+        run(load, weights, tmp_path / "audit.csv")
