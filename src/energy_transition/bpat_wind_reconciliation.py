@@ -68,6 +68,15 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
         plant_totals.loc[plant_totals.ba_code.isna(), ["plant_id", "net_generation_mwh"]]
         .sort_values("net_generation_mwh", ascending=False)
     )
+    # An annual BA aggregate cannot identify which individual plants cause
+    # the cross-source gap. Export BPAT plant contributions for follow-up.
+    bpat_plant_totals = (
+        plant_totals.loc[plant_totals.ba_code.eq("BPAT"), ["plant_id", "net_generation_mwh"]]
+        .sort_values("net_generation_mwh", ascending=False)
+    )
+    bpat_plant_sum = float(bpat_plant_totals.net_generation_mwh.sum())
+    if abs(bpat_plant_sum - float(bpat.net_generation_mwh.sum())) > 0.01:
+        raise ValueError("BPAT plant-level wind totals do not reconcile to BPAT aggregate")
     result={
         "year":year,"eia923_bpat_wind_mwh":float(bpat.net_generation_mwh.sum()),
         "eia923_unmatched_wind_mwh":float(unmatched.net_generation_mwh.sum()),
@@ -77,6 +86,7 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
         "eia923_other_ba_wind_breakdown_mwh":{str(row.ba_code):float(row.net_generation_mwh) for row in other_ba_totals.itertuples()},
         "eia923_unmatched_wind_top_plants_mwh":{str(row.plant_id):float(row.net_generation_mwh) for row in unmatched_plant_totals.head(20).itertuples()},
         "eia923_bpat_plant_count":int(bpat.plant_id.nunique()),
+        "eia923_bpat_wind_plant_contributions_mwh":{str(row.plant_id):float(row.net_generation_mwh) for row in bpat_plant_totals.itertuples()},
         "eia923_unmatched_plant_count":int(unmatched.plant_id.nunique()),
         "eia930_bpat_wnd_mwh":float(observed.value.sum()),
         "eia930_observed_hours":len(observed),"expected_hours":expected,
