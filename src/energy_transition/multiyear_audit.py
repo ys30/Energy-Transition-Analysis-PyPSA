@@ -8,13 +8,25 @@ weights CSV: state,zone,weight
 No real-source provenance or calibration is implied by a passing accounting audit.
 """
 import argparse
+import json
 from pathlib import Path
 import numpy as np
 import pandas as pd
 from .zonal_conservation import allocate_hourly_load, validate_utc_year, conservation_audit
+from .efs_geographic_provenance_gate import assess_weight_provenance
 
 
-def run(load_path, weight_path, output_path):
+def run(load_path, weight_path, output_path, *, mapping_path=None, manifest_path=None):
+    if (mapping_path is None) != (manifest_path is None):
+        raise ValueError('mapping and manifest must be provided together')
+    if mapping_path is not None:
+        evidence = assess_weight_provenance(
+            json.loads(Path(mapping_path).read_text(encoding='utf-8')),
+            Path(weight_path).read_bytes(),
+            json.loads(Path(manifest_path).read_text(encoding='utf-8')),
+        )
+        if not evidence['ready_for_full_network_dispatch']:
+            raise ValueError('provenance or mapped network admission failed: ' + str(evidence['provenance_errors']))
     raw = pd.read_csv(load_path)
     needed = {"timestamp_utc", "state", "load_mw"}
     if not needed.issubset(raw.columns) or raw.empty:
@@ -56,8 +68,10 @@ def main():
     parser.add_argument("--load", required=True)
     parser.add_argument("--weights", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--mapping", default=None, help="Require source-backed mapping and weights gate")
+    parser.add_argument("--manifest", default=None, help="SHA-256 and geography metadata manifest")
     args = parser.parse_args()
-    print(run(args.load, args.weights, args.out).to_string(index=False))
+    print(run(args.load, args.weights, args.out, mapping_path=args.mapping, manifest_path=args.manifest).to_string(index=False))
 
 
 if __name__ == "__main__":
