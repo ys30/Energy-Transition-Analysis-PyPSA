@@ -13,6 +13,7 @@ on:
       - src/energy_transition/naris2024_western_dispatch_smoke.py
       - src/energy_transition/naris2024_western_capacity_pair.py
       - src/energy_transition/naris2024_efs_state_mapping_audit.py
+      - src/energy_transition/naris2024_western_membership_completion.py
 permissions:
   contents: read
 jobs:
@@ -46,6 +47,12 @@ jobs:
             --input outputs/naris2024_zonal_links.nc \
             --network outputs/naris2024_western_zonal_links.nc \
             --report outputs/naris2024_western_subset_summary.json
+      - name: Preserve missing ReEDS Western zones without fabricated interfaces
+        run: |
+          python -m energy_transition.naris2024_western_membership_completion \
+            --input outputs/naris2024_western_zonal_links.nc \
+            --network outputs/naris2024_western_all_membership_zones.nc \
+            --report outputs/naris2024_western_membership_completion.json
       - name: Solve published NARIS interface with illustrative load and generation
         run: |
           python -m energy_transition.naris2024_link_solver_smoke \
@@ -64,7 +71,7 @@ jobs:
       - name: Audit authoritative state-to-Western-zone EFS mapping readiness
         run: |
           python -m energy_transition.naris2024_efs_state_mapping_audit \
-            --network outputs/naris2024_western_zonal_links.nc \
+            --network outputs/naris2024_western_all_membership_zones.nc \
             --report outputs/naris2024_efs_state_mapping_audit.json
       - uses: actions/upload-artifact@v4
         with:
@@ -80,3 +87,5 @@ jobs:
             outputs/naris2024_roundtrip_verification.json
             outputs/naris2024_western_zonal_links.nc
             outputs/naris2024_western_subset_summary.json
+            outputs/naris2024_western_all_membership_zones.nc
+            outputs/naris2024_western_membership_completion.json
