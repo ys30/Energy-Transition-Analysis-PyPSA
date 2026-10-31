@@ -27,6 +27,7 @@ def allocate_state_demand(state_demand: list[dict], weights: list[dict],
             raise ValueError(f"Unbalanced state shares: {state}")
     output = []
     seen = set()
+    snapshots_by_state = defaultdict(set)
     covered_states = set()
     for row in state_demand:
         state, snapshot = row["state"], row["snapshot"]
@@ -34,6 +35,7 @@ def allocate_state_demand(state_demand: list[dict], weights: list[dict],
         if key in seen:
             raise ValueError(f"Duplicate state snapshot: {key}")
         seen.add(key)
+        snapshots_by_state[state].add(snapshot)
         if state not in by_state:
             raise ValueError(f"Missing allocation for state: {state}")
         demand = float(row["demand_mw"])
@@ -45,4 +47,8 @@ def allocate_state_demand(state_demand: list[dict], weights: list[dict],
                            "demand_mw": demand * fraction})
     if covered_states != set(by_state):
         raise ValueError(f"State coverage mismatch: {sorted(set(by_state) - covered_states)}")
+    reference = next(iter(snapshots_by_state.values()))
+    for state, snapshots in snapshots_by_state.items():
+        if snapshots != reference:
+            raise ValueError(f"State time coverage differs for {state}: missing or extra snapshots")
     return output
