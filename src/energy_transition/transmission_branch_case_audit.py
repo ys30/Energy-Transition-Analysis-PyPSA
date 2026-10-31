@@ -11,6 +11,7 @@ import math
 from pathlib import Path
 import pandas as pd
 from .transmission_evidence_gate import screen_transmission_inputs
+from .transmission_impedance_base import check_reactance_base
 
 
 def audit_branch_case(frame: pd.DataFrame, *, case_year: int, kind: str) -> dict:
@@ -35,6 +36,10 @@ def audit_branch_case(frame: pd.DataFrame, *, case_year: int, kind: str) -> dict
         invalid = numeric.lt(0) if column=="resistance_ohm" else numeric.le(0)
         if invalid.any():
             raise ValueError(f"Invalid {column}")
+    # A per-unit/ohm pair is only interpretable when its declared MVA base is provided.
+    impedance=check_reactance_base(frame)
+    if not impedance["ready"]:
+        raise ValueError("Inconsistent branch reactance per-unit/ohm conversion on declared MVA base")
     # These fields are supplied by the same dataset and are not an independent audit.
     # Preserve the claim, but never elevate it into source authentication.
     if not frame.evidence_status.eq("independently_verified").all():
@@ -47,6 +52,7 @@ def audit_branch_case(frame: pd.DataFrame, *, case_year: int, kind: str) -> dict
             "ready_for_pypsa_physical_calibration":False,
             "ready_for_historical_2024_calibration":False,
             "case_year":case_year,"case_kind":kind,"branch_rows":len(frame),
+            "impedance_base_screen":impedance,
             "caveat":"Electrical BA aggregations and source authenticity require manual expert validation"}
 
 
