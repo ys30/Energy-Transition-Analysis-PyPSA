@@ -18,6 +18,9 @@ def test_reconciliation_preserves_unmatched_and_other_ba_as_diagnostics():
     result,plants=reconcile(pm,cw,h)
     assert result["eia923_bpat_wind_mwh"]==100.0
     assert result["eia923_unmatched_wind_mwh"]==30.0
+    assert "NOT BPAT" in result["eia923_unmatched_scope"]
+    assert "Other BAs" in result["eia923_other_ba_scope"]
+    assert result["eia923_to_eia930_bpat_wind_ratio"]==pytest.approx(100.0/8784.0)
     assert result["eia923_other_ba_wind_mwh"]==20.0
     assert result["eia930_observed_hours"]==8784
     assert result["signed_difference_eia923_minus_eia930_mwh"]==100.0-8784.0
