@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import csv
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -41,12 +42,16 @@ def subset(network, membership_csv: bytes):
         raise ValueError("Dangling Link after subsetting")
     return result, {
         "membership_source": MEMBERSHIP_URL,
+        "membership_sha256": hashlib.sha256(membership_csv).hexdigest(),
+        "membership_rows": len(list(csv.DictReader(io.StringIO(membership_csv.decode("utf-8-sig"))))),
         "western_membership_regions": len(ids),
         "matched_buses": len(keep),
+        "matched_region_ids": sorted(keep),
         "membership_regions_missing_from_interface_network": missing,
         "missing_region_explanation": "not represented as a bus in published positive-or-zero NARIS interface table; no demand/generation inference",
         "internal_directed_links": len(internal),
         "excluded_boundary_directed_links": len(boundary),
+        "boundary_link_ids": sorted(boundary.index.tolist()),
         "boundary_assumption": "cross-interconnection transfers excluded, not modeled as zero historically",
         "has_generation_or_demand": False,
         "network_solved": False,
