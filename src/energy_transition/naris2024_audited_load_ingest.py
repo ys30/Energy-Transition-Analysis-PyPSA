@@ -67,6 +67,21 @@ def prepare_network_loads(
     if not np.allclose(observed.to_numpy(dtype=float),
                        expected[names].to_numpy(dtype=float), rtol=0, atol=1e-8):
         raise ValueError("NetCDF round-trip altered load magnitudes")
+    # Reject accidental topology/rating mutation during load-only ingestion.
+    if not restored.buses.index.equals(network.buses.index):
+        raise ValueError("NetCDF round-trip altered bus inventory")
+    if not restored.links.index.equals(network.links.index):
+        raise ValueError("NetCDF round-trip altered transmission link inventory")
+    if not restored.generators.index.equals(network.generators.index):
+        raise ValueError("NetCDF round-trip altered generator inventory")
+    for field in ("bus0", "bus1"):
+        if not restored.links[field].equals(network.links[field]):
+            raise ValueError(f"NetCDF round-trip changed Link {field}")
+    for field in ("p_nom", "efficiency", "p_min_pu", "p_max_pu"):
+        if not np.allclose(restored.links[field].to_numpy(dtype=float),
+                           network.links[field].to_numpy(dtype=float),
+                           rtol=0, atol=1e-8):
+            raise ValueError(f"NetCDF round-trip changed Link {field}")
     report = {
         "network_file": str(target),
         "snapshots": int(len(matrix.index)),
@@ -76,6 +91,7 @@ def prepare_network_loads(
         "source_provenance_required": not allow_synthetic,
         "synthetic_opt_in": bool(allow_synthetic),
         "netcdf_load_roundtrip_verified": True,
+        "netcdf_topology_roundtrip_verified": True,
         "optimization_solved": False,
         "historically_calibrated": False,
     }
