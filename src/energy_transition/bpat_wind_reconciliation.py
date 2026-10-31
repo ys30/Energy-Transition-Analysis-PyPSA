@@ -36,6 +36,12 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
     bpat=joined.loc[joined.ba_code.eq("BPAT")]
     unmatched=joined.loc[joined._merge.eq("left_only")]
     reassigned=joined.loc[joined.ba_code.notna() & ~joined.ba_code.eq("BPAT")]
+    # The input must be an explicitly source-filtered BPAT WND export.
+    # Silently dropping other respondents/fuels can conceal a wrong API endpoint.
+    if not h.respondent.astype("string").str.strip().str.upper().eq("BPAT").all():
+        raise ValueError("Hourly source contains non-BPAT respondents")
+    if not h.fueltype.astype("string").str.strip().str.upper().eq("WND").all():
+        raise ValueError("Hourly source contains non-WND fuel types")
     h["period"]=pd.to_datetime(h.period,utc=True,errors="raise")
     h["value"]=pd.to_numeric(h.value,errors="raise")
     # EIA-930 fuel-type-data reports fueltype=WND; region-data type=NG is TOTAL generation.
