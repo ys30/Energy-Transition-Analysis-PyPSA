@@ -79,6 +79,9 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
         raise ValueError("BPAT plant-level wind totals do not reconcile to BPAT aggregate")
     result={
         "year":year,"eia923_bpat_wind_mwh":float(bpat.net_generation_mwh.sum()),
+        "eia860_mapping_semantics":"Annual plant-level BA assignment, not verified dispatch footprint",
+        "eia930_observation_semantics":"Hourly BPAT respondent WND operational series, not plant-disaggregated",
+        "cross_source_comparability":"Descriptive only; residual is not curtailment, loss, or interchange calibration",
         "eia923_unmatched_wind_mwh":float(unmatched.net_generation_mwh.sum()),
         "eia923_unmatched_scope":"All source wind plants without a qualifying EIA860 crosswalk, NOT BPAT-attributed wind",
         "eia923_other_ba_wind_mwh":float(reassigned.net_generation_mwh.sum()),
