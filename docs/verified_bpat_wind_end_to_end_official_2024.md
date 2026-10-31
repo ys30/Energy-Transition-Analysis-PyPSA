@@ -57,3 +57,15 @@ The [successful end-to-end BPAT run #41167672392](https://github.com/ys30/Energy
 | Excluded numeric BPAT wind generation | 0 MWh |
 
 The artifact reports **no excluded EIA-923 WND source rows intersecting the 2024 BPAT EIA-860 plant crosswalk**. Therefore, observed exclusions within this specific mapped BPAT population cannot explain the previously verified 1,980,701.41 MWh EIA-923–EIA-930 difference. This audit does not certify perfect source completeness outside the matched plant population or establish the root cause of the discrepancy. [CI #41167672506](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41167672506) passed.
+
+## Evidence status of the 1.981 TWh wind discrepancy
+
+| Possible cause | Verified evidence | Status |
+|---|---|---|
+| Missing EIA-930 BPAT WND hourly timestamps | 8,784/8,784 timestamps observed | Missing timestamps ruled out |
+| Excluded EIA-923 WND cells at BPAT-mapped plants | Zero BPAT WND excluded monthly/numeric cells in [run 41167672392](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41167672392) | Unsupported in the mapped population |
+| Decimal-suffix plant-ID join error | No observed x.0 plant IDs in official source scan; normalization fixed | Unsupported by observed ID format |
+| Different EIA-923 plant and EIA-930 BA reporting boundaries | 28 BPAT-mapped EIA-923 plants, EIA-930 only BA-level WND | Open; independent assignment audit required |
+| Curtailment, losses, transfers, or accounting adjustments | No independent decomposition | Unresolved; never infer magnitudes from the difference |
+
+Do not reassign national unmatched plants or other-BA generation to BPAT. Next: independently corroborate which of the 28 mapped wind plants report operational output in BPAT's EIA-930 BA boundary. Without source-specific evidence, retain the 1,980,701.41 MWh difference as an unresolved descriptive accounting gap, not a calibrated physical model parameter.
