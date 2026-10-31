@@ -77,3 +77,14 @@ In [successful EIA-930 observed-data run #41168894844](https://github.com/ys30/E
 | CISO | TI | 2024-11-01 08:00 | 2024-11-03 08:00 | 48 |
 
 CISO's **seven** TI outages sum to **312 hours**. Its 24 missing NG hours overlap the final TI interval, explaining **312 unique incomplete D/NG/TI hours**, not 336. BPAT has one TI-only incomplete hour. These are observed absence windows, not evidence of a DST cause or a zero-MW dispatch state. Independent historical BA operating records are needed before any replacement or calibration.
+
+## Validated gap-window reconciliation (official 2024 data)
+
+The [EIA-930 official workflow #41170615744](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41170615744) successfully executed the new hourly gap-window validator. It emitted `missing_window_validation.json` with `verified=true` and the following exact missing-field totals:
+
+| BA | Demand D | Net generation NG | Total interchange TI |
+|---|---:|---:|---:|
+| BPAT | 0 | 0 | 1 |
+| CISO | 0 | 24 | 312 |
+
+This independently reconciles each generated contiguous missing interval back to the already aligned EIA-930 hourly observation table. It does **not** restore observations, certify EIA-930 source reporting correctness, or override the existing historical calibration failures. The code's unit tests passed [CI #41170622115](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41170622115).
