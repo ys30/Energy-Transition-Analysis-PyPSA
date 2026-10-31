@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 
-def build_load_matrix(zonal_csv, zone_bus_csv):
+def build_load_matrix(zonal_csv, zone_bus_csv, *, network_buses_csv=None):
     zonal = pd.read_csv(zonal_csv)
     mapping = pd.read_csv(zone_bus_csv)
     if not {"timestamp_utc", "zone", "load_mw"}.issubset(zonal.columns):
@@ -23,6 +23,15 @@ def build_load_matrix(zonal_csv, zone_bus_csv):
         raise ValueError("missing or duplicate zone-to-bus mapping")
     if set(zonal["zone"]) != set(mapping["zone"]):
         raise ValueError("zone coverage mismatch")
+    if network_buses_csv is not None:
+        network_buses = pd.read_csv(network_buses_csv)
+        if "bus" not in network_buses.columns or network_buses.empty or network_buses["bus"].isna().any():
+            raise ValueError("network bus inventory requires nonempty bus column")
+        if network_buses["bus"].duplicated().any():
+            raise ValueError("duplicate network bus IDs")
+        unrecognized = sorted(set(mapping["bus"]) - set(network_buses["bus"]))
+        if unrecognized:
+            raise ValueError(f"mapping references absent network buses: {unrecognized}")
     if mapping["bus"].duplicated().any():
         raise ValueError("multiple zones map to the same bus; aggregation requires explicit policy")
     stamp = zonal["timestamp_utc"].astype(str)
@@ -49,8 +58,9 @@ def main():
     parser.add_argument("--zonal", required=True)
     parser.add_argument("--zone-bus", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--network-buses", help="Optional explicit inventory of actual network bus IDs")
     args = parser.parse_args()
-    matrix = build_load_matrix(args.zonal, args.zone_bus)
+    matrix = build_load_matrix(args.zonal, args.zone_bus, network_buses_csv=args.network_buses)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     matrix.to_csv(out, index_label="timestamp_utc")
