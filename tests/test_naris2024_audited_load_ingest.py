@@ -86,3 +86,32 @@ def test_partial_network_bus_coverage_rejected(tmp_path):
             allow_synthetic=True,
         )
     assert not output.exists()
+
+
+def test_official_membership_rejects_missing_western_zone(tmp_path):
+    network, loads, weights, buses = fixture_files(tmp_path)
+    membership = tmp_path / "membership.csv"
+    membership.write_text(
+        "ba,st,interconnect,country\\n"
+        "p8,CA,Western,USA\\n"
+        "p9,CA,Western,USA\\n"
+        "p10,CA,Western,USA\\n"
+    )
+    with pytest.raises(ValueError, match="Western membership mismatch"):
+        prepare_network_loads(
+            network, loads, weights, buses, tmp_path / "out.nc",
+            tmp_path / "audit.csv", tmp_path / "zonal.csv",
+            membership_csv=membership, allow_synthetic=True,
+        )
+    assert not (tmp_path / "out.nc").exists()
+
+
+def test_source_mode_requires_membership_before_processing(tmp_path):
+    network, loads, weights, buses = fixture_files(tmp_path)
+    with pytest.raises(ValueError, match="official Western membership"):
+        prepare_network_loads(
+            network, loads, weights, buses, tmp_path / "out.nc",
+            tmp_path / "audit.csv", tmp_path / "zonal.csv",
+            mapping_json=tmp_path / "mapping.json",
+            provenance_json=tmp_path / "manifest.json",
+        )
