@@ -30,7 +30,7 @@ def preview_archive(path: Path) -> dict:
             else:
                 with z.open(name) as stream:
                     raw=stream.read(MAX_PREVIEW+1)
-                if b"\\x00" in raw:
+                if bytes([0]) in raw:
                     record["status"]="binary_content_not_previewed"
                 else:
                     record["status"]="text_sample_only"
@@ -50,7 +50,7 @@ def main():
     a=p.parse_args()
     result=preview_archive(a.archive)
     a.report.parent.mkdir(parents=True,exist_ok=True)
-    a.report.write_text(json.dumps(result,indent=2)+"\\n")
+    a.report.write_text(json.dumps(result,indent=2)+chr(10))
     print(json.dumps({"archive":result["archive"],"members":len(result["members"]),
                       "ready_for_pypsa_line":False}))
 
