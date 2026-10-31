@@ -18,6 +18,10 @@ def inventory(path: Path) -> dict:
     with path.open("rb") as stream:
         for chunk in iter(lambda:stream.read(1024*1024),b""):
             hasher.update(chunk)
+    candidates={".raw":"power_flow_raw_candidate",".sav":"power_flow_binary_candidate",
+                ".m":"matpower_script_candidate",".mci":"power_flow_aux_candidate",
+                ".mdb":"access_database_candidate",".accdb":"access_database_candidate",
+                ".dat":"pcm_data_candidate",".csv":"tabular_data_candidate"}
     result={"archive":path.name,"sha256":hasher.hexdigest(),
             "size_bytes":path.stat().st_size,"files":[],"ready_for_pypsa_line":False,
             "status":"file_inventory_only_no_branch_physics_verified"}
@@ -35,9 +39,17 @@ def inventory(path: Path) -> dict:
                 raise ValueError("Unsafe archive entry path")
             if member.file_size>1_000_000_000:
                 raise ValueError("Unexpected oversized archive member")
+            ext=Path(name).suffix.lower()
             result["files"].append({"name":name,"size_bytes":member.file_size,
-                                    "extension":Path(name).suffix.lower()})
+                                    "extension":ext,
+                                    "candidate_type":candidates.get(ext,"unknown_or_supporting_file"),
+                                    "requires_schema_inspection":ext in candidates})
     result["files"].sort(key=lambda x:x["name"])
+    result["candidate_model_files"]=[f["name"] for f in result["files"]
+                                      if f["requires_schema_inspection"]]
+    result["candidate_count"]=len(result["candidate_model_files"])
+    result["parser_selected"]=False
+    result["caution"]="Extensions are hints only; no member content or electrical physics verified"
     return result
 
 
