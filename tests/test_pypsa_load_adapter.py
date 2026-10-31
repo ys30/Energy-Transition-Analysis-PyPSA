@@ -72,3 +72,16 @@ def test_inventory_rejects_duplicate_bus_ids(tmp_path):
     pd.DataFrame({"bus": ["bus_a", "bus_a", "bus_b"]}).to_csv(inventory, index=False)
     with pytest.raises(ValueError, match="duplicate network bus"):
         build_load_matrix(zonal, mapping, network_buses_csv=inventory)
+
+
+def test_whole_hour_missing_rejected(tmp_path):
+    zonal, mapping = inputs(tmp_path)
+    data = pd.read_csv(zonal)
+    data = data.loc[data.timestamp_utc.str.contains("00:00:00")]
+    data.to_csv(zonal, index=False)
+    # A single hour is not sufficient to prove a missing interior hour;
+    # construct a third hour with a gap at 01:00 UTC.
+    data["timestamp_utc"] = "2024-01-01T02:00:00+00:00"
+    pd.concat([pd.read_csv(zonal), data], ignore_index=True).to_csv(zonal, index=False)
+    with pytest.raises(ValueError, match="non-contiguous hourly"):
+        build_load_matrix(zonal, mapping)
