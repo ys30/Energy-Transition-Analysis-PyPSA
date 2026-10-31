@@ -44,3 +44,16 @@ Independently re-read the `bpat_wind_reconciliation/wind_plant_ba_totals.csv` ar
 Top five plants: **3,392,106.30 MWh (38.46%)** of the BPAT-attributed plant generation; top ten plants: **65.11%**. These are **plant-generation concentration metrics, not identified contributions to the 1.981-TWh cross-source difference**. EIA-930 BPAT WND is a BA-level hourly aggregate and does not supply plant-level differences.
 
 The retained EIA-923 normalization manifest also reports **3,894 excluded valid numeric monthly cells** totaling **104,010,865.211 MWh** nationally across fuels. This cannot be assigned to BPAT wind. A subsequent source-exclusion intersection check is needed before drawing a BPAT-specific conclusion.
+
+## Verified BPAT-specific source exclusion audit
+
+The [successful end-to-end BPAT run #41167672392](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41167672392), at commit `477a6ba5`, generated `excluded_source_wind_audit.json` from the official EIA-923 normalization exclusions and the 2024 EIA-860 BPAT plant crosswalk.
+
+| Field | Measured result |
+|---|---:|
+| Excluded BPAT wind monthly source cells | 0 |
+| Affected BPAT wind plant IDs | 0 |
+| Excluded valid numeric BPAT wind cells | 0 |
+| Excluded numeric BPAT wind generation | 0 MWh |
+
+The artifact reports **no excluded EIA-923 WND source rows intersecting the 2024 BPAT EIA-860 plant crosswalk**. Therefore, observed exclusions within this specific mapped BPAT population cannot explain the previously verified 1,980,701.41 MWh EIA-923–EIA-930 difference. This audit does not certify perfect source completeness outside the matched plant population or establish the root cause of the discrepancy. [CI #41167672506](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41167672506) passed.
