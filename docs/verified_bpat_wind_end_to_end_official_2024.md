@@ -69,3 +69,11 @@ The artifact reports **no excluded EIA-923 WND source rows intersecting the 2024
 | Curtailment, losses, transfers, or accounting adjustments | No independent decomposition | Unresolved; never infer magnitudes from the difference |
 
 Do not reassign national unmatched plants or other-BA generation to BPAT. Next: independently corroborate which of the 28 mapped wind plants report operational output in BPAT's EIA-930 BA boundary. Without source-specific evidence, retain the 1,980,701.41 MWh difference as an unresolved descriptive accounting gap, not a calibrated physical model parameter.
+
+## Official EIA-930 reporting-definition check (primary documentation)
+
+The [EIA Hourly Electric Grid Monitor methodology](https://www.eia.gov/electricity/930-content/about.html) explicitly states that EIA-930 BA metering captures **only the generating units managed by, or visible to, the reporting BA**, and that its hourly generation aggregates may be lower than broader utility-scale plant generation publications. The same EIA guidance warns that pseudo-ties and dynamically scheduled units can change the relationship between the geographic power-system boundary and reported operating arrangements, and that source submissions may contain corrections or errors.
+
+**Implication for this case:** the 2024 EIA-923 wind generation total for 28 plants **associated with BPAT via EIA-860 plant attributes** is not independently proven to represent the exact generating fleet included in EIA-930 BPAT hourly WND reporting. The fact that 8,784 hourly observations exist and no BPAT-mapped WND source rows were excluded does not establish matching populations. **Reporting population mismatch is now supported as an EIA-documented mechanism, but is not yet proven as the numerical cause of this specific 1.981 TWh gap.**
+
+The next empirical test must compare plant-level BA operational visibility/dispatch or pseudo-tie status with the 28 mapped plant IDs. Do not use the ratio as a generation correction, line flow, curtailment rate or energy-loss estimate. Cite EIA definitions separately from observed metrics when reporting conclusions.
