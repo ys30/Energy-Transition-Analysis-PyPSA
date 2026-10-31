@@ -6,6 +6,7 @@ on:
     paths:
       - src/energy_transition/naris2024_zonal_network.py
       - src/energy_transition/naris2024_network_roundtrip.py
+      - src/energy_transition/naris2024_western_subset.py
       - .github/workflows/naris2024-zonal-network.yml
       - src/energy_transition/naris2024_network_acceptance.py
 permissions:
@@ -35,6 +36,12 @@ jobs:
           python -m energy_transition.naris2024_network_acceptance \
             --network outputs/naris2024_zonal_links.nc \
             --report outputs/naris2024_network_acceptance.json
+      - name: Export Western-only network using upstream membership
+        run: |
+          python -m energy_transition.naris2024_western_subset \
+            --input outputs/naris2024_zonal_links.nc \
+            --network outputs/naris2024_western_zonal_links.nc \
+            --report outputs/naris2024_western_subset_summary.json
       - uses: actions/upload-artifact@v4
         with:
           name: naris2024-source-backed-zonal-pypsa-network
@@ -43,3 +50,5 @@ jobs:
             outputs/naris2024_zonal_network_summary.json
             outputs/naris2024_network_acceptance.json
             outputs/naris2024_roundtrip_verification.json
+            outputs/naris2024_western_zonal_links.nc
+            outputs/naris2024_western_subset_summary.json
