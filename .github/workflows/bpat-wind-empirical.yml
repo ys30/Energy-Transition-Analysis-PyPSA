@@ -6,6 +6,7 @@ on:
     paths:
       - src/energy_transition/bpat_wind_reconciliation.py
       - tests/test_bpat_wind_reconciliation.py
+      - src/energy_transition/eia930_bpat_wind_download.py
       - .github/workflows/bpat-wind-empirical.yml
 permissions:
   contents: read
@@ -21,3 +22,36 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - name: Run plant-to-BA and annual-hourly reconciliation tests
         run: python -m pytest -q tests/test_bpat_wind_reconciliation.py
+  official-wind-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Require EIA API key
+        run: |
+          if [ -z "$EIA_API_KEY" ]; then
+            echo "::error::EIA_API_KEY is required for official BPAT wind data"
+            exit 1
+          fi
+      - name: Download observed BPAT wind and audit coverage
+        run: python -m energy_transition.eia930_bpat_wind_download --year 2024 --output outputs/bpat_wind_source
+      - name: Publish source completeness
+        if: success()
+        run: |
+          cat outputs/bpat_wind_source/coverage.json
+          echo '### Official EIA-930 BPAT wind source coverage' >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~json' >> "$GITHUB_STEP_SUMMARY"
+          cat outputs/bpat_wind_source/coverage.json >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia930-bpat-wnd-official-2024
+          path: outputs/bpat_wind_source/
+          retention-days: 90
