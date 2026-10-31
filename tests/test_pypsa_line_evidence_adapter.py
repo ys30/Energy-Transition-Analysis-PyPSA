@@ -7,7 +7,7 @@ from energy_transition.pypsa_line_evidence_adapter import add_screened_ba_lines
 def record():
     return pd.DataFrame([{
         "from_ba":"CISO","to_ba":"BPAT","capacity_mw":1000.,
-        "reactance_pu":0.1,"source_url":"https://example.org/provenance",
+        "reactance_pu":(8.0*1000.0/230.0**2),"base_mva":1000.,"source_url":"https://example.org/provenance",
         "source_year":2024,"reactance_ohm":8.,"resistance_ohm":0.1,
         "nominal_kv":230.,"evidence_status":"independently_verified"
     }])
@@ -108,4 +108,20 @@ def test_null_source_url_rejected_before_network_mutation():
     data.loc[0,"source_url"]=None
     with pytest.raises(ValueError,match="Traceable transmission evidence URLs"):
         add_screened_ba_lines(n,data)
+    assert not n.added
+
+
+def test_inconsistent_reactance_base_rejected_without_mutation():
+    n=FakeNetwork()
+    bad=record()
+    bad.loc[0,"reactance_pu"]=0.5
+    with pytest.raises(ValueError,match="Inconsistent branch reactance"):
+        add_screened_ba_lines(n,bad)
+    assert not n.added
+
+
+def test_missing_base_rejected_without_mutation():
+    n=FakeNetwork()
+    with pytest.raises(ValueError,match="base_mva"):
+        add_screened_ba_lines(n,record().drop(columns=["base_mva"]))
     assert not n.added
