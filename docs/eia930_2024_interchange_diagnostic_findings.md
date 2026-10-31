@@ -23,3 +23,17 @@ Both BAs fail the conservative interchange-calibration screening gate: BPAT fail
 
 ## Next verification
 Investigate BA reporting boundaries, alternate EIA-930 interchange series and generation definitions with primary EIA documentation; compare BPAT reporting to independently published Bonneville data before any correction. The diagnosis alone does not establish a cause.
+
+## Revalidated calibration gate (2026-10-30)
+
+Fresh [successful observed BA interchange audit #41163962193](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41163962193), after mixed-year and physically bounded quality guards:
+
+| Gate metric | BPAT | CISO |
+|---|---:|---:|
+| Annual complete triple share | 99.9886% | 96.4481% |
+| Official balance MAE / load | 61.0318% | 3.2742% |
+| Months below 99% coverage | 0 | 5 |
+| Months above 10% residual threshold | 12 | 0 |
+| Interchange calibration eligibility | **FAIL** | **FAIL** |
+
+These are empirical screening decisions on observed official EIA-930 data, **not CI failures**. BPAT fails balance residual quality despite excellent temporal coverage; CISO fails temporal coverage despite a relatively low mean residual. Neither data stream qualifies to calibrate real line ratings or historical net imports. A successful audit workflow means the gate executed correctly, not that the underlying observations passed it.
