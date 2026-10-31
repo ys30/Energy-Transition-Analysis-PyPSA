@@ -12,9 +12,19 @@ def validate_weights(mapping:dict, csv_bytes:bytes, *, tol:float=1e-6)->dict:
     if not rows or set(rows[0]) != {"state","zone","weight"}:
         raise ValueError("Expected CSV columns: state,zone,weight")
     targets={s:set(zones) for s,zones in mapping["state_to_all_membership_zones"].items()}
+    if not targets or any(not zones for zones in targets.values()):
+        raise ValueError("Each mapped state must have at least one target zone")
+    owners={}
+    for st,zones in targets.items():
+        for zone in zones:
+            if zone in owners and owners[zone] != st:
+                raise ValueError(f"Zone assigned to multiple states: {zone}")
+            owners[zone]=st
     seen=set()
     sums={s:0.0 for s in targets}
     for r in rows:
+        if None in r or any(value is None for value in r.values()):
+            raise ValueError("Malformed CSV row: unexpected or missing column")
         st,zone=r["state"].strip(),r["zone"].strip()
         if st not in targets or zone not in targets[st]:
             raise ValueError(f"Unknown state-zone pair: {st}/{zone}")
