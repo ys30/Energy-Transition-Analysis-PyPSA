@@ -1,0 +1,23 @@
+name: BPAT wind empirical reconciliation
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - src/energy_transition/bpat_wind_reconciliation.py
+      - tests/test_bpat_wind_reconciliation.py
+      - .github/workflows/bpat-wind-empirical.yml
+permissions:
+  contents: read
+jobs:
+  validate-reconciliation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Run plant-to-BA and annual-hourly reconciliation tests
+        run: python -m pytest -q tests/test_bpat_wind_reconciliation.py
