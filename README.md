@@ -9,6 +9,12 @@ A reproducible modeling and data-validation pipeline for western U.S. electricit
 
 > **Scientific status:** The 2024 CISO and BPAT pilots are **independent, gas-only engineering screening models**, not calibrated historical simulations or a coupled WECC network. Synthetic scenario figures and transmission test fixtures must not be interpreted as empirical energy-transition forecasts.
 
+## Recruiter quick view
+
+[**Quantitative evidence, four charts and A/B/C project differentiation**](docs/recruiter_evidence_brief.md)
+
+![2024 hourly dispatch model mismatch (not calibrated)](figures/portfolio_dispatch_mae_2024.svg)
+
 ## Results at a glance — verified evidence and modeled scenarios
 
 The figures below are versioned in this repository and distinguish official source measurements from assumption-dependent optimization.
