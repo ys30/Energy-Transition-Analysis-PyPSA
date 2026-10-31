@@ -1,0 +1,75 @@
+"""End-to-end CLI audit tests with synthetic CSV fixtures only."""
+import numpy as np
+import pandas as pd
+import pytest
+
+from energy_transition.multiyear_audit import run
+
+
+def make_inputs(tmp_path, years=(2023, 2024)):
+    frames = []
+    for year in years:
+        hours = pd.date_range(f"{year}-01-01", f"{year+1}-01-01",
+                              freq="h", inclusive="left", tz="UTC")
+        for state, mw in [("CA", 100.0), ("NV", 40.0)]:
+            frames.append(pd.DataFrame({
+                "timestamp_utc": hours, "state": state, "load_mw": mw}))
+    load = pd.concat(frames, ignore_index=True)
+    load_path = tmp_path / "load.csv"
+    weights_path = tmp_path / "weights.csv"
+    load.to_csv(load_path, index=False)
+    pd.DataFrame([
+        ("CA", "CA_A", 0.3), ("CA", "CA_B", 0.7),
+        ("NV", "NV_A", 1.0)], columns=["state", "zone", "weight"]
+    ).to_csv(weights_path, index=False)
+    return load, load_path, weights_path
+
+
+def test_two_year_cli_accounting_and_output(tmp_path):
+    _, load, weights = make_inputs(tmp_path)
+    out = tmp_path / "nested" / "audit.csv"
+    report = run(load, weights, out)
+    assert out.exists()
+    assert len(report) == 4
+    assert set(report["year"]) == {2023, 2024}
+    assert set(report.loc[report.year == 2024, "hours"]) == {8784}
+    assert set(report.loc[report.year == 2023, "hours"]) == {8760}
+    np.testing.assert_allclose(report["difference_mwh"], 0, atol=1e-7)
+    assert pd.read_csv(out).shape[0] == 4
+
+
+def test_missing_hour_rejected_without_output(tmp_path):
+    raw, load, weights = make_inputs(tmp_path, years=(2024,))
+    raw = raw.drop(raw.index[0])
+    raw.to_csv(load, index=False)
+    out = tmp_path / "audit.csv"
+    with pytest.raises(ValueError):
+        run(load, weights, out)
+    assert not out.exists()
+
+
+def test_shared_zone_rejected_without_output(tmp_path):
+    _, load, weights = make_inputs(tmp_path, years=(2024,))
+    pd.DataFrame([
+        ("CA", "shared", 1.0), ("NV", "shared", 1.0)],
+        columns=["state", "zone", "weight"]).to_csv(weights, index=False)
+    out = tmp_path / "audit.csv"
+    with pytest.raises(ValueError, match="more than one state"):
+        run(load, weights, out)
+    assert not out.exists()
+
+
+def test_duplicate_state_hour_rejected(tmp_path):
+    raw, load, weights = make_inputs(tmp_path, years=(2024,))
+    pd.concat([raw, raw.iloc[[0]]], ignore_index=True).to_csv(load, index=False)
+    with pytest.raises(ValueError, match="duplicate timestamp/state"):
+        run(load, weights, tmp_path / "audit.csv")
+
+
+def test_missing_state_year_rejected(tmp_path):
+    raw, load, weights = make_inputs(tmp_path)
+    raw = raw.loc[~((raw.state == "NV") &
+                    (raw.timestamp_utc.dt.year == 2023))]
+    raw.to_csv(load, index=False)
+    with pytest.raises(ValueError, match="incomplete state coverage"):
+        run(load, weights, tmp_path / "audit.csv")
