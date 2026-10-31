@@ -29,10 +29,10 @@ def preflight(root: Path) -> dict:
     if not config_file.is_file():
         raise ValueError("Copied workflow/config/config.default.yaml is missing; run init_pypsa_usa.sh")
     cfg = yaml.safe_load(config_file.read_text(encoding="utf-8"))
-    run = cfg.get("run", {})
+    actual_config = {**cfg.get("scenario", {}), **cfg.get("model_topology", {})}
     mismatch = {
-        key: (run.get(key), value)
-        for key, value in EXPECTED.items() if run.get(key) != value
+        key: (actual_config.get(key), value)
+        for key, value in EXPECTED.items() if actual_config.get(key) != value
     }
     if mismatch:
         raise ValueError(f"Pinned Western ReEDS run config mismatch: {mismatch}")
