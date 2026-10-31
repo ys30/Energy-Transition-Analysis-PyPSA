@@ -103,3 +103,10 @@ def test_out_of_year_hourly_observation_is_rejected():
     h=pd.concat([h,extra],ignore_index=True)
     with pytest.raises(ValueError,match="outside target year"):
         reconcile(pm,cw,h)
+
+
+def test_no_bpat_mapped_wind_plants_rejected():
+    pm,cw,h=fixtures()
+    cw.loc[cw.ba_code.eq("BPAT"),"ba_code"]="CISO"
+    with pytest.raises(ValueError,match="No EIA-923 wind plants mapped to BPAT"):
+        reconcile(pm,cw,h)
