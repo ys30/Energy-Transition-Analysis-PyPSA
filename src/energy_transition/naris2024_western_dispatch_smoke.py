@@ -38,6 +38,18 @@ def solve_western(network_path: Path) -> dict:
         raise ValueError("Directional NARIS Link rating violation")
     if abs(total_demand-total_gen)>1e-3:
         raise ValueError("System generation/load mismatch")
+    # Validate nodal conservation, not only system-wide totals. Each directed
+    # Link exports at bus0 and imports at bus1 (unit efficiency here).
+    nodal_residuals = {}
+    for bus in n.buses.index:
+        generation = float(n.generators_t.p.loc[t, n.generators.bus == bus].sum())
+        demand = float(n.loads_t.p.loc[t, n.loads.bus == bus].sum())
+        exports = float(n.links_t.p0.loc[t, n.links.bus0 == bus].sum())
+        imports = float(n.links_t.p1.loc[t, n.links.bus1 == bus].sum())
+        nodal_residuals[bus] = generation - demand - exports - imports
+    max_nodal_residual = max(abs(v) for v in nodal_residuals.values())
+    if max_nodal_residual > 1e-3:
+        raise ValueError(f"Nodal conservation violated: {max_nodal_residual} MW")
     return {"buses":len(n.buses),"directional_links":len(n.links),
             "synthetic_demand_mw":total_demand,"optimized_generation_mw":total_gen,
             "hypothetical_low_cost_generation_mw":float(n.generators_t.p.loc[t,"hypothetical_low_cost_supply"]),
@@ -45,6 +57,7 @@ def solve_western(network_path: Path) -> dict:
             "max_link_utilization_fraction":float((flows/ratings).max()),
             "binding_link_count":int(np.sum(np.isclose(flows,ratings,atol=1e-4,rtol=1e-7))),
             "solver_status":status,"solver_condition":condition,
+            "max_absolute_nodal_balance_residual_mw":max_nodal_residual,
             "assumptions":"100 MW demand and 100 MW backup supply per bus; 1 vs 100 marginal cost; one-hour illustrative experiment",
             "source_backed":"NARIS2024 zonal directed transfer interface capacities",
             "historical_calibrated":False,"physical_ac_power_flow":False}
