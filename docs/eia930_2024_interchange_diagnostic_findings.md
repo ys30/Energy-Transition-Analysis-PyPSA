@@ -37,3 +37,12 @@ Fresh [successful observed BA interchange audit #41163962193](https://github.com
 | Interchange calibration eligibility | **FAIL** | **FAIL** |
 
 These are empirical screening decisions on observed official EIA-930 data, **not CI failures**. BPAT fails balance residual quality despite excellent temporal coverage; CISO fails temporal coverage despite a relatively low mean residual. Neither data stream qualifies to calibrate real line ratings or historical net imports. A successful audit workflow means the gate executed correctly, not that the underlying observations passed it.
+
+## Verified machine-readable calibration blocker artifact
+
+The [observed-data workflow #41166102963](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41166102963) successfully produced `interchange_calibration_blockers.json` alongside its original 2024 EIA-930 audit files. Its generated records independently confirm these **screening failures**:
+
+- **BPAT:** `screening_passed=false`, `physical_calibration_verified=false`, blocker `official_balance_residual`. Compare the definitions of reported demand, generation and signed total interchange against independent BA operational publications.
+- **CISO:** `screening_passed=false`, `physical_calibration_verified=false`, blocker `temporal_coverage`. Trace absent or nonmatching UTC D/NG/TI triple observations by field; do not zero-fill missing data.
+
+The corresponding regression tests passed [CI #41166110708](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41166110708). A completed GitHub Actions run means the diagnostic was generated successfully; it is not a pass for real-grid calibration.
