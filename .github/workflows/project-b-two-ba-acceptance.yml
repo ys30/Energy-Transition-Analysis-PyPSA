@@ -47,6 +47,7 @@ jobs:
               "CISO":"eia930-full-hour-pilot.yml",
               "BPAT":"eia930-bpat-full-hour-pilot.yml",
           }
+          names=tuple(workflows)
           by_ba={}
           for ba,filename in workflows.items():
               successful=[]
