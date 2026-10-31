@@ -16,7 +16,9 @@ from .zonal_conservation import allocate_hourly_load, validate_utc_year, conserv
 from .efs_geographic_provenance_gate import assess_weight_provenance
 
 
-def run(load_path, weight_path, output_path, *, mapping_path=None, manifest_path=None):
+def run(load_path, weight_path, output_path, *, mapping_path=None, manifest_path=None, require_provenance=False):
+    if require_provenance and (mapping_path is None or manifest_path is None):
+        raise ValueError('Production mode requires both geographic mapping and provenance manifest')
     if (mapping_path is None) != (manifest_path is None):
         raise ValueError('mapping and manifest must be provided together')
     if mapping_path is not None:
@@ -74,8 +76,9 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--mapping", default=None, help="Require source-backed mapping and weights gate")
     parser.add_argument("--manifest", default=None, help="SHA-256 and geography metadata manifest")
+    parser.add_argument("--require-provenance", action="store_true", help="Fail closed unless geographic mapping and manifest are supplied")
     args = parser.parse_args()
-    print(run(args.load, args.weights, args.out, mapping_path=args.mapping, manifest_path=args.manifest).to_string(index=False))
+    print(run(args.load, args.weights, args.out, mapping_path=args.mapping, manifest_path=args.manifest, require_provenance=args.require_provenance).to_string(index=False))
 
 
 if __name__ == "__main__":
