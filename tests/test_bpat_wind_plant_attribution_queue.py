@@ -23,3 +23,18 @@ def test_review_queue_rejects_no_bpat_plants():
                          "net_generation_mwh":[10.0]})
     with pytest.raises(ValueError,match="Missing or duplicate"):
         review_queue(plants)
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
+def test_review_queue_rejects_nonfinite_annual_generation(invalid):
+    plants=pd.DataFrame({"plant_id":["1"],"ba_code":["BPAT"],
+                         "net_generation_mwh":[invalid]})
+    with pytest.raises(ValueError,match="Non-finite"):
+        review_queue(plants)
+
+
+def test_review_queue_rejects_negative_annual_generation():
+    plants=pd.DataFrame({"plant_id":["1","2"],"ba_code":["BPAT","BPAT"],
+                         "net_generation_mwh":[100.0,-10.0]})
+    with pytest.raises(ValueError,match="Negative annual"):
+        review_queue(plants)
