@@ -28,7 +28,6 @@ def validate_weights(mapping:dict, csv_bytes:bytes, *, tol:float=1e-6)->dict:
     if missing: raise ValueError(f"Missing target state-zone weights: {missing}")
     bad={s:v for s,v in sums.items() if abs(v-1)>tol}
     if bad: raise ValueError(f"State demand fractions fail conservation: {bad}")
-    active=set(mapping["state_to_network_zones"].get(s,[])[i] for s in [] for i in [])
     expected={z for zones in targets.values() for z in zones}
     available={z for zones in mapping["state_to_network_zones"].values() for z in zones}
     missing_buses=sorted(expected-available)
