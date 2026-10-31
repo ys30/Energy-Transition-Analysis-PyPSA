@@ -9,6 +9,17 @@ A reproducible modeling and data-validation pipeline for western U.S. electricit
 
 > **Scientific status:** The 2024 CISO and BPAT pilots are **independent, gas-only engineering screening models**, not calibrated historical simulations or a coupled WECC network. Synthetic scenario figures and transmission test fixtures must not be interpreted as empirical energy-transition forecasts.
 
+## Project A → B integration status (audited)
+
+[**A contribution, repository boundaries, and revised B milestone progress**](docs/A_TO_B_CONTRIBUTION_AND_PROGRESS_AUDIT.md)
+
+Project A (`ys30/lut-to-pypsa`) remains an **independent global annual
+LUT-DEMAND methodology demonstration**. Its authentic data is continent-level
+electricity energy-service demand; **no direct state-hour Western EFS input,
+actual ReEDS LAF weights, or empirical Western solve has been admitted into B
+from A**. B reuses methodological lessons, not A's regional quantities.
+Engineering CI success must not be conflated with research calibration.
+
 ## Recruiter quick view
 
 [**Quantitative evidence, four charts and A/B/C project differentiation**](docs/recruiter_evidence_brief.md)
