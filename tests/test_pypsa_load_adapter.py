@@ -85,3 +85,22 @@ def test_whole_hour_missing_rejected(tmp_path):
     pd.concat([pd.read_csv(zonal), data], ignore_index=True).to_csv(zonal, index=False)
     with pytest.raises(ValueError, match="non-contiguous hourly"):
         build_load_matrix(zonal, mapping)
+
+
+def test_complete_utc_leap_year_load_matrix(tmp_path):
+    zonal, mapping = inputs(tmp_path)
+    hours = pd.date_range("2024-01-01", "2025-01-01", freq="h", inclusive="left", tz="UTC")
+    pd.DataFrame({
+        "timestamp_utc": [t.isoformat() for t in hours for _ in ("A", "B")],
+        "zone": ["A", "B"] * len(hours),
+        "load_mw": [10.0, 20.0] * len(hours),
+    }).to_csv(zonal, index=False)
+    matrix = build_load_matrix(zonal, mapping, require_complete_years=True)
+    assert len(matrix) == 8784
+    assert matrix.to_numpy().sum() == pytest.approx(8784 * 30.0)
+
+
+def test_partial_year_blocked_in_strict_mode(tmp_path):
+    zonal, mapping = inputs(tmp_path)
+    with pytest.raises(ValueError, match="missing, duplicate, unordered or out-of-year hours"):
+        build_load_matrix(zonal, mapping, require_complete_years=True)
