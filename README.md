@@ -63,6 +63,8 @@ The last command generates **illustrative**, hardcoded 2025–2040 scenario plot
 
 **Not yet verified:** authenticated **historical 2024 WECC branch topology, impedance and thermal ratings**; multi-area, physically calibrated network dispatch; CISO/BPAT interchange reconciliation; investment/renewables/storage system-wide benefit claims. The [transmission evidence audit](docs/wecc_hifld_transmission_source_audit.md) explains why a future WECC planning archive or HIFLD geometry cannot simply be renamed a historical 2024 electrical network.
 
+**Open network pathway identified:** [PyPSA-USA western planning network integration route](docs/open_western_network_pypsa_usa_path.md) offers a public ReEDS/NARIS-derived zonal network alternative to unavailable WECC ADS archives. **Not yet downloaded or solved in this repository.** Zonal transmission links must not be described as authenticated 2024 AC branches.
+
 **Next milestones:** (1) resolve plant/generator reporting-boundary attribution for the BPAT wind discrepancy; (2) inspect authorized WECC planning or historical network input files and their physical parameters; (3) build and validate a clearly labeled interconnected PyPSA case; (4) rerun storage/renewables scenarios and quantify uncertainty once the model's historical and source requirements pass.
 
 ## Documentation and code navigation
