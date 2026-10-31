@@ -10,6 +10,7 @@ on:
       - 'src/energy_transition/interchange_calibration_blockers.py'
       - 'src/energy_transition/eia930_triple_missingness.py'
       - 'src/energy_transition/eia930_gap_windows.py'
+      - 'src/energy_transition/eia930_gap_window_validation.py'
 jobs:
   audit:
     runs-on: ubuntu-latest
@@ -38,6 +39,12 @@ jobs:
           python -m energy_transition.eia930_gap_windows \
             --hourly outputs/eia930_balance/hourly_balance_audit.csv \
             --output outputs/eia930_balance/missing_field_utc_windows.csv
+      - name: Verify missing intervals against hourly observations
+        run: |
+          python -m energy_transition.eia930_gap_window_validation \
+            --hourly outputs/eia930_balance/hourly_balance_audit.csv \
+            --windows outputs/eia930_balance/missing_field_utc_windows.csv \
+            --output outputs/eia930_balance/missing_window_validation.json
       - name: Evaluate BA interchange calibration eligibility
         run: |
           python -m energy_transition.interchange_calibration_gate \
