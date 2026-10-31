@@ -72,7 +72,7 @@ def main():
     plants.to_csv(a.output / f"plant_ba_raw_audit_{a.year}.csv", index=False)
     valid = plants.loc[plants.crosswalk_qc.eq("valid") & plants.state.isin(WESTERN_STATES)]
     valid = valid.drop_duplicates(["plant_id", "ba_code"])
-    valid[["plant_id", "ba_code"]].to_csv(a.output / f"plant_ba_crosswalk_{a.year}.csv", index=False)
+    # Preserve the official annual crosswalk vintage for downstream reconciliation.\n    crosswalk_export = valid[["plant_id", "ba_code"]].copy()\n    crosswalk_export["mapping_year"] = a.year\n    crosswalk_export.to_csv(a.output / f"plant_ba_crosswalk_{a.year}.csv", index=False)
     generators = pd.read_csv(a.generators, dtype={"plant_id": "string", "generator_id": "string"})
     joined = join_verified_crosswalk(generators, valid[["plant_id", "ba_code"]])
     joined.to_csv(a.output / f"generator_ba_audit_{a.year}.csv", index=False)
