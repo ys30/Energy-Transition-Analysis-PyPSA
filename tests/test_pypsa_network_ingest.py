@@ -69,3 +69,24 @@ def test_nondatetime_network_snapshots_rejected_before_mutation():
     with pytest.raises(ValueError, match="DatetimeIndex"):
         attach_bus_loads(network, demand)
     assert not network.calls
+
+
+def test_existing_bus_load_rejected_even_when_name_different():
+    network = FakeNetwork()
+    network.loads.loc["legacy_load", "bus"] = "bus_a"
+    with pytest.raises(ValueError, match="double-count"):
+        attach_bus_loads(network, matrix(network))
+    assert not network.calls
+
+
+def test_explicit_existing_bus_override_is_opt_in():
+    network = FakeNetwork()
+    network.loads.loc["legacy_load", "bus"] = "bus_a"
+    names = attach_bus_loads(network, matrix(network), allow_existing_bus_loads=True)
+    assert names == ["demand_bus_a", "demand_bus_b"]
+
+
+def test_existing_load_on_other_bus_does_not_block():
+    network = FakeNetwork()
+    network.loads.loc["unrelated", "bus"] = "bus_c"
+    assert len(attach_bus_loads(network, matrix(network))) == 2
