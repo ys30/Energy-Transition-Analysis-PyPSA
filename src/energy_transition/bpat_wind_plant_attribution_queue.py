@@ -21,12 +21,19 @@ def review_queue(plant_totals: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("Missing source generation")
     p=p.sort_values("net_generation_mwh",ascending=False).reset_index(drop=True)
     p["priority_rank"]=range(1,len(p)+1)
+    total=float(p.net_generation_mwh.sum())
+    if not total>0:
+        raise ValueError("BPAT plant generation total must be positive for prioritization")
+    p["share_of_mapped_bpat_wind"]=p.net_generation_mwh/total
+    p["cumulative_share_of_mapped_bpat_wind"]=p.net_generation_mwh.cumsum()/total
+    p["review_tier"]=["first_5" if n<=5 else "next_5" if n<=10 else "remaining" for n in p.priority_rank]
     p["annual_ba_mapping"]="BPAT"
     p["eia930_operational_ba_verified"]=False
     p["independent_source_required"]=True
     p["eia930_plant_specific_generation_mwh"]=pd.NA
     p["status"]="unresolved_operational_attribution"
-    return p[["priority_rank","plant_id","net_generation_mwh","annual_ba_mapping",
+    return p[["priority_rank","review_tier","plant_id","net_generation_mwh",
+              "share_of_mapped_bpat_wind","cumulative_share_of_mapped_bpat_wind","annual_ba_mapping",
               "eia930_operational_ba_verified","independent_source_required",
               "eia930_plant_specific_generation_mwh","status"]]
 
