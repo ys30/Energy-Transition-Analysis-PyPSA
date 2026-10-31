@@ -21,7 +21,11 @@ def attach_bus_loads(network, load_matrix, *, prefix="demand_", allow_existing_b
         raise ValueError("load_matrix snapshots must be UTC")
     if not isinstance(network.snapshots, pd.DatetimeIndex):
         raise ValueError("network snapshots must be a DatetimeIndex")
-    if not load_matrix.index.equals(network.snapshots):
+    # PyPSA requires timezone-naive snapshots. They are interpreted as UTC
+    # only at this boundary, after the upstream matrix has proven UTC awareness.
+    expected = (load_matrix.index.tz_localize(None)
+                if network.snapshots.tz is None else load_matrix.index)
+    if not expected.equals(network.snapshots):
         raise ValueError("load snapshots must exactly match network snapshots")
     missing = set(load_matrix.columns) - set(network.buses.index)
     if missing:
@@ -42,5 +46,6 @@ def attach_bus_loads(network, load_matrix, *, prefix="demand_", allow_existing_b
             raise ValueError(f"existing bus loads would double-count demand: {sorted(occupied)}")
     # Validate all inputs before mutating the network.
     for bus, name in zip(load_matrix.columns, names):
-        network.add("Load", name, bus=bus, p_set=load_matrix[bus])
+        values_for_network = pd.Series(load_matrix[bus].to_numpy(), index=network.snapshots)
+        network.add("Load", name, bus=bus, p_set=values_for_network)
     return names
