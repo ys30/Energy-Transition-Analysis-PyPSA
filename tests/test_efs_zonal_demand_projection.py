@@ -56,3 +56,8 @@ def test_zone_cannot_be_shared_between_states():
                {"state":"NM","zone":"p8","weight":1}]
     with pytest.raises(ValueError, match="multiple states"):
         allocate_state_demand(demand, weights)
+
+
+def test_empty_state_demand_is_explicitly_rejected():
+    with pytest.raises(ValueError, match="No state demand snapshots"):
+        allocate_state_demand([], [{"state":"CA","zone":"p8","weight":1}])
