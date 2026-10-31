@@ -71,7 +71,9 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
     result={
         "year":year,"eia923_bpat_wind_mwh":float(bpat.net_generation_mwh.sum()),
         "eia923_unmatched_wind_mwh":float(unmatched.net_generation_mwh.sum()),
+        "eia923_unmatched_scope":"All source wind plants without a qualifying EIA860 crosswalk, NOT BPAT-attributed wind",
         "eia923_other_ba_wind_mwh":float(reassigned.net_generation_mwh.sum()),
+        "eia923_other_ba_scope":"Other BAs only, not part of BPAT discrepancy",
         "eia923_other_ba_wind_breakdown_mwh":{str(row.ba_code):float(row.net_generation_mwh) for row in other_ba_totals.itertuples()},
         "eia923_unmatched_wind_top_plants_mwh":{str(row.plant_id):float(row.net_generation_mwh) for row in unmatched_plant_totals.head(20).itertuples()},
         "eia923_bpat_plant_count":int(bpat.plant_id.nunique()),
@@ -79,6 +81,7 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
         "eia930_bpat_wnd_mwh":float(observed.value.sum()),
         "eia930_observed_hours":len(observed),"expected_hours":expected,
         "eia930_coverage_complete":bool(len(observed)==expected),
+        "eia923_to_eia930_bpat_wind_ratio":float(bpat.net_generation_mwh.sum()/observed.value.sum()) if observed.value.sum()!=0 else None,
         "signed_difference_eia923_minus_eia930_mwh":float(bpat.net_generation_mwh.sum()-observed.value.sum()),
         "caution":"Unmatched and other-BA plant totals are diagnostics, not proven explanations of the signed difference."
     }
