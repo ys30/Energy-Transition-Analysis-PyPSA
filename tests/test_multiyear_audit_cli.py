@@ -126,3 +126,28 @@ def test_non_utc_offset_rejected(tmp_path):
     raw.to_csv(load, index=False)
     with pytest.raises(ValueError, match="explicit UTC"):
         run(load, weights, tmp_path / "audit.csv")
+
+
+def test_negative_load_rejected(tmp_path):
+    raw, load, weights = make_inputs(tmp_path, years=(2024,))
+    raw.loc[0, "load_mw"] = -1.0
+    raw.to_csv(load, index=False)
+    with pytest.raises(ValueError, match="invalid load"):
+        run(load, weights, tmp_path / "audit.csv")
+
+
+def test_weight_sum_mismatch_rejected(tmp_path):
+    _, load, weights = make_inputs(tmp_path, years=(2024,))
+    w = pd.read_csv(weights)
+    w.loc[w.zone == "CA_A", "weight"] = 0.2
+    w.to_csv(weights, index=False)
+    with pytest.raises(ValueError, match="do not sum to one"):
+        run(load, weights, tmp_path / "audit.csv")
+
+
+def test_partial_year_rejected(tmp_path):
+    raw, load, weights = make_inputs(tmp_path, years=(2024,))
+    raw = raw.loc[raw.timestamp_utc.dt.month <= 6]
+    raw.to_csv(load, index=False)
+    with pytest.raises(ValueError, match="out-of-year hours"):
+        run(load, weights, tmp_path / "audit.csv")
