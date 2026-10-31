@@ -79,6 +79,20 @@ jobs:
         run: |
           python -m energy_transition.eia860_capacity --year 2024 --output outputs/eia860
           python -m energy_transition.eia860_plant_ba --year 2024 --generators outputs/eia860/western_state_generators_2024.csv --output outputs/eia860
+      - name: Record official input coverage and prevent partial EIA-923 totals from being treated as complete
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          w=json.loads(Path("outputs/bpat_wind_source/coverage.json").read_text())
+          e=json.loads(Path("outputs/eia923/eia923_source_2024.json").read_text())
+          print("BPAT WND hourly coverage:",json.dumps(w,indent=2))
+          print("EIA-923 source normalization coverage:",json.dumps(e,indent=2))
+          if not w["complete"]:
+              raise ValueError("Incomplete official EIA-930 BPAT wind year; cannot compare annual totals")
+          if e["excluded_valid_numeric_cells"] or e["unmapped_fuel_cells"]:
+              print("::warning::EIA-923 has excluded or unmapped source cells; downstream annual wind comparison is conditional on source completeness.")
+          PY
       - name: Reconcile only if official BPAT wind hourly coverage is complete
         run: |
           python -m energy_transition.bpat_wind_reconciliation --plant-month outputs/eia923/eia923_normalized_2024.csv --plant-ba outputs/eia860/plant_ba_crosswalk_2024.csv --hourly outputs/bpat_wind_source/eia930_bpat_wnd_hourly.csv --year 2024 --output outputs/bpat_wind_reconciliation
@@ -97,5 +111,10 @@ jobs:
           path: |
             outputs/bpat_wind_reconciliation/
             outputs/eia923/eia923_source_2024.json
+            outputs/eia923/eia923_excluded_monthly_cells_2024.csv
+            outputs/eia923/eia923_unmapped_fuel_cells_2024.csv
+            outputs/eia923/eia923_excluded_numeric_cells_2024.csv
+            outputs/eia860/plant_ba_crosswalk_2024.csv
+            outputs/eia860/plant_ba_raw_audit_2024.csv
             outputs/eia860/ba_crosswalk_manifest_2024.json
           retention-days: 90
