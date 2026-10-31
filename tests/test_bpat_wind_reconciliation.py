@@ -94,3 +94,12 @@ def test_multiple_monthly_records_aggregate_to_one_bpat_plant():
     result,_=reconcile(pm,cw,h)
     assert result["eia923_bpat_wind_plant_contributions_mwh"]["101"]==125.0
     assert result["eia923_bpat_plant_count"]==1
+
+
+def test_out_of_year_hourly_observation_is_rejected():
+    pm,cw,h=fixtures()
+    extra=h.iloc[[0]].copy()
+    extra["period"]=pd.Timestamp("2025-01-01T00:00:00Z")
+    h=pd.concat([h,extra],ignore_index=True)
+    with pytest.raises(ValueError,match="outside target year"):
+        reconcile(pm,cw,h)
