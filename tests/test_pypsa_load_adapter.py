@@ -48,3 +48,27 @@ def test_missing_zone_hour_rejected(tmp_path):
     data.to_csv(zonal, index=False)
     with pytest.raises(ValueError, match="missing zone-hour"):
         build_load_matrix(zonal, mapping)
+
+
+def test_inventory_can_confirm_existing_network_bus_ids(tmp_path):
+    zonal, mapping = inputs(tmp_path)
+    inventory = tmp_path / "buses.csv"
+    pd.DataFrame({"bus": ["bus_a", "bus_b", "unused_bus"]}).to_csv(inventory, index=False)
+    result = build_load_matrix(zonal, mapping, network_buses_csv=inventory)
+    assert list(result.columns) == ["bus_a", "bus_b"]
+
+
+def test_inventory_rejects_fictional_network_bus_ids(tmp_path):
+    zonal, mapping = inputs(tmp_path)
+    inventory = tmp_path / "buses.csv"
+    pd.DataFrame({"bus": ["bus_a"]}).to_csv(inventory, index=False)
+    with pytest.raises(ValueError, match="absent network buses"):
+        build_load_matrix(zonal, mapping, network_buses_csv=inventory)
+
+
+def test_inventory_rejects_duplicate_bus_ids(tmp_path):
+    zonal, mapping = inputs(tmp_path)
+    inventory = tmp_path / "buses.csv"
+    pd.DataFrame({"bus": ["bus_a", "bus_a", "bus_b"]}).to_csv(inventory, index=False)
+    with pytest.raises(ValueError, match="duplicate network bus"):
+        build_load_matrix(zonal, mapping, network_buses_csv=inventory)
