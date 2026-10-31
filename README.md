@@ -1,55 +1,59 @@
-# Energy Transition Analysis — PyPSA-ready Portfolio
+# Western US Energy Transition Modeling | PyPSA + EIA
 
 [![CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/ci.yml/badge.svg)](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/ci.yml)
+[![BPAT empirical data](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/bpat-wind-empirical.yml/badge.svg)](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/bpat-wind-empirical.yml)
 
-A reproducible, visualization-first study of **illustrative** electricity transitions across 2025–2040. It reports generation mix, renewable generation share, and operational CO₂ emissions. The analytical pipeline is designed for future integration with PyPSA optimization outputs.
+**Portfolio project | Python · PyPSA · HiGHS · pandas · U.S. EIA data · reproducible GitHub Actions**
 
-> **Evidence boundary:** All current scenario values are synthetic assumptions, **not empirical energy statistics and not PyPSA optimization results**. The title indicates the intended modeling ecosystem, not a claim that PyPSA currently solves these scenarios.
+A reproducible modeling and data-validation pipeline for western U.S. electricity-transition research. The strongest delivered components are **hourly balancing-authority dispatch prototypes, official EIA data ingestion and reconciliation, automated data-quality audits, and PyPSA network optimization tests**. Each finding is linked to a verified run or documented limitation.
 
-## Questions
+> **Scientific status:** The 2024 CISO and BPAT pilots are **independent, gas-only engineering screening models**, not calibrated historical simulations or a coupled WECC network. Synthetic scenario figures and transmission test fixtures must not be interpreted as empirical energy-transition forecasts.
 
-1. How does the generation mix change under a stylized transition?
-2. What is the renewable share of annual generation?
-3. How do operational emissions change using explicitly documented factors?
+## Four recruiter-ready work samples
 
-## Reproduce
+| Work sample | What was implemented | Verified evidence | Status |
+|---|---|---|---|
+| **1. Reproducible Python research engineering** | Installable package, automated tests, provenance-aware source handling, CI workflows, audit artifacts and plotting | [CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/ci.yml) · [reproducibility guide](docs/reproduce_2024_two_ba_hourly_baseline.md) | **Working** |
+| **2. 2024 hourly PyPSA modeling** | Separate CISO/BPAT, 8,784-hour gas-only dispatch pilots; benchmark against observed BA net generation with no gap imputation | [numerical acceptance](docs/verified_2024_two_ba_hourly_numerical_acceptance.md) | **Engineering baseline verified; not calibrated** |
+| **3. Official EIA-930 quality and BA accounting audits** | Demand (D), generation (NG), total interchange (TI), hourly coverage, gap-window validation, and conservative calibration eligibility gates | [2024 BA diagnostic evidence](docs/eia930_2024_interchange_diagnostic_findings.md) · [audit workflow](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/eia930-balance-audit.yml) | **Observed-data audit verified; calibration gates fail** |
+| **4. BPAT wind cross-source reconciliation** | Official EIA-923 generation × EIA-860 plant mapping × EIA-930 hourly WND; EIA-930A reporting-population cross-check and 28-plant review queue | [official 2024 cross-source reconciliation](docs/verified_bpat_wind_end_to_end_official_2024.md) · [EIA-930A population check](docs/verified_bpat_wind_eia930a_population_2024.md) | **Pipeline verified; accounting gap unresolved** |
+
+### Selected measured results
+
+- **Chronological modeling:** 8,784 hourly snapshots per 2024 pilot; observed NG comparison pairs **8,760 hours for CISO** and **8,784 for BPAT**. Model-versus-observed NG MAE: **4,190.52 MW (CISO)** and **2,463.95 MW (BPAT)**. These errors reflect simplified gas-only dispatch versus *total observed* BA generation; they are **not acceptable calibrated error claims**. [Verified acceptance](docs/verified_2024_two_ba_hourly_numerical_acceptance.md).
+- **Data QA:** For the EIA-930 D/NG/TI triple audit, CISO has **312 missing interchange hours**, including **24 hours also missing NG**; BPAT has **one missing TI hour**. Exact contiguous UTC windows and independent window-consistency checks were verified in the [interchange audit](docs/eia930_2024_interchange_diagnostic_findings.md). **Neither BA passes the historical interchange calibration screening gate.**
+- **Wind reconciliation:** Qualified BPAT-attributed EIA-923 wind totals **8,820,435.41 MWh** versus EIA-930 BPAT WND **6,839,734 MWh** (signed difference **1,980,701.41 MWh**); full-year EIA-930 WND has 8,784 recorded hours. No excluded EIA-923 wind source records intersect the matched BPAT plant population in the verified audit. [Evidence](docs/verified_bpat_wind_end_to_end_official_2024.md).
+- **Independent source-population discriminator:** Of **28** EIA-923/EIA-860 BPAT-associated wind plant IDs, **20** occur on BPAT's official EIA-930A Schedule 2 reporting inventory and **8 do not**. The eight plants account for **1,802,779 MWh** of qualified EIA-923 generation. **This is evidence of a population-boundary issue, not a verified allocation of the 1.981 TWh difference**; EIA-930A includes generator-level reporting and plant IDs alone cannot reconcile all differences. [EIA-930A audit](docs/verified_bpat_wind_eia930a_population_2024.md).
+
+## A separate solver-verified PyPSA `Line` example
+
+A deliberately **synthetic** two-bus PyPSA + HiGHS linear-optimization sensitivity test demonstrates congestion-driven dispatch. A line rated at **25 / 50 / 125 MW** carries **25 / 50 / 100 MW**, respectively, and local backup dispatch falls **75 / 50 / 0 MW** for 100 MW load. This confirms solver integration, **not** real CISO–BPAT transmission capability or historical savings. [Verified line sweep](docs/verified_synthetic_ac_line_sweep.md).
+
+## Run locally
 
 ```bash
+git clone https://github.com/ys30/Energy-Transition-Analysis-PyPSA.git
+cd Energy-Transition-Analysis-PyPSA
 python -m pip install -e '.[dev]'
 python -m pytest -q
 python -m energy_transition --output outputs
-jupyter lab
 ```
 
-Figures: `outputs/generation_mix.png`, `outputs/renewable_share.png`, and `outputs/emissions.png`. Numerical data: `outputs/metrics.csv` and `outputs/generation_twh.csv`. The CI workflow saves generated figures as an artifact.
+The last command generates **illustrative**, hardcoded 2025–2040 scenario plots (`outputs/generation_mix.png`, `outputs/renewable_share.png`, `outputs/emissions.png`) that **are not outputs from solved historical PyPSA energy-transition scenarios**. For reproducible empirical workflows, including API-key requirements and different temporal models, follow the [Western US EIA-930 study guide](docs/western_us_eia930.md) and [hourly pilot instructions](docs/reproduce_2024_two_ba_hourly_baseline.md). Official data workflows run in GitHub Actions and retain versioned audit artifacts.
 
-## Assumptions and methods
+## Research boundaries and roadmap
 
-Annual generation totals are fixed at 100 TWh. Synthetic coal, gas, wind and solar generation for 2025/2030/2035/2040 are hardcoded in `scenario_data()`. Renewable share = (wind + solar) / total generation. Emissions = sum(generation in TWh × emissions factor in tCO₂/MWh), yielding MtCO₂. Illustrative direct operational factors are coal 0.9 and gas 0.4 tCO₂/MWh, wind and solar zero. These are **illustrative factors, not measured regional lifecycle intensities**. No dispatch, network, investment, or policy optimization is performed.
+**Verified:** source-aware hourly ingestion and audits, two independent simplified 2024 BA pilots, BPAT wind plant crosswalk/reconciliation, EIA-930A population audit, and a synthetic PyPSA `Line` optimizer example.
 
-## Next research phase
+**Not yet verified:** authenticated **historical 2024 WECC branch topology, impedance and thermal ratings**; multi-area, physically calibrated network dispatch; CISO/BPAT interchange reconciliation; investment/renewables/storage system-wide benefit claims. The [transmission evidence audit](docs/wecc_hifld_transmission_source_audit.md) explains why a future WECC planning archive or HIFLD geometry cannot simply be renamed a historical 2024 electrical network.
 
-Replace illustrative annual generation with a **versioned PyPSA output adapter** (`generators_t.p` × snapshot weights, technology mapping, carrier emission factors, and region definitions); then compare scenarios with identical assumptions and explicitly separate solved outputs from scenario inputs. Add system costs, capacity expansion, curtailment, spatial analysis and uncertainty intervals only when supported by actual model outputs.
+**Next milestones:** (1) resolve plant/generator reporting-boundary attribution for the BPAT wind discrepancy; (2) inspect authorized WECC planning or historical network input files and their physical parameters; (3) build and validate a clearly labeled interconnected PyPSA case; (4) rerun storage/renewables scenarios and quantify uncertainty once the model's historical and source requirements pass.
 
-## Repository contents
+## Documentation and code navigation
 
-- `src/energy_transition/analysis.py`: scenario data, metrics, plots
-- `notebooks/01_analysis.ipynb`: interactive execution
-- `tests/`: regression and figure-generation checks
-- `.github/workflows/ci.yml`: automated testing and figure artifacts
-
-## Interpretation
-
-Figures are examples of **how** transition results can be communicated, not evidence of an actual transition forecast.
-
-
-## New: Western US EIA-930 demand-driven PyPSA workflow (experimental)
-
-**Research verification status:** [Project B evidence and acceptance gates](docs/project_b_validation_status.md). Implementation and regression-test commits do not establish a passing official-data workflow. The representative-month-hour dispatch model and separate chronological storage scenarios have different temporal interpretations.
-
-See [the Western US EIA-930 study guide](docs/western_us_eia930.md) for download and optimization commands, geographic coverage, assumptions, and evidence limits. This experimental workflow is separate from the synthetic plots above. The repository now includes reported 2024 EIA-930 demand and renewable-input audits, a full-leap-year storage optimization under three explicitly labeled renewable gap-fill scenarios, and EIA-860/EIA-923 BA technology qualification checks. These are **scenario-conditioned model results**, not an independently validated historical forecast or a demonstrated profitable battery investment. The observed 2024 renewable input series contains 31 incomplete hours, so a complete-year solve necessarily uses disclosed missing-data assumptions. A BPAT wind discrepancy between EIA-923 plant generation and EIA-930 BA reporting remains under investigation; BA accounting boundaries and qualified plant matching do not establish complete BA coverage. The separate EIA-923-versus-PyPSA annual dispatch validation should only be called successful after its GitHub Actions run and artifacts have been inspected.
-
-
-## Verified 2024 chronological engineering baseline (CISO and BPAT)
-
-The independent gas-only PyPSA 2024 **8,784-hour** CISO and BPAT pilots have verified same-commit GitHub Actions execution and artifact-level numerical validation. See [reproduction instructions](docs/reproduce_2024_two_ba_hourly_baseline.md) and [verified numerical acceptance](docs/verified_2024_two_ba_hourly_numerical_acceptance.md). The CISO observed EIA-930 net-generation comparison matches 8,760 hours (24 missing in one UTC block); BPAT matches 8,784. These are **descriptive mismatches between assumed gas-only dispatch and observed total BA net generation**, not a historically calibrated or interconnected power-system model. The 288 representative-hour model and separate chronological storage analysis have different assumptions and should not be conflated.
+- [2024 CISO/BPAT numerical acceptance](docs/verified_2024_two_ba_hourly_numerical_acceptance.md)
+- [Official BA interchange diagnostics and exact missing windows](docs/eia930_2024_interchange_diagnostic_findings.md)
+- [BPAT wind 2024 cross-source study](docs/verified_bpat_wind_end_to_end_official_2024.md)
+- [2024 EIA-930A BPAT reporting population study](docs/verified_bpat_wind_eia930a_population_2024.md)
+- [PyPSA synthetic line dispatch verification](docs/verified_synthetic_ac_line_sweep.md)
+- [Source code](src/energy_transition/) · [Tests](tests/) · [GitHub Actions](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions)
