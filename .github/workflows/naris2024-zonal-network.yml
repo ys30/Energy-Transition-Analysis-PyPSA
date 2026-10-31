@@ -9,6 +9,7 @@ on:
       - src/energy_transition/naris2024_western_subset.py
       - .github/workflows/naris2024-zonal-network.yml
       - src/energy_transition/naris2024_network_acceptance.py
+      - src/energy_transition/naris2024_link_solver_smoke.py
 permissions:
   contents: read
 jobs:
@@ -20,7 +21,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install -e '.[dev]' 'pypsa>=0.35,<2' netcdf4 pypsa netcdf4
+      - run: python -m pip install -e '.[dev]' 'pypsa>=0.35,<2' netcdf4 highspy
       - name: Build source-backed zonal network and export NetCDF
         run: |
           python -m energy_transition.naris2024_zonal_network \
@@ -42,6 +43,11 @@ jobs:
             --input outputs/naris2024_zonal_links.nc \
             --network outputs/naris2024_western_zonal_links.nc \
             --report outputs/naris2024_western_subset_summary.json
+      - name: Solve published NARIS interface with illustrative load and generation
+        run: |
+          python -m energy_transition.naris2024_link_solver_smoke \
+            --network outputs/naris2024_zonal_links.nc \
+            --report outputs/naris2024_interface_solver_smoke.json
       - uses: actions/upload-artifact@v4
         with:
           name: naris2024-source-backed-zonal-pypsa-network
@@ -49,6 +55,7 @@ jobs:
             outputs/naris2024_zonal_links.nc
             outputs/naris2024_zonal_network_summary.json
             outputs/naris2024_network_acceptance.json
+            outputs/naris2024_interface_solver_smoke.json
             outputs/naris2024_roundtrip_verification.json
             outputs/naris2024_western_zonal_links.nc
             outputs/naris2024_western_subset_summary.json
