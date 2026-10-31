@@ -50,6 +50,23 @@ def prepare_network_loads(
     target = Path(output_network)
     target.parent.mkdir(parents=True, exist_ok=True)
     network.export_to_netcdf(target)
+    # Independently reload the serialized network before reporting success.
+    restored = pypsa.Network(target)
+    if not restored.snapshots.equals(network.snapshots):
+        raise ValueError("NetCDF round-trip changed snapshots")
+    if set(restored.loads.index) != set(names):
+        raise ValueError("NetCDF round-trip changed Load IDs")
+    expected = pd.DataFrame(
+        {f"demand_{bus}": matrix[bus].to_numpy() for bus in matrix.columns},
+        index=network.snapshots,
+    )
+    observed = restored.loads_t.p_set.reindex(index=network.snapshots, columns=names)
+    if observed.isna().any().any():
+        raise ValueError("NetCDF round-trip has missing load values")
+    import numpy as np
+    if not np.allclose(observed.to_numpy(dtype=float),
+                       expected[names].to_numpy(dtype=float), rtol=0, atol=1e-8):
+        raise ValueError("NetCDF round-trip altered load magnitudes")
     report = {
         "network_file": str(target),
         "snapshots": int(len(matrix.index)),
@@ -58,6 +75,7 @@ def prepare_network_loads(
         "total_load_mwh": float(matrix.to_numpy().sum()),
         "source_provenance_required": not allow_synthetic,
         "synthetic_opt_in": bool(allow_synthetic),
+        "netcdf_load_roundtrip_verified": True,
         "optimization_solved": False,
         "historically_calibrated": False,
     }
