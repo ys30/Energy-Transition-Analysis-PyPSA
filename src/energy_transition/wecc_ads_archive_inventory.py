@@ -10,7 +10,9 @@ from pathlib import Path
 import zipfile
 
 
-def inventory(path: Path) -> dict:
+def inventory(path: Path, *, max_member_bytes: int = 1_000_000_000) -> dict:
+    if not 0 < max_member_bytes <= 20_000_000_000:
+        raise ValueError("max_member_bytes must be between 1 and 20 billion")
     path=Path(path)
     if not path.is_file():
         raise FileNotFoundError(path)
@@ -37,7 +39,7 @@ def inventory(path: Path) -> dict:
             name=member.filename
             if name.startswith("/") or ".." in Path(name).parts or "\\" in name:
                 raise ValueError("Unsafe archive entry path")
-            if member.file_size>1_000_000_000:
+            if member.file_size>max_member_bytes:
                 raise ValueError("Unexpected oversized archive member")
             ext=Path(name).suffix.lower()
             result["files"].append({"name":name,"size_bytes":member.file_size,
@@ -57,8 +59,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--archive",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
+    parser.add_argument("--max-member-bytes",type=int,default=1_000_000_000)
     args=parser.parse_args()
-    report=inventory(args.archive)
+    report=inventory(args.archive,max_member_bytes=args.max_member_bytes)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(report,indent=2))
     print(json.dumps({"archive":report["archive"],"members":len(report["files"]),
