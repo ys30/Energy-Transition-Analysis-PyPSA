@@ -11,9 +11,13 @@ from collections import defaultdict
 def allocate_state_demand(state_demand: list[dict], weights: list[dict],
                           *, tolerance: float = 1e-6) -> list[dict]:
     by_state = defaultdict(dict)
+    zone_owner = {}
     for row in weights:
         state, zone = row["state"], row["zone"]
         key = (state, zone)
+        if zone in zone_owner and zone_owner[zone] != state:
+            raise ValueError(f"Zone assigned to multiple states: {zone}")
+        zone_owner[zone] = state
         if zone in by_state[state]:
             raise ValueError(f"Duplicate zone allocation: {key}")
         value = float(row["weight"])
