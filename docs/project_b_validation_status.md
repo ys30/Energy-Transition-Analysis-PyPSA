@@ -13,6 +13,12 @@ This checklist separates implementation, reported research observations, and emp
 | BPAT wind accounting | EIA-923 vs EIA-930 difference approximately 1.981 TWh remains unresolved | Quantify plant-level unmatched generation, BA reassignment and accounting-boundary explanations without forced reconciliation |
 | Manuscript-ready validation | Not established | Reproducible annual figures, verified CI, explicit limitations, independent checks |
 
+## Verified CISO source-coverage resolution (2026-10-30)
+
+The narrow CISO observed-NG gap is now **source-confirmed, not source-repaired**. [Official EIA-930 recheck run 41157405658](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41157405658) independently re-queried the 2024 EIA-930 CISO NG series and found **zero returned timestamps** in the 24-hour UTC interval 2024-11-02 08:00 through 2024-11-03 08:00 (end exclusive). [Enhanced recheck 41157449057](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41157449057) and [regression CI 41157458443](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41157458443) passed. This rules out an exclusively downstream join omission for that independently queried API series, **not** all upstream publication or timezone explanations. No imputation is authorized.
+
+**Acceptance boundary:** close the question *whether these timestamps are returned by the current official EIA-930 NG API*; keep root cause, alternative EIA publication channels, and any historical-generation calibration unresolved. Do not claim that the 24 hours were recovered.
+
 ## Gates before calling Project B empirically validated
 
 1. Record a passing GitHub Actions run URL and commit SHA for `.github/workflows/eia923-validate.yml`, plus retained input SHA256 manifests and version metadata.
