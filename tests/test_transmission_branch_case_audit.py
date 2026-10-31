@@ -6,8 +6,8 @@ from energy_transition.transmission_branch_case_audit import audit_branch_case
 def sample():
     return pd.DataFrame([{
         "from_ba":"CISO","to_ba":"BPAT","capacity_mw":100.,
-        "reactance_pu":0.12,"reactance_ohm":6.,
-        "resistance_ohm":0.4,"nominal_kv":230.,
+        "reactance_pu":(6.0*1000.0/230.0**2),"reactance_ohm":6.,
+        "resistance_ohm":0.4,"nominal_kv":230.,"base_mva":1000.,
         "source_url":"https://example.org/test-only","source_year":2034,
         "evidence_status":"independently_verified",
     }])
