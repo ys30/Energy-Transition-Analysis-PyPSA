@@ -59,3 +59,21 @@ In [successful official-data run #41166545686](https://github.com/ys30/Energy-Tr
 CISO's **312 missing TI hours** comprise January 72, March 96, May 72, June 24 and November 48. In November, 24 hours have both NG and TI missing and 24 hours have only TI missing. Accordingly, the 24 absent NG timestamps are a *subset* of the total 312 TI-missing timestamps, not an additional 24 hours to add to the incomplete-triple count. BPAT has one TI-only missing hour in March.
 
 **Implication:** Diagnosing only the November 24-hour NG gap cannot restore CISO triple coverage: there remain 288 additional TI-only missing hours. Do not interpolate/zero-fill or infer line transfer capacities from these gaps. API field availability and reporting definitions remain under investigation.
+
+## Verified contiguous UTC missing-data intervals
+
+In [successful EIA-930 observed-data run #41168894844](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41168894844), the `missing_field_utc_windows.csv` artifact identified these intervals. End timestamps are **exclusive**; all are in UTC.
+
+| BA | Missing field | UTC start | UTC end (exclusive) | Hours |
+|---|---|---|---|---:|
+| BPAT | TI | 2024-03-10 10:00 | 2024-03-10 11:00 | 1 |
+| CISO | NG | 2024-11-02 08:00 | 2024-11-03 08:00 | 24 |
+| CISO | TI | 2024-01-18 09:00 | 2024-01-21 09:00 | 72 |
+| CISO | TI | 2024-03-11 08:00 | 2024-03-12 08:00 | 24 |
+| CISO | TI | 2024-03-14 08:00 | 2024-03-17 08:00 | 72 |
+| CISO | TI | 2024-05-17 08:00 | 2024-05-19 08:00 | 48 |
+| CISO | TI | 2024-05-21 08:00 | 2024-05-22 08:00 | 24 |
+| CISO | TI | 2024-06-03 08:00 | 2024-06-04 08:00 | 24 |
+| CISO | TI | 2024-11-01 08:00 | 2024-11-03 08:00 | 48 |
+
+CISO's **seven** TI outages sum to **312 hours**. Its 24 missing NG hours overlap the final TI interval, explaining **312 unique incomplete D/NG/TI hours**, not 336. BPAT has one TI-only incomplete hour. These are observed absence windows, not evidence of a DST cause or a zero-MW dispatch state. Independent historical BA operating records are needed before any replacement or calibration.
