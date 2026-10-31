@@ -19,11 +19,15 @@ def attach_bus_loads(network, load_matrix, *, prefix="demand_"):
         raise ValueError("load_matrix needs timezone-aware snapshots")
     if str(load_matrix.index.tz) != "UTC":
         raise ValueError("load_matrix snapshots must be UTC")
+    if not isinstance(network.snapshots, pd.DatetimeIndex):
+        raise ValueError("network snapshots must be a DatetimeIndex")
     if not load_matrix.index.equals(network.snapshots):
         raise ValueError("load snapshots must exactly match network snapshots")
     missing = set(load_matrix.columns) - set(network.buses.index)
     if missing:
         raise ValueError(f"mapped buses absent from network: {sorted(missing)}")
+    if any(not pd.api.types.is_numeric_dtype(dtype) for dtype in load_matrix.dtypes):
+        raise ValueError("load matrix must be numeric")
     values = load_matrix.to_numpy(dtype=float)
     if not np.isfinite(values).all() or (values < 0).any():
         raise ValueError("nonfinite or negative demand")
