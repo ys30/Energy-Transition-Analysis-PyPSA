@@ -13,6 +13,12 @@ This checklist separates implementation, reported research observations, and emp
 | BPAT wind accounting | EIA-923 vs EIA-930 difference approximately 1.981 TWh remains unresolved | Quantify plant-level unmatched generation, BA reassignment and accounting-boundary explanations without forced reconciliation |
 | Manuscript-ready validation | Not established | Reproducible annual figures, verified CI, explicit limitations, independent checks |
 
+## Verified BPAT wind plant-ID hypothesis test (2026-10-30)
+
+[Official-source-derived plant-ID audit run 41161308306](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41161308306) examined 1,988 plant qualification rows and 1,650 unique IDs; it found **zero decimal-suffixed IDs and zero normalization collisions**. [Regression CI 41161308283](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41161308283) passed. Thus plant-ID decimal serialization **does not explain** the observed 1,980,701.41 MWh BPAT wind discrepancy in that archived source-qualified population. See [source audit](verified_2024_eia_plant_id_serialization.md).
+
+This is **one eliminated hypothesis**, not an end-to-end EIA-923/EIA-930 wind reconciliation. The 1,988 rows are not 1,988 BPAT wind plants; the separately analyzed BPAT wind subset contains 28 matched plant records. Full wind-hour source coverage, BA reassignment, accounting boundaries and cross-source aggregation still require numerical acceptance.
+
 ## Verified CISO source-coverage resolution (2026-10-30)
 
 The narrow CISO observed-NG gap is now **source-confirmed, not source-repaired**. [Official EIA-930 recheck run 41157405658](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41157405658) independently re-queried the 2024 EIA-930 CISO NG series and found **zero returned timestamps** in the 24-hour UTC interval 2024-11-02 08:00 through 2024-11-03 08:00 (end exclusive). [Enhanced recheck 41157449057](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41157449057) and [regression CI 41157458443](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41157458443) passed. This rules out an exclusively downstream join omission for that independently queried API series, **not** all upstream publication or timezone explanations. No imputation is authorized.
