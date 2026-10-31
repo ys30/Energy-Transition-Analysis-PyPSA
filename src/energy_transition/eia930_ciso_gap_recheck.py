@@ -16,8 +16,16 @@ GAP_END = pd.Timestamp("2024-11-03T08:00:00Z")
 def audit_gap(frame: pd.DataFrame) -> dict:
     expected = pd.date_range(GAP_START, GAP_END, freq="h", inclusive="left")
     observed = frame.loc[frame.respondent.eq("CISO")].copy()
-    observed["period"] = pd.to_datetime(observed["period"], utc=True)
-    inside = observed.loc[observed.period.isin(expected)]
+    observed["period"] = pd.to_datetime(observed["period"], utc=True, errors="coerce")
+    if observed["period"].isna().any():
+        raise ValueError("Invalid observed timestamps")
+    inside = observed.loc[observed.period.isin(expected)].copy()
+    if inside["period"].duplicated().any():
+        raise ValueError("Duplicate CISO NG UTC timestamps in recheck interval")
+    inside["value"] = pd.to_numeric(inside["value"], errors="coerce")
+    nonfinite = inside["value"].notna() & ~inside["value"].map(lambda x: bool(pd.isna(x) or __import__("math").isfinite(x)))
+    if nonfinite.any():
+        raise ValueError("Nonfinite CISO NG observation")
     timestamps = pd.DatetimeIndex(inside.period)
     missing = expected.difference(timestamps)
     return {
@@ -28,6 +36,7 @@ def audit_gap(frame: pd.DataFrame) -> dict:
         "returned_timestamp_hours": len(inside),
         "returned_nonnull_hours": int(inside.value.notna().sum()),
         "returned_null_hours": int(inside.value.isna().sum()),
+        "missing_or_null_hours": int(len(missing) + inside.value.isna().sum()),
         "missing_timestamp_hours": len(missing),
         "missing_timestamps_utc": [t.isoformat() for t in missing],
         "negative_observation_hours": int((inside.value < 0).sum()),
