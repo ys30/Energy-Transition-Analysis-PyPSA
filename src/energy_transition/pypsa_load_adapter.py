@@ -9,8 +9,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .zonal_conservation import validate_utc_year
 
-def build_load_matrix(zonal_csv, zone_bus_csv, *, network_buses_csv=None):
+
+def build_load_matrix(zonal_csv, zone_bus_csv, *, network_buses_csv=None, require_complete_years=False):
     zonal = pd.read_csv(zonal_csv)
     mapping = pd.read_csv(zone_bus_csv)
     if not {"timestamp_utc", "zone", "load_mw"}.issubset(zonal.columns):
@@ -50,6 +52,9 @@ def build_load_matrix(zonal_csv, zone_bus_csv, *, network_buses_csv=None):
         raise ValueError("duplicate hours")
     if len(result.index) > 1 and not (result.index.to_series().diff().iloc[1:] == pd.Timedelta(hours=1)).all():
         raise ValueError("non-contiguous hourly snapshots")
+    if require_complete_years:
+        for year, group in result.groupby(result.index.year, sort=True):
+            validate_utc_year(group.index, int(year))
     result.columns = [mapping.set_index("zone").loc[z, "bus"] for z in result.columns]
     result.columns.name = "bus"
     return result
@@ -61,8 +66,9 @@ def main():
     parser.add_argument("--zone-bus", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--network-buses", help="Optional explicit inventory of actual network bus IDs")
+    parser.add_argument("--require-complete-years", action="store_true", help="Reject missing, partial, or repeated UTC hours in each year")
     args = parser.parse_args()
-    matrix = build_load_matrix(args.zonal, args.zone_bus, network_buses_csv=args.network_buses)
+    matrix = build_load_matrix(args.zonal, args.zone_bus, network_buses_csv=args.network_buses, require_complete_years=args.require_complete_years)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     matrix.to_csv(out, index_label="timestamp_utc")
