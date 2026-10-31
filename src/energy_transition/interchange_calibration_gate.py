@@ -34,6 +34,7 @@ def evaluate(summary: pd.DataFrame, monthly: pd.DataFrame) -> list[dict]:
         mae=float(row.official_balance_mae_share_of_load)
         numeric=months[["coverage","residual_share_of_demand"]].apply(pd.to_numeric,errors="coerce")
         numeric_ok=bool(np.isfinite([coverage,mae]).all() and np.isfinite(numeric.to_numpy()).all())
+        bounds_ok=bool(0 <= coverage <= 1 and mae >= 0 and numeric["coverage"].between(0,1).all())
         quality_ok=("quality_flag" not in months or
                     months["quality_flag"].eq("screening_only_not_verified").all())
         if "annual_max_residual_share_of_load" in summary:
@@ -41,7 +42,7 @@ def evaluate(summary: pd.DataFrame, monthly: pd.DataFrame) -> list[dict]:
             tail_ok=bool(np.isfinite(tail) and tail<=.50)
         else:
             tail_ok=True
-        eligible=bool(numeric_ok and quality_ok and tail_ok and coverage>=.99
+        eligible=bool(numeric_ok and bounds_ok and quality_ok and tail_ok and coverage>=.99
                       and mae<=.10 and poor_coverage==0 and bad_balance==0)
         decisions.append({"ba_code":ba,"interchange_calibration_eligible":eligible,
           "coverage_share":coverage,"official_mae_share_of_load":mae,
