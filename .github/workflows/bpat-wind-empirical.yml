@@ -8,6 +8,8 @@ on:
       - tests/test_bpat_wind_reconciliation.py
       - src/energy_transition/eia930_bpat_wind_download.py
       - .github/workflows/bpat-wind-empirical.yml
+      - src/energy_transition/eia923_normalize.py
+      - src/energy_transition/eia860_plant_ba.py
 permissions:
   contents: read
 jobs:
@@ -54,4 +56,46 @@ jobs:
         with:
           name: eia930-bpat-wnd-official-2024
           path: outputs/bpat_wind_source/
+          retention-days: 90
+  official-plant-reconciliation:
+    needs: [official-wind-source]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia930-bpat-wnd-official-2024
+          path: outputs/bpat_wind_source
+      - name: Obtain and normalize official EIA-923 plant-month generation
+        run: |
+          python -m energy_transition.eia923_download --url https://www.eia.gov/electricity/data/eia923/archive/xls/f923_2024.zip --year 2024 --output outputs/eia923/eia923_2024.xlsx
+          python -m energy_transition.eia923_normalize --xlsx outputs/eia923/eia923_2024.xlsx --year 2024 --allow-incomplete --output outputs/eia923
+      - name: Obtain matching official EIA-860 plant-to-BA crosswalk
+        run: |
+          python -m energy_transition.eia860_capacity --year 2024 --output outputs/eia860
+          python -m energy_transition.eia860_plant_ba --year 2024 --generators outputs/eia860/western_state_generators_2024.csv --output outputs/eia860
+      - name: Reconcile only if official BPAT wind hourly coverage is complete
+        run: |
+          python -m energy_transition.bpat_wind_reconciliation --plant-month outputs/eia923/eia923_normalized_2024.csv --plant-ba outputs/eia860/plant_ba_crosswalk_2024.csv --hourly outputs/bpat_wind_source/eia930_bpat_wnd_hourly.csv --year 2024 --output outputs/bpat_wind_reconciliation
+          cat outputs/bpat_wind_reconciliation/reconciliation.json
+      - name: Summarize measured discrepancy without asserting its cause
+        if: success()
+        run: |
+          echo '### BPAT 2024 wind: EIA-923 versus EIA-930' >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~json' >> "$GITHUB_STEP_SUMMARY"
+          cat outputs/bpat_wind_reconciliation/reconciliation.json >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bpat-wind-plant-reconciliation-2024
+          path: |
+            outputs/bpat_wind_reconciliation/
+            outputs/eia923/eia923_source_2024.json
+            outputs/eia860/ba_crosswalk_manifest_2024.json
           retention-days: 90
