@@ -9,6 +9,9 @@ def test_review_queue_preserves_unknown_operational_attribution():
     out=review_queue(plants)
     assert out.plant_id.tolist()==["3","1"]
     assert out.priority_rank.tolist()==[1,2]
+    assert out.review_tier.tolist()==["first_5","first_5"]
+    assert out.share_of_mapped_bpat_wind.sum()==pytest.approx(1.0)
+    assert out.cumulative_share_of_mapped_bpat_wind.iloc[-1]==pytest.approx(1.0)
     assert out.net_generation_mwh.sum()==110.0
     assert not out.eia930_operational_ba_verified.any()
     assert out.eia930_plant_specific_generation_mwh.isna().all()
