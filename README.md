@@ -9,6 +9,22 @@ A reproducible modeling and data-validation pipeline for western U.S. electricit
 
 > **Scientific status:** The 2024 CISO and BPAT pilots are **independent, gas-only engineering screening models**, not calibrated historical simulations or a coupled WECC network. Synthetic scenario figures and transmission test fixtures must not be interpreted as empirical energy-transition forecasts.
 
+## Results at a glance — verified evidence and modeled scenarios
+
+The figures below are versioned in this repository and distinguish official source measurements from assumption-dependent optimization.
+
+![2024 BPAT official cross-source wind totals](figures/portfolio_bpat_wind_totals.svg)
+
+The totals come from different reporting populations. See the [EIA-930A population investigation](docs/verified_bpat_wind_eia930a_population_2024.md) and [wind reconciliation](docs/verified_bpat_wind_end_to_end_official_2024.md). The 1.981 TWh gap is **not** a measured loss or curtailment.
+
+![2024 EIA-930 missingness by source field](figures/portfolio_eia930_missingness.svg)
+
+The [hourly audit](docs/eia930_2024_interchange_diagnostic_findings.md) identifies 312 CISO TI hours, 24 overlapping CISO NG hours, and one BPAT TI hour. Interchange observations are **not** independently calibrated physical branch flows.
+
+![2024 storage scenario change in unmet load](figures/portfolio_storage_sensitivity.svg)
+
+The [8,784-hour storage gap-fill sensitivity](docs/verified_annual_storage_gap_sensitivity_2024.md) reports 73,373 MWh without storage versus 51,021 MWh with a hypothetical 1-GW/4-GWh battery: 22,352 MWh less model-defined unmet load (30.5%). This is a **scenario-conditioned dispatch comparison**, based on assumed generator capacity, costs, 55 imputed renewable source observations and a $10,000/MWh shortage penalty; not a historical battery investment return. The modeled $315.9933 million objective improvement includes $223.52 million in assumed shortage-penalty reductions and excludes battery capex/degradation. Three gap-fill treatments yield the same battery dispatch metrics under these assumptions, not generalized robustness.
+
 ## Four recruiter-ready work samples
 
 | Work sample | What was implemented | Verified evidence | Status |
