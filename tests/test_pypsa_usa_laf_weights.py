@@ -33,3 +33,31 @@ def test_refuse_missing_bus_laf():
     original.loc[1, "LAF_state"] = float("nan")
     with pytest.raises(ValueError, match="Missing state"):
         derive_state_zone_weights(original, MAPPING)
+
+
+def test_national_network_excludes_nonwestern_bus_before_laf_checks():
+    national = pd.concat([
+        buses(),
+        pd.DataFrame({
+            "reeds_state": ["NY"],
+            "reeds_zone": ["p_east"],
+            "LAF_state": [float("nan")],
+        }),
+    ], ignore_index=True)
+    derived = derive_state_zone_weights(national, MAPPING)
+    assert set(derived.zone) == {"p1", "p2", "p3"}
+    assert derived.groupby("state")["weight"].sum().to_dict() == pytest.approx(
+        {"CA": 1.0, "NV": 1.0})
+
+
+def test_cannot_replace_missing_western_laf_with_nonwestern_data():
+    national = pd.concat([
+        buses().iloc[[0, 1, 3]],
+        pd.DataFrame({
+            "reeds_state": ["NY"],
+            "reeds_zone": ["p_east"],
+            "LAF_state": [0.5],
+        }),
+    ], ignore_index=True)
+    with pytest.raises(ValueError, match="Missing source state-zone"):
+        derive_state_zone_weights(national, MAPPING)
