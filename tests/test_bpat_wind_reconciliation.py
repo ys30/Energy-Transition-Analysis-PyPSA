@@ -75,3 +75,22 @@ def test_mixed_official_hourly_source_rejected(column,wrong,expected):
     h.loc[0,column]=wrong
     with pytest.raises(ValueError,match=expected):
         reconcile(pm,cw,h)
+
+
+def test_bpat_plant_contributions_sum_to_verified_ba_total():
+    pm,cw,h=fixtures()
+    result,_=reconcile(pm,cw,h)
+    assert result["eia923_bpat_wind_plant_contributions_mwh"]=={"101":100.0}
+    assert sum(result["eia923_bpat_wind_plant_contributions_mwh"].values())==pytest.approx(
+        result["eia923_bpat_wind_mwh"]
+    )
+
+
+def test_multiple_monthly_records_aggregate_to_one_bpat_plant():
+    pm,cw,h=fixtures()
+    pm=pd.concat([pm,pd.DataFrame([{
+        "plant_id":"101","report_year":2024,"fuel":"wind","net_generation_mwh":25.0
+    }])],ignore_index=True)
+    result,_=reconcile(pm,cw,h)
+    assert result["eia923_bpat_wind_plant_contributions_mwh"]["101"]==125.0
+    assert result["eia923_bpat_plant_count"]==1
