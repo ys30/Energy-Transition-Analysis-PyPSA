@@ -36,3 +36,12 @@ def test_upstream_network_intake_rejects_missing_western_zone(tmp_path):
     path, membership = make_inputs(tmp_path, complete=False)
     with pytest.raises(ValueError, match="zone coverage"):
         inspect_built_network(path, membership)
+
+
+def test_upstream_network_rejects_swapped_state_ownership(tmp_path):
+    path, membership = make_inputs(tmp_path)
+    n = pypsa.Network(path)
+    n.buses.loc["ca", "reeds_state"] = "NV"
+    n.export_to_netcdf(path)
+    with pytest.raises(ValueError, match="state-zone ownership mismatch"):
+        inspect_built_network(path, membership)
