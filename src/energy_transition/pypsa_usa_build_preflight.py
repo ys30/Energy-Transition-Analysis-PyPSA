@@ -3,6 +3,7 @@
 Does not download raw inputs, launch Snakemake, or claim empirical readiness.
 """
 import argparse
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -42,10 +43,22 @@ def preflight(root: Path) -> dict:
     missing = [name for name in merged if f'configfile: "config/{name}"' not in snakefile]
     if missing:
         raise ValueError(f"Unexpected upstream Snakefile config merge: {missing}")
+    config_files = [config_file] + [
+        root / "workflow" / "config" / name for name in merged
+    ]
+    absent = [str(path) for path in config_files if not path.is_file()]
+    if absent:
+        raise ValueError(f"Missing merged upstream config files: {absent}")
+    digests = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in config_files
+    }
     return {
         "upstream_sha": actual,
         "verified_default_config": EXPECTED,
         "other_configs_merged": list(merged),
+        "config_file_sha256": digests,
+        "snakefile_sha256": hashlib.sha256(snakefile.encode()).hexdigest(),
         "dry_run_required": True,
         "real_network_built": False,
         "laf_weights_extracted": False,
