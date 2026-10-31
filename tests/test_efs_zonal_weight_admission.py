@@ -45,3 +45,17 @@ def test_empty_membership_rejected():
              "state_to_network_zones":{"CA":[]}}
     with pytest.raises(ValueError,match="at least one"):
         validate_weights(mapping,b"state,zone,weight\n")
+
+
+def test_network_zone_attributed_to_wrong_state_blocks():
+    mapping={**M,"state_to_network_zones":{"CA":["p8"],"NM":["p9","p31"]}}
+    r=validate_weights(mapping,b"state,zone,weight\nCA,p8,0.4\nCA,p9,0.6\nNM,p31,1\n")
+    assert r["missing_network_buses"]==[]
+    assert r["wrong_state_network_buses"]==["p9"]
+    assert not r["ready_for_full_network_dispatch"]
+
+
+def test_duplicate_network_zone_ownership_rejected():
+    mapping={**M,"state_to_network_zones":{"CA":["p8","p9"],"NM":["p8","p31"]}}
+    with pytest.raises(ValueError,match="Network zone assigned to multiple states"):
+        validate_weights(mapping,b"state,zone,weight\nCA,p8,0.4\nCA,p9,0.6\nNM,p31,1\n")
