@@ -151,3 +151,11 @@ def test_partial_year_rejected(tmp_path):
     raw.to_csv(load, index=False)
     with pytest.raises(ValueError, match="out-of-year hours"):
         run(load, weights, tmp_path / "audit.csv")
+
+
+def test_production_mode_requires_mapping_and_manifest(tmp_path):
+    _, load, weights = make_inputs(tmp_path, years=(2024,))
+    output = tmp_path / "should_not_exist.csv"
+    with pytest.raises(ValueError, match="Production mode requires"):
+        run(load, weights, output, require_provenance=True)
+    assert not output.exists()
