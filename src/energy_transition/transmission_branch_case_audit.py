@@ -5,6 +5,7 @@ that external source documents genuinely support the supplied physical values.
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -53,7 +54,10 @@ def main():
     p.add_argument("--kind",choices=("historical","planning"),required=True)
     p.add_argument("--report",type=Path,required=True)
     args=p.parse_args()
+    input_bytes=args.csv.read_bytes()
     output=audit_branch_case(pd.read_csv(args.csv),case_year=args.case_year,kind=args.kind)
+    output["input_sha256"]=hashlib.sha256(input_bytes).hexdigest()
+    output["input_filename"]=args.csv.name
     args.report.parent.mkdir(parents=True,exist_ok=True)
     args.report.write_text(json.dumps(output,indent=2)+"\n")
     print(json.dumps(output,indent=2))
