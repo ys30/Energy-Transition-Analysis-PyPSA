@@ -31,15 +31,15 @@ def attach_bus_loads(network, load_matrix, *, prefix="demand_", allow_existing_b
     values = load_matrix.to_numpy(dtype=float)
     if not np.isfinite(values).all() or (values < 0).any():
         raise ValueError("nonfinite or negative demand")
+    names = [prefix + str(bus) for bus in load_matrix.columns]
+    if len(set(names)) != len(names) or set(names) & set(network.loads.index):
+        raise ValueError("load IDs collide with existing network loads")
     if not allow_existing_bus_loads and not network.loads.empty:
         if "bus" not in network.loads.columns:
             raise ValueError("existing network loads require bus assignments")
         occupied = set(network.loads["bus"].dropna()) & set(load_matrix.columns)
         if occupied:
             raise ValueError(f"existing bus loads would double-count demand: {sorted(occupied)}")
-    names = [prefix + str(bus) for bus in load_matrix.columns]
-    if len(set(names)) != len(names) or set(names) & set(network.loads.index):
-        raise ValueError("load IDs collide with existing network loads")
     # Validate all inputs before mutating the network.
     for bus, name in zip(load_matrix.columns, names):
         network.add("Load", name, bus=bus, p_set=load_matrix[bus])
