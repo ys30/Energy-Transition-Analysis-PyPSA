@@ -8,9 +8,10 @@ import argparse,csv,io,json,math
 from pathlib import Path
 
 def validate_weights(mapping:dict, csv_bytes:bytes, *, tol:float=1e-6)->dict:
-    rows=list(csv.DictReader(io.StringIO(csv_bytes.decode("utf-8-sig"))))
-    if not rows or set(rows[0]) != {"state","zone","weight"}:
+    reader=csv.DictReader(io.StringIO(csv_bytes.decode("utf-8-sig")))
+    if reader.fieldnames is None or set(reader.fieldnames) != {"state","zone","weight"} or len(reader.fieldnames) != 3:
         raise ValueError("Expected CSV columns: state,zone,weight")
+    rows=list(reader)
     targets={s:set(zones) for s,zones in mapping["state_to_all_membership_zones"].items()}
     if not targets or any(not zones for zones in targets.values()):
         raise ValueError("Each mapped state must have at least one target zone")
@@ -20,6 +21,8 @@ def validate_weights(mapping:dict, csv_bytes:bytes, *, tol:float=1e-6)->dict:
             if zone in owners and owners[zone] != st:
                 raise ValueError(f"Zone assigned to multiple states: {zone}")
             owners[zone]=st
+    if not rows:
+        raise ValueError("No zonal weight rows provided")
     seen=set()
     sums={s:0.0 for s in targets}
     for r in rows:
