@@ -51,3 +51,11 @@ def test_total_generation_ng_cannot_be_misrepresented_as_wind():
     h["type"]="NG"
     with pytest.raises(ValueError,match="hourly missing columns"):
         reconcile(pm,cw,h)
+
+
+def test_decimal_suffix_plant_id_matches_inventory_crosswalk():
+    pm,cw,h=fixtures()
+    pm.loc[0,"plant_id"]="101.0"
+    result,_=reconcile(pm,cw,h)
+    assert result["eia923_bpat_wind_mwh"]==100.0
+    assert result["eia923_unmatched_plant_count"]==1
