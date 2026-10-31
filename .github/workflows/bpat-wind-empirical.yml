@@ -126,6 +126,22 @@ jobs:
           (out/"excluded_source_wind_audit.json").write_text(json.dumps(result,indent=2)+"\\n")
           print(json.dumps(result,indent=2))
           PY
+      - name: Publish BPAT-only excluded source audit alongside annual totals
+        if: success()
+        run: |
+          echo '### BPAT-specific excluded EIA-923 wind source records' >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~json' >> "$GITHUB_STEP_SUMMARY"
+          cat outputs/bpat_wind_reconciliation/excluded_source_wind_audit.json >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~' >> "$GITHUB_STEP_SUMMARY"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path("outputs/bpat_wind_reconciliation/excluded_source_wind_audit.json").read_text())
+          if a["excluded_wind_monthly_cells"] or a["excluded_valid_numeric_wind_cells"]:
+              print("::warning::BPAT-mapped wind plants intersect excluded EIA-923 source rows; inspect audit before treating the annual total as complete.")
+          else:
+              print("No excluded EIA-923 WND source rows intersect the 2024 BPAT EIA-860 plant crosswalk.")
+          PY
       - name: Summarize measured discrepancy without asserting its cause
         if: success()
         run: |
