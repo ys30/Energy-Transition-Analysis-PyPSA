@@ -1,3 +1,9 @@
+## Verified BPAT wind end-to-end official data reconciliation (2026-10-30)
+
+[GitHub Actions 41162114345](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41162114345) completed official 2024 EIA-923, EIA-860 and EIA-930 BPAT WND retrieval and reconciliation; [CI 41162114409](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41162114409) passed. EIA-923 BPAT-attributed wind = **8,820,435.41 MWh** across 28 plants; EIA-930 BPAT WND = **6,839,734.00 MWh** with 8,784/8,784 hourly observations; signed difference = **1,980,701.41 MWh**. See [verified numerical record](verified_bpat_wind_end_to_end_official_2024.md).
+
+**Scope:** This validates a reproducible cross-source discrepancy, **not its cause**. The 993 unmatched wind plants and other-BA totals are broad national/unmatched diagnostics, **not BPAT-specific missing generation**. The wind gap cannot be reinterpreted as curtailment, interchange or transmission loss without further evidence. Official annual wind reconciliation execution is verified; physical-network calibration remains unverified.
+
 # Project B — evidence and validation status (2026-10-30)
 
 This checklist separates implementation, reported research observations, and empirical validation. **A committed test or workflow is not evidence that the workflow passed.**
