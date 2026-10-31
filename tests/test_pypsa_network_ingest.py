@@ -52,3 +52,20 @@ def test_existing_load_id_rejected_before_mutation():
     with pytest.raises(ValueError, match="collide"):
         attach_bus_loads(network, matrix(network))
     assert not network.calls
+
+
+def test_nonnumeric_demand_rejected_before_mutation():
+    network = FakeNetwork()
+    demand = matrix(network).astype(str)
+    with pytest.raises(ValueError, match="must be numeric"):
+        attach_bus_loads(network, demand)
+    assert not network.calls
+
+
+def test_nondatetime_network_snapshots_rejected_before_mutation():
+    network = FakeNetwork()
+    demand = matrix(network)
+    network.snapshots = pd.Index(["a", "b"])
+    with pytest.raises(ValueError, match="DatetimeIndex"):
+        attach_bus_loads(network, demand)
+    assert not network.calls
