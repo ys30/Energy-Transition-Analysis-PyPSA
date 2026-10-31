@@ -44,6 +44,12 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
     expected=len(pd.date_range(f"{year}-01-01",f"{year+1}-01-01",freq="h",inclusive="left",tz="UTC"))
     if observed.empty:raise ValueError("No BPAT EIA-930 WND observations")
     if observed.value.isna().any():raise ValueError("Null BPAT WND observations; report coverage separately")
+    if not observed.value.map(lambda v: abs(v) != float("inf")).all():
+        raise ValueError("Nonfinite BPAT WND observations")
+    full_index=pd.date_range(f"{year}-01-01",f"{year+1}-01-01",freq="h",inclusive="left",tz="UTC")
+    missing=full_index.difference(pd.DatetimeIndex(observed.period))
+    if len(missing):
+        raise ValueError(f"Incomplete BPAT WND coverage: {len(missing)} missing hourly timestamps")
     result={
         "year":year,"eia923_bpat_wind_mwh":float(bpat.net_generation_mwh.sum()),
         "eia923_unmatched_wind_mwh":float(unmatched.net_generation_mwh.sum()),
