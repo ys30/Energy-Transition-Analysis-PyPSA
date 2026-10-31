@@ -1,0 +1,31 @@
+name: NARIS source-backed zonal PyPSA network
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - src/energy_transition/naris2024_zonal_network.py
+      - .github/workflows/naris2024-zonal-network.yml
+permissions:
+  contents: read
+jobs:
+  build-network:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - name: Build source-backed zonal network and export NetCDF
+        run: |
+          python -m energy_transition.naris2024_zonal_network \
+            --network outputs/naris2024_zonal_links.nc \
+            --report outputs/naris2024_zonal_network_summary.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: naris2024-source-backed-zonal-pypsa-network
+          path: |
+            outputs/naris2024_zonal_links.nc
+            outputs/naris2024_zonal_network_summary.json
