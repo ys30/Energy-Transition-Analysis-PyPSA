@@ -11,6 +11,7 @@ on:
       - src/energy_transition/naris2024_network_acceptance.py
       - src/energy_transition/naris2024_link_solver_smoke.py
       - src/energy_transition/naris2024_western_dispatch_smoke.py
+      - src/energy_transition/naris2024_western_capacity_pair.py
 permissions:
   contents: read
 jobs:
@@ -54,6 +55,11 @@ jobs:
           python -m energy_transition.naris2024_western_dispatch_smoke \
             --network outputs/naris2024_western_zonal_links.nc \
             --report outputs/naris2024_western_dispatch_smoke.json
+      - name: Compare baseline and relaxed NARIS interface limits
+        run: |
+          python -m energy_transition.naris2024_western_capacity_pair \
+            --network outputs/naris2024_western_zonal_links.nc \
+            --report outputs/naris2024_western_capacity_pair.json
       - uses: actions/upload-artifact@v4
         with:
           name: naris2024-source-backed-zonal-pypsa-network
@@ -63,6 +69,7 @@ jobs:
             outputs/naris2024_network_acceptance.json
             outputs/naris2024_interface_solver_smoke.json
             outputs/naris2024_western_dispatch_smoke.json
+            outputs/naris2024_western_capacity_pair.json
             outputs/naris2024_roundtrip_verification.json
             outputs/naris2024_western_zonal_links.nc
             outputs/naris2024_western_subset_summary.json
