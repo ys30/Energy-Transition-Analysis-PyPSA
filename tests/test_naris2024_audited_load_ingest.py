@@ -10,6 +10,7 @@ def fixture_files(tmp_path):
     network = pypsa.Network()
     network.add("Bus", "p8")
     network.add("Bus", "p9")
+    network.add("Link", "p8_p9", bus0="p8", bus1="p9", p_nom=150.0, efficiency=0.98)
     network_path = tmp_path / "topology.nc"
     network.export_to_netcdf(network_path)
     hours = pd.date_range("2024-01-01", "2025-01-01", freq="h",
@@ -49,6 +50,10 @@ def test_synthetic_full_year_network_roundtrip(tmp_path):
     result = pypsa.Network(output)
     assert len(result.snapshots) == 8784
     assert report["total_load_mwh"] == pytest.approx(878400.0)
+    assert report["netcdf_topology_roundtrip_verified"] is True
+    assert list(result.links.index) == ["p8_p9"]
+    assert result.links.loc["p8_p9", "p_nom"] == pytest.approx(150.0)
+    assert result.links.loc["p8_p9", "efficiency"] == pytest.approx(0.98)
     assert report["netcdf_load_roundtrip_verified"] is True
     assert report["optimization_solved"] is False
     assert report["source_provenance_required"] is False
