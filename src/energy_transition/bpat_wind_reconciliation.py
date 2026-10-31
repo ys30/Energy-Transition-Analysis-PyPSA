@@ -33,6 +33,8 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
     cw["ba_code"]=cw.ba_code.astype("string").str.strip().str.upper()
     joined=wind.merge(cw[["plant_id","ba_code"]],on="plant_id",how="left",validate="many_to_one",indicator=True)
     plant_totals=joined.groupby(["plant_id","ba_code"],dropna=False,as_index=False).net_generation_mwh.sum()
+    if joined.loc[joined.ba_code.eq("BPAT")].empty:
+        raise ValueError("No EIA-923 wind plants mapped to BPAT; annual comparison is undefined")
     bpat=joined.loc[joined.ba_code.eq("BPAT")]
     unmatched=joined.loc[joined._merge.eq("left_only")]
     reassigned=joined.loc[joined.ba_code.notna() & ~joined.ba_code.eq("BPAT")]
