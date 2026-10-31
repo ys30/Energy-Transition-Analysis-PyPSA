@@ -22,12 +22,15 @@ def audit_membership(data:bytes,network_buses:set[str])->dict:
         if not state: raise ValueError("Missing state membership")
         zones_by_state[state].append(row["ba"])
     matched={st:sorted(set(zones)&network_buses) for st,zones in zones_by_state.items()}
+    all_membership={st:sorted(set(zones)) for st,zones in zones_by_state.items()}
     unmatched=sorted(western-network_buses)
     duplicate={z for st,zones in zones_by_state.items() for z in zones if sum(z in v for v in zones_by_state.values())>1}
     if duplicate: raise ValueError(f"Zone belongs to multiple states: {sorted(duplicate)}")
     return {"source":MEMBERSHIP_URL,"sha256":hashlib.sha256(data).hexdigest(),
             "western_membership_zones":len(western),"matched_network_zones":len(western&network_buses),
             "unmatched_membership_zones":unmatched,"state_zone_counts":{k:len(v) for k,v in sorted(matched.items())},
+            "state_to_network_zones":dict(sorted(matched.items())),
+            "state_to_all_membership_zones":dict(sorted(all_membership.items())),
             "multi_zone_states":[k for k,v in sorted(matched.items()) if len(v)>1],
             "state_to_zonal_demand_weights_available":False,
             "can_disaggregate_EFS_state_demand":False,
