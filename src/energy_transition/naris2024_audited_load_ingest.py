@@ -15,7 +15,7 @@ import pandas as pd
 def prepare_network_loads(
     network_path, state_load_csv, weights_csv, zone_bus_csv,
     output_network, audit_csv, zonal_csv,
-    *, mapping_json=None, provenance_json=None, allow_synthetic=False,
+    *, mapping_json=None, provenance_json=None, membership_csv=None, allow_synthetic=False,
 ):
     import pypsa
     from .export_zonal_loads import export_zonal_loads
@@ -24,9 +24,17 @@ def prepare_network_loads(
 
     if not allow_synthetic and (mapping_json is None or provenance_json is None):
         raise ValueError("Source-backed mode requires both mapping and provenance files")
+    if not allow_synthetic and membership_csv is None:
+        raise ValueError("Source-backed mode requires official Western membership CSV")
     network = pypsa.Network(network_path)
     if network.buses.empty:
         raise ValueError("Network must contain existing buses")
+    if membership_csv is not None:
+        from .naris2024_western_subset import western_region_ids
+        required = western_region_ids(Path(membership_csv).read_bytes())
+        actual = set(network.buses.index)
+        if actual != required:
+            raise ValueError(f"Western membership mismatch: missing={sorted(required - actual)}, extra={sorted(actual - required)}")
     if not network.loads.empty:
         raise ValueError("Expected topology-only network without existing loads")
 
@@ -94,6 +102,7 @@ def prepare_network_loads(
         "added_loads": names,
         "total_load_mwh": float(matrix.to_numpy().sum()),
         "source_provenance_required": not allow_synthetic,
+        "western_membership_verified": membership_csv is not None,
         "synthetic_opt_in": bool(allow_synthetic),
         "netcdf_load_roundtrip_verified": True,
         "netcdf_topology_roundtrip_verified": True,
@@ -111,6 +120,7 @@ def main():
     p.add_argument("--zone-bus", type=Path, required=True)
     p.add_argument("--mapping", type=Path)
     p.add_argument("--manifest", type=Path)
+    p.add_argument("--membership", type=Path, help="Pinned official ReEDS Western membership.csv")
     p.add_argument("--allow-synthetic", action="store_true")
     p.add_argument("--output-network", type=Path, required=True)
     p.add_argument("--audit", type=Path, required=True)
@@ -121,7 +131,7 @@ def main():
         a.network, a.state_load, a.weights, a.zone_bus,
         a.output_network, a.audit, a.zonal,
         mapping_json=a.mapping, provenance_json=a.manifest,
-        allow_synthetic=a.allow_synthetic,
+        membership_csv=a.membership, allow_synthetic=a.allow_synthetic,
     )
     a.report.parent.mkdir(parents=True, exist_ok=True)
     a.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
