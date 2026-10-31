@@ -1,0 +1,37 @@
+name: BPAT observed wind plant ID format audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/energy_transition/bpat_wind_plant_id_format_audit.py'
+      - '.github/workflows/bpat-wind-plant-id-format.yml'
+permissions:
+  actions: read
+  contents: read
+jobs:
+  empirical-ids:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - uses: actions/download-artifact@v4
+        with:
+          name: eia2024-plant-ba-qualification-match
+          run-id: 41085325552
+          github-token: ${{ github.token }}
+          path: inputs/plant
+      - name: Report actual plant ID serialization and collisions
+        run: |
+          python -m energy_transition.bpat_wind_plant_id_format_audit \
+            --input inputs/plant/plant_qualification_match_audit.csv \
+            --output outputs/bpat_wind_plant_id_format.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bpat-wind-plant-id-format-2024
+          path: outputs/bpat_wind_plant_id_format.json
+          retention-days: 90
