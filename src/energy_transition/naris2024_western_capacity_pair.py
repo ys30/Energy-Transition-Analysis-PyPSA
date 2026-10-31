@@ -39,12 +39,22 @@ def experiment(source: Path, multiplier: float, demand_per_bus: float = 100.0) -
     demand=float(n.loads_t.p.loc[snapshot].sum())
     if abs(generated-demand)>1e-3:
         raise ValueError("Dispatch power balance mismatch")
+    # Independently enforce conservation at every zone, including Link imports.
+    max_nodal_residual = 0.0
+    for bus in n.buses.index:
+        g = float(n.generators_t.p.loc[snapshot, n.generators.bus == bus].sum())
+        d = float(n.loads_t.p.loc[snapshot, n.loads.bus == bus].sum())
+        outgoing = float(n.links_t.p0.loc[snapshot, n.links.bus0 == bus].sum())
+        incoming_signed = float(n.links_t.p1.loc[snapshot, n.links.bus1 == bus].sum())
+        max_nodal_residual = max(max_nodal_residual, abs(g - d - outgoing - incoming_signed))
+    if max_nodal_residual > 1e-3:
+        raise ValueError(f"Nodal balance residual exceeds tolerance: {max_nodal_residual}")
     backup=float(n.generators_t.p.loc[snapshot].drop("test_central_supply").sum())
     return {"capacity_multiplier":multiplier,"synthetic_demand_per_region_mw":demand_per_bus,"source_regions":len(n.buses),
             "source_directed_links":len(n.links),"hypothetical_demand_mw":demand,
             "local_backup_mw":backup,"dispatch_cost_arbitrary_units":float(n.objective),
             "binding_interfaces":int(np.isclose(flows,ratings,atol=1e-4,rtol=1e-7).sum()),
-            "solver_status":status}
+            "solver_status":status,"max_nodal_balance_residual_mw":max_nodal_residual}
 
 
 def paired(source: Path) -> dict:
