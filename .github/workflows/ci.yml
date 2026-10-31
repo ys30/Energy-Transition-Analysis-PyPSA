@@ -20,6 +20,20 @@ jobs:
       - name: Validate historical EIA model module syntax
         run: python -m compileall -q src/energy_transition
       - run: python -m energy_transition --output outputs
+      - name: Solve and archive synthetic three-zone dispatch evidence
+        run: |
+          python -m energy_transition.three_zone_dispatch_report --report outputs/three_zone_dispatch_report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("outputs/three_zone_dispatch_report.json").read_text())
+          assert report["solver_condition"] == "optimal"
+          assert report["historically_calibrated"] is False
+          assert len(report["snapshots"]) == 2
+          assert all(max(abs(v) for v in s["nodal_residual_mw"].values()) < 1e-5
+                     for s in report["snapshots"])
+          print("Synthetic three-zone artifact verified")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: analysis-figures
