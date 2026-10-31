@@ -49,6 +49,7 @@ def test_synthetic_full_year_network_roundtrip(tmp_path):
     result = pypsa.Network(output)
     assert len(result.snapshots) == 8784
     assert report["total_load_mwh"] == pytest.approx(878400.0)
+    assert report["netcdf_load_roundtrip_verified"] is True
     assert report["optimization_solved"] is False
     assert report["source_provenance_required"] is False
     assert set(result.loads.bus) == {"p8", "p9"}
