@@ -43,7 +43,7 @@ Independently re-read the `bpat_wind_reconciliation/wind_plant_ba_totals.csv` ar
 
 Top five plants: **3,392,106.30 MWh (38.46%)** of the BPAT-attributed plant generation; top ten plants: **65.11%**. These are **plant-generation concentration metrics, not identified contributions to the 1.981-TWh cross-source difference**. EIA-930 BPAT WND is a BA-level hourly aggregate and does not supply plant-level differences.
 
-The retained EIA-923 normalization manifest also reports **3,894 excluded valid numeric monthly cells** totaling **104,010,865.211 MWh** nationally across fuels. This cannot be assigned to BPAT wind. A subsequent source-exclusion intersection check is needed before drawing a BPAT-specific conclusion.
+The retained EIA-923 normalization manifest also reports **3,894 excluded valid numeric monthly cells** totaling **104,010,865.211 MWh** nationally across fuels. This cannot be assigned to BPAT wind. **The subsequently verified BPAT-specific intersection audit below found zero excluded BPAT WND records**; the national excluded-cell total must not be invoked to explain the BPAT difference.
 
 ## Verified BPAT-specific source exclusion audit
 
