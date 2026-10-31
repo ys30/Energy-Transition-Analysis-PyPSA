@@ -1,0 +1,28 @@
+name: PyPSA-USA official archive manifest
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - src/energy_transition/pypsa_usa_zenodo_manifest.py
+      - tests/test_pypsa_usa_zenodo_manifest.py
+      - .github/workflows/pypsa-usa-source-manifest.yml
+permissions:
+  contents: read
+jobs:
+  verify-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_pypsa_usa_zenodo_manifest.py
+      - name: Fetch official public record metadata only (no large archive)
+        run: python -m energy_transition.pypsa_usa_zenodo_manifest --output outputs/pypsa_usa_source_manifest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pypsa-usa-official-source-manifest
+          path: outputs/pypsa_usa_source_manifest.json
