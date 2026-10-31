@@ -30,6 +30,20 @@ jobs:
             --archive /tmp/pypsa_usa_data.zip \
             --output outputs/pypsa_usa_archive_inventory.json \
             --max-member-bytes 20000000000
+      - name: Report actual archive member names and candidate types
+        run: |
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+          data=json.loads(Path("outputs/pypsa_usa_archive_inventory.json").read_text())
+          files=data["files"]
+          print("TOTAL_MEMBERS:",len(files))
+          print("CANDIDATE_COUNT:",data.get("candidate_count",0))
+          print("EXTENSIONS:",dict(Counter(x["extension"] for x in files)))
+          for member in sorted(files,key=lambda x:x["size_bytes"],reverse=True)[:35]:
+              print("MEMBER:",member["name"],"SIZE:",member["size_bytes"],"TYPE:",member["candidate_type"])
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: pypsa-usa-verified-archive-receipt-and-inventory
