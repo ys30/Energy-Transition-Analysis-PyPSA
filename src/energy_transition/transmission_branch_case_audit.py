@@ -38,7 +38,7 @@ def audit_branch_case(frame: pd.DataFrame, *, case_year: int, kind: str) -> dict
     # These fields are supplied by the same dataset and are not an independent audit.
     # Preserve the claim, but never elevate it into source authentication.
     if not frame.evidence_status.eq("independently_verified").all():
-        raise ValueError("Claimed evidence status missing; independent authentication still required")
+        raise ValueError("Claimed independently verified evidence status missing; independent authentication still required")
     if not pd.to_numeric(frame.source_year).eq(case_year).all():
         raise ValueError("Branch source year differs from declared case year")
     return {"ready_for_engineering_review":True,
