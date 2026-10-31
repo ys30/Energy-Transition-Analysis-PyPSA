@@ -92,10 +92,10 @@ def test_official_membership_rejects_missing_western_zone(tmp_path):
     network, loads, weights, buses = fixture_files(tmp_path)
     membership = tmp_path / "membership.csv"
     membership.write_text(
-        "ba,st,interconnect,country\\n"
-        "p8,CA,Western,USA\\n"
-        "p9,CA,Western,USA\\n"
-        "p10,CA,Western,USA\\n"
+        "ba,st,interconnect,country\n"
+        "p8,CA,Western,USA\n"
+        "p9,CA,Western,USA\n"
+        "p10,CA,Western,USA\n"
     )
     with pytest.raises(ValueError, match="Western membership mismatch"):
         prepare_network_loads(
