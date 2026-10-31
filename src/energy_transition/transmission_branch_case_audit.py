@@ -6,6 +6,7 @@ that external source documents genuinely support the supplied physical values.
 from __future__ import annotations
 import argparse
 import json
+import math
 from pathlib import Path
 import pandas as pd
 from .transmission_evidence_gate import screen_transmission_inputs
@@ -28,15 +29,18 @@ def audit_branch_case(frame: pd.DataFrame, *, case_year: int, kind: str) -> dict
                 "reason":"no_verified_branch_records"}
     for column in ("reactance_ohm","resistance_ohm","nominal_kv"):
         numeric=pd.to_numeric(frame[column],errors="coerce")
-        if numeric.isna().any() or not numeric.map(lambda v: bool(__import__("math").isfinite(v))).all():
+        if numeric.isna().any() or not numeric.map(math.isfinite).all():
             raise ValueError(f"Nonfinite {column}")
-        if (numeric<=0).any() if column!="resistance_ohm" else (numeric<0).any():
+        invalid = numeric.lt(0) if column=="resistance_ohm" else numeric.le(0)
+        if invalid.any():
             raise ValueError(f"Invalid {column}")
     if not frame.evidence_status.eq("independently_verified").all():
         raise ValueError("A URL is not sufficient: independently verified branch evidence required")
     if not pd.to_numeric(frame.source_year).eq(case_year).all():
         raise ValueError("Branch source year differs from declared case year")
     return {"ready_for_engineering_review":True,
+            "source_authenticity_independently_confirmed":False,
+            "ready_for_pypsa_physical_calibration":False,
             "ready_for_historical_2024_calibration":False,
             "case_year":case_year,"case_kind":kind,"branch_rows":len(frame),
             "caveat":"Electrical BA aggregations and source authenticity require manual expert validation"}
