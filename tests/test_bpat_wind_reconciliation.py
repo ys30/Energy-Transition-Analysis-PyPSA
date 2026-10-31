@@ -59,3 +59,14 @@ def test_decimal_suffix_plant_id_matches_inventory_crosswalk():
     result,_=reconcile(pm,cw,h)
     assert result["eia923_bpat_wind_mwh"]==100.0
     assert result["eia923_unmatched_plant_count"]==1
+
+
+@pytest.mark.parametrize("column,wrong,expected", [
+    ("respondent", "CISO", "non-BPAT"),
+    ("fueltype", "NG", "non-WND"),
+])
+def test_mixed_official_hourly_source_rejected(column,wrong,expected):
+    pm,cw,h=fixtures()
+    h.loc[0,column]=wrong
+    with pytest.raises(ValueError,match=expected):
+        reconcile(pm,cw,h)
