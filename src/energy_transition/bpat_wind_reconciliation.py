@@ -58,10 +58,22 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
     missing=full_index.difference(pd.DatetimeIndex(observed.period))
     if len(missing):
         raise ValueError(f"Incomplete BPAT WND coverage: {len(missing)} missing hourly timestamps")
+    # Separate national other-BA wind from the BPAT discrepancy; it is not
+    # evidence that generation should be reassigned into BPAT.
+    other_ba_totals = (
+        reassigned.groupby("ba_code", as_index=False).net_generation_mwh.sum()
+        .sort_values("net_generation_mwh", ascending=False)
+    )
+    unmatched_plant_totals = (
+        plant_totals.loc[plant_totals.ba_code.isna(), ["plant_id", "net_generation_mwh"]]
+        .sort_values("net_generation_mwh", ascending=False)
+    )
     result={
         "year":year,"eia923_bpat_wind_mwh":float(bpat.net_generation_mwh.sum()),
         "eia923_unmatched_wind_mwh":float(unmatched.net_generation_mwh.sum()),
         "eia923_other_ba_wind_mwh":float(reassigned.net_generation_mwh.sum()),
+        "eia923_other_ba_wind_breakdown_mwh":{str(row.ba_code):float(row.net_generation_mwh) for row in other_ba_totals.itertuples()},
+        "eia923_unmatched_wind_top_plants_mwh":{str(row.plant_id):float(row.net_generation_mwh) for row in unmatched_plant_totals.head(20).itertuples()},
         "eia923_bpat_plant_count":int(bpat.plant_id.nunique()),
         "eia923_unmatched_plant_count":int(unmatched.plant_id.nunique()),
         "eia930_bpat_wnd_mwh":float(observed.value.sum()),
