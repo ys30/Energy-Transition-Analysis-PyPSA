@@ -25,6 +25,9 @@ def evaluate(summary: pd.DataFrame, monthly: pd.DataFrame) -> list[dict]:
         months=monthly[monthly.respondent.eq(ba)]
         if len(months)!=12:
             raise ValueError(f"Expected 12 monthly BA records for {ba}; got {len(months)}")
+        parsed_months=pd.to_datetime(months["month"],format="%Y-%m",errors="coerce")
+        if parsed_months.isna().any() or parsed_months.dt.year.nunique()!=1 or set(parsed_months.dt.month)!=(set(range(1,13))):
+            raise ValueError(f"Expected exactly January-December of one year for {ba}")
         poor_coverage=int(months.coverage.lt(.99).sum())
         bad_balance=int(months.residual_share_of_demand.abs().gt(.10).sum())
         coverage=float(row.complete_triple_share)
