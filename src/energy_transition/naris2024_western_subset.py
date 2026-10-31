@@ -25,6 +25,7 @@ def western_region_ids(membership_csv: bytes) -> set[str]:
 def subset(network, membership_csv: bytes):
     ids = western_region_ids(membership_csv)
     keep = ids & set(network.buses.index)
+    missing = sorted(ids - set(network.buses.index))
     if not keep:
         raise ValueError("No overlap between Western membership and network buses")
     boundary = network.links.loc[
@@ -42,6 +43,8 @@ def subset(network, membership_csv: bytes):
         "membership_source": MEMBERSHIP_URL,
         "western_membership_regions": len(ids),
         "matched_buses": len(keep),
+        "membership_regions_missing_from_interface_network": missing,
+        "missing_region_explanation": "not represented as a bus in published positive-or-zero NARIS interface table; no demand/generation inference",
         "internal_directed_links": len(internal),
         "excluded_boundary_directed_links": len(boundary),
         "boundary_assumption": "cross-interconnection transfers excluded, not modeled as zero historically",
