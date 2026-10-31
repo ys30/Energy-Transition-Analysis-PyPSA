@@ -7,6 +7,7 @@ on:
       - src/energy_transition/naris2024_zonal_network.py
       - src/energy_transition/naris2024_network_roundtrip.py
       - .github/workflows/naris2024-zonal-network.yml
+      - src/energy_transition/naris2024_network_acceptance.py
 permissions:
   contents: read
 jobs:
@@ -29,10 +30,16 @@ jobs:
           python -m energy_transition.naris2024_network_roundtrip \
             --network outputs/naris2024_zonal_links.nc \
             --output outputs/naris2024_roundtrip_verification.json
+      - name: Validate exported zonal bus/link topology
+        run: |
+          python -m energy_transition.naris2024_network_acceptance \
+            --network outputs/naris2024_zonal_links.nc \
+            --report outputs/naris2024_network_acceptance.json
       - uses: actions/upload-artifact@v4
         with:
           name: naris2024-source-backed-zonal-pypsa-network
           path: |
             outputs/naris2024_zonal_links.nc
             outputs/naris2024_zonal_network_summary.json
+            outputs/naris2024_network_acceptance.json
             outputs/naris2024_roundtrip_verification.json
