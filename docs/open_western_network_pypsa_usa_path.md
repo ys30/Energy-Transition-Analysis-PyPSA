@@ -27,3 +27,9 @@ WECC 2034/2036 ADS remains a candidate planning dataset. The [WECC ADS selection
 ### Current validation state
 
 **Source path identified; public data package and actual western solver case have not been downloaded, executed, or validated in this project.** This decision document is an implementation handoff, not a solver achievement.
+
+## Verified archive contents (GitHub Actions 41225182337)
+
+The published `pypsa_usa_data.zip` was downloaded (567,382,729 bytes), publisher MD5 verified, and inventoried successfully. The archive contains **22 files**, primarily land cover, terrain, county/EEZ boundaries and pumped-storage siting inputs. **It does not contain a ready-to-solve bus/branch network** (`candidate_model_files=[]`). A 1.92 GB uncompressed Copernicus GeoTIFF explains why the original 1 GB-per-member preflight limit failed. Receipt and inventory are retained as workflow artifact `13051518237`.
+
+**Next input required:** obtain the versioned PyPSA-USA transmission build inputs (ReEDS/NARIS zonal interfaces or Texas A&M synthetic nodal source) or an independently reproducible exported `.nc` network; validate buses, branches/links, capacities, chronology and license before solving. Do not present this geospatial support-data archive as a physical transmission case.
