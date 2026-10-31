@@ -15,8 +15,6 @@ jobs:
         run: python -m pip install 'pypsa>=0.35,<2'
       - name: Run full test suite with failure diagnostics
         run: python -m pytest -ra -vv --tb=long --maxfail=1 --junitxml=pytest-results.xml
-      - name: Verify actual PyPSA Load time-series ingestion
-        run: python -m pytest -ra -vv --tb=long tests/test_real_pypsa_network_ingest.py
       - name: Upload pytest diagnostics even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -42,6 +40,7 @@ jobs:
           print("Synthetic three-zone artifact verified")
           PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: analysis-figures
           path: outputs/
