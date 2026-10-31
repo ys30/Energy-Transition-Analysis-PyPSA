@@ -14,6 +14,7 @@ on:
       - src/energy_transition/naris2024_western_capacity_pair.py
       - src/energy_transition/naris2024_efs_state_mapping_audit.py
       - src/energy_transition/naris2024_western_membership_completion.py
+      - src/energy_transition/naris2024_missing_zone_source_audit.py
 permissions:
   contents: read
 jobs:
@@ -73,6 +74,11 @@ jobs:
           python -m energy_transition.naris2024_efs_state_mapping_audit \
             --network outputs/naris2024_western_all_membership_zones.nc \
             --report outputs/naris2024_efs_state_mapping_audit.json
+      - name: Cross-check p19 against published AC and non-AC interfaces
+        run: |
+          python -m energy_transition.naris2024_missing_zone_source_audit \
+            --zone p19 \
+            --report outputs/naris2024_p19_source_audit.json
       - uses: actions/upload-artifact@v4
         with:
           name: naris2024-source-backed-zonal-pypsa-network
@@ -89,3 +95,4 @@ jobs:
             outputs/naris2024_western_subset_summary.json
             outputs/naris2024_western_all_membership_zones.nc
             outputs/naris2024_western_membership_completion.json
+            outputs/naris2024_p19_source_audit.json
