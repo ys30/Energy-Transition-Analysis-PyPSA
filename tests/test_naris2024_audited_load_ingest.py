@@ -71,3 +71,18 @@ def test_unrecognized_network_bus_rejected(tmp_path):
             allow_synthetic=True,
         )
     assert not (tmp_path / "bad.nc").exists()
+
+
+def test_partial_network_bus_coverage_rejected(tmp_path):
+    network, loads, weights, buses = fixture_files(tmp_path)
+    n = pypsa.Network(network)
+    n.add("Bus", "p10")
+    n.export_to_netcdf(network)
+    output = tmp_path / "partial.nc"
+    with pytest.raises(ValueError, match="missing demand coverage"):
+        prepare_network_loads(
+            network, loads, weights, buses, output,
+            tmp_path / "audit.csv", tmp_path / "zonal.csv",
+            allow_synthetic=True,
+        )
+    assert not output.exists()
