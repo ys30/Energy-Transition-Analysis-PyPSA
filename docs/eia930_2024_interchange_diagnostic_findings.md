@@ -46,3 +46,16 @@ The [observed-data workflow #41166102963](https://github.com/ys30/Energy-Transit
 - **CISO:** `screening_passed=false`, `physical_calibration_verified=false`, blocker `temporal_coverage`. Trace absent or nonmatching UTC D/NG/TI triple observations by field; do not zero-fill missing data.
 
 The corresponding regression tests passed [CI #41166110708](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41166110708). A completed GitHub Actions run means the diagnostic was generated successfully; it is not a pass for real-grid calibration.
+
+## Verified UTC field-level missingness (2024)
+
+In [successful official-data run #41166545686](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41166545686), the new `triple_missingness_by_month.csv` quantified missing D/NG/TI observations directly from aligned hourly data:
+
+| BA | Missing D hours | Missing NG hours | Missing TI hours | Complete D/NG/TI triples |
+|---|---:|---:|---:|---:|
+| BPAT | 0 | 0 | 1 | 8,783 |
+| CISO | 0 | 24 | 312 | 8,472 |
+
+CISO's **312 missing TI hours** comprise January 72, March 96, May 72, June 24 and November 48. In November, 24 hours have both NG and TI missing and 24 hours have only TI missing. Accordingly, the 24 absent NG timestamps are a *subset* of the total 312 TI-missing timestamps, not an additional 24 hours to add to the incomplete-triple count. BPAT has one TI-only missing hour in March.
+
+**Implication:** Diagnosing only the November 24-hour NG gap cannot restore CISO triple coverage: there remain 288 additional TI-only missing hours. Do not interpolate/zero-fill or infer line transfer capacities from these gaps. API field availability and reporting definitions remain under investigation.
