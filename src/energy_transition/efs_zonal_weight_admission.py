@@ -42,12 +42,20 @@ def validate_weights(mapping:dict, csv_bytes:bytes, *, tol:float=1e-6)->dict:
     bad={s:v for s,v in sums.items() if abs(v-1)>tol}
     if bad: raise ValueError(f"State demand fractions fail conservation: {bad}")
     expected={z for zones in targets.values() for z in zones}
-    available={z for zones in mapping["state_to_network_zones"].values() for z in zones}
-    missing_buses=sorted(expected-available)
+    network_states=mapping["state_to_network_zones"]
+    network_owners={}
+    for st,zones in network_states.items():
+        for zone in zones:
+            if zone in network_owners and network_owners[zone] != st:
+                raise ValueError(f"Network zone assigned to multiple states: {zone}")
+            network_owners[zone]=st
+    missing_buses=sorted(expected-set(network_owners))
+    wrong_state_buses=sorted(z for z in expected if z in network_owners and network_owners[z] != owners[z])
     return {"validated_states":len(targets),"validated_zone_weights":len(rows),
             "per_state_fraction_sum":sums,"missing_network_buses":missing_buses,
+            "wrong_state_network_buses":wrong_state_buses,
             "weights_schema_valid":True,
-            "ready_for_full_network_dispatch":not missing_buses,
+            "ready_for_full_network_dispatch":not missing_buses and not wrong_state_buses,
             "warning":"Mapping validates mass conservation, not the empirical provenance of weights"}
 
 def main():
@@ -61,5 +69,5 @@ def main():
     a.report.write_text(json.dumps(result,indent=2)+"\n")
     print(json.dumps(result,indent=2))
     if not result["ready_for_full_network_dispatch"]:
-        raise SystemExit("Weight schema valid but missing ReEDS zone buses: full model admission blocked")
+        raise SystemExit("Weight schema valid but network zones missing or attributed to wrong states: full model admission blocked")
 if __name__=="__main__":main()
