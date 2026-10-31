@@ -97,6 +97,11 @@ jobs:
         run: |
           python -m energy_transition.bpat_wind_reconciliation --plant-month outputs/eia923/eia923_normalized_2024.csv --plant-ba outputs/eia860/plant_ba_crosswalk_2024.csv --hourly outputs/bpat_wind_source/eia930_bpat_wnd_hourly.csv --year 2024 --output outputs/bpat_wind_reconciliation
           cat outputs/bpat_wind_reconciliation/reconciliation.json
+      - name: Export BPAT plant-level operating attribution review queue
+        run: |
+          python -m energy_transition.bpat_wind_plant_attribution_queue \
+            --plant-totals outputs/bpat_wind_reconciliation/wind_plant_ba_totals.csv \
+            --output outputs/bpat_wind_reconciliation/bpat_plant_attribution_review.csv
       - name: Audit whether excluded EIA-923 wind records intersect BPAT plants
         run: |
           python - <<'PY'
