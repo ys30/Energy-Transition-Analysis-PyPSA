@@ -8,7 +8,7 @@ import pandas as pd
 def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.DataFrame, year: int = 2024):
     required = (("plant_month", plant_month, {"plant_id","report_year","fuel","net_generation_mwh"}),
                 ("plant_ba", plant_ba, {"plant_id","ba_code","mapping_year"}),
-                ("hourly", hourly, {"period","respondent","type","value"}))
+                ("hourly", hourly, {"period","respondent","fueltype","value"}))
     for name, frame, columns in required:
         if columns - set(frame):
             raise ValueError(f"{name} missing columns: {sorted(columns-set(frame))}")
@@ -38,7 +38,9 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
     reassigned=joined.loc[joined.ba_code.notna() & ~joined.ba_code.eq("BPAT")]
     h["period"]=pd.to_datetime(h.period,utc=True,errors="raise")
     h["value"]=pd.to_numeric(h.value,errors="raise")
-    observed=h.loc[h.respondent.astype("string").str.upper().eq("BPAT") & h.type.astype("string").str.upper().eq("WND")]
+    # EIA-930 fuel-type-data reports fueltype=WND; region-data type=NG is TOTAL generation.
+    # Never accept an NG/total-generation export as a wind series.
+    observed=h.loc[h.respondent.astype("string").str.upper().eq("BPAT") & h.fueltype.astype("string").str.upper().eq("WND")]
     observed=observed.loc[observed.period.dt.year.eq(year)]
     if observed.period.duplicated().any():raise ValueError("Duplicate BPAT WND hourly timestamps")
     expected=len(pd.date_range(f"{year}-01-01",f"{year+1}-01-01",freq="h",inclusive="left",tz="UTC"))
