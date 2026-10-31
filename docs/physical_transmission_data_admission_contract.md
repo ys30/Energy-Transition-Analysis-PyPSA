@@ -1,5 +1,7 @@
 # Project B physical transmission data admission contract
 
+For the currently listed public WECC ADS vintages, authorized access route and planning-versus-historical case selection, see [2026 ADS source selection and ingestion gate](wecc_ads_2026_source_selection_and_ingestion.md).
+
 ## Current standing
 
 The independent 2024 CISO/BPAT gas-only hourly baseline and the synthetic AC Line optimization are computational engineering demonstrations. Neither establishes an empirically calibrated interconnection.
