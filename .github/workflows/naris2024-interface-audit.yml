@@ -1,0 +1,26 @@
+name: NARIS2024 public BA interface audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - src/energy_transition/naris2024_interface_intake.py
+      - .github/workflows/naris2024-interface-audit.yml
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch and validate actual published interface capacities
+        run: |
+          PYTHONPATH=src python -m energy_transition.naris2024_interface_intake --output outputs/naris2024_ba_interface_audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: naris2024-ba-interface-audit
+          path: outputs/naris2024_ba_interface_audit.json
