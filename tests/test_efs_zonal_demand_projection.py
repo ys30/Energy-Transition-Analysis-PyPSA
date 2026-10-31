@@ -33,3 +33,15 @@ def test_missing_state_rejected():
     with pytest.raises(ValueError):
         allocate_state_demand([{"state":"CA","snapshot":"t","demand_mw":100}],
                               [{"state":"NM","zone":"p31","weight":1}])
+
+
+def test_misaligned_state_snapshots_rejected():
+    demand = [
+        {"state":"CA","snapshot":"2024-01-01T00:00","demand_mw":100},
+        {"state":"CA","snapshot":"2024-01-01T01:00","demand_mw":110},
+        {"state":"NM","snapshot":"2024-01-01T00:00","demand_mw":50},
+    ]
+    weights = [{"state":"CA","zone":"p8","weight":1},
+               {"state":"NM","zone":"p31","weight":1}]
+    with pytest.raises(ValueError, match="time coverage differs"):
+        allocate_state_demand(demand, weights)
