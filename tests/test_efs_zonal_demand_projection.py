@@ -45,3 +45,14 @@ def test_misaligned_state_snapshots_rejected():
                {"state":"NM","zone":"p31","weight":1}]
     with pytest.raises(ValueError, match="time coverage differs"):
         allocate_state_demand(demand, weights)
+
+
+def test_zone_cannot_be_shared_between_states():
+    demand = [
+        {"state":"CA","snapshot":"2024-01-01T00:00Z","demand_mw":100},
+        {"state":"NM","snapshot":"2024-01-01T00:00Z","demand_mw":50},
+    ]
+    weights = [{"state":"CA","zone":"p8","weight":1},
+               {"state":"NM","zone":"p8","weight":1}]
+    with pytest.raises(ValueError, match="multiple states"):
+        allocate_state_demand(demand, weights)
