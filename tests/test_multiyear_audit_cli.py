@@ -73,3 +73,40 @@ def test_missing_state_year_rejected(tmp_path):
     raw.to_csv(load, index=False)
     with pytest.raises(ValueError, match="incomplete state coverage"):
         run(load, weights, tmp_path / "audit.csv")
+
+
+def test_strict_source_admission_with_manifest(tmp_path):
+    import hashlib
+    import json
+    _, load, weights = make_inputs(tmp_path, years=(2024,))
+    mapping = tmp_path / "mapping.json"
+    manifest = tmp_path / "manifest.json"
+    mapping.write_text(json.dumps({
+        "state_to_all_membership_zones": {"CA": ["CA_A", "CA_B"], "NV": ["NV_A"]},
+        "state_to_network_zones": {"CA": ["CA_A", "CA_B"], "NV": ["NV_A"]},
+    }))
+    payload = {
+        "weights_sha256": hashlib.sha256(weights.read_bytes()).hexdigest(),
+        "source_url": "https://example.org/test-only",
+        "source_revision": "synthetic-fixture",
+        "geographic_method": "population_geographic_overlay",
+        "geography_vintage": "2020",
+        "population_vintage": "2020",
+        "processing_script_sha256": "a" * 64,
+        "coverage_note": "synthetic-only, not empirical",
+    }
+    manifest.write_text(json.dumps(payload))
+    out = tmp_path / "audit.csv"
+    assert len(run(load, weights, out, mapping_path=mapping, manifest_path=manifest)) == 2
+    out.unlink()
+    payload["weights_sha256"] = "b" * 64
+    manifest.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="provenance"):
+        run(load, weights, out, mapping_path=mapping, manifest_path=manifest)
+    assert not out.exists()
+
+
+def test_strict_requires_both_evidence_files(tmp_path):
+    _, load, weights = make_inputs(tmp_path, years=(2024,))
+    with pytest.raises(ValueError, match="provided together"):
+        run(load, weights, tmp_path / "audit.csv", mapping_path="missing.json")
