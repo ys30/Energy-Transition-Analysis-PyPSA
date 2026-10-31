@@ -43,6 +43,9 @@ def reconcile(plant_month: pd.DataFrame, plant_ba: pd.DataFrame, hourly: pd.Data
     if not h.fueltype.astype("string").str.strip().str.upper().eq("WND").all():
         raise ValueError("Hourly source contains non-WND fuel types")
     h["period"]=pd.to_datetime(h.period,utc=True,errors="raise")
+    # Reject out-of-vintage observations instead of silently discarding them.
+    if not h.period.dt.year.eq(year).all():
+        raise ValueError("EIA-930 WND hourly source contains timestamps outside target year")
     h["value"]=pd.to_numeric(h.value,errors="raise")
     # EIA-930 fuel-type-data reports fueltype=WND; region-data type=NG is TOTAL generation.
     # Never accept an NG/total-generation export as a wind series.
