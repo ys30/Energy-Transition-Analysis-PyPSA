@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - src/energy_transition/naris2024_interface_intake.py
+      - tests/test_naris2024_interface_intake.py
       - .github/workflows/naris2024-interface-audit.yml
 permissions:
   contents: read
@@ -17,6 +18,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Test directional Link conversion
+        run: |
+          python -m pip install pytest
+          PYTHONPATH=src python -m pytest -q tests/test_naris2024_interface_intake.py
       - name: Fetch and validate actual published interface capacities
         run: |
           PYTHONPATH=src python -m energy_transition.naris2024_interface_intake --output outputs/naris2024_ba_interface_audit.json
