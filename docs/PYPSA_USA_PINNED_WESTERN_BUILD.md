@@ -24,14 +24,13 @@ cd pypsa-usa
 git checkout 338af9912addbaf038c6098fe27e1e6ef099d8aa
 bash init_pypsa_usa.sh
 cd workflow
+# First inspect the copied, merged configs and the planned targets.
+uv run snakemake -n -j1 --configfile config/config.default.yaml
+# Only execute the full workflow after confirming the dry run and resources.
 uv run snakemake -j1 --configfile config/config.default.yaml
 ```
 
-The upstream default config describes `interconnect: [western]`,
-`transmission_network: 'reeds'`, `topological_boundaries: 'reeds_zone'`,
-and planning horizons 2030/2040/2050 on the repository master branch.
-**Verify** all these values against the pinned v0.8.0 config before running;
-do not silently substitute master's settings. The full default workflow may
+Checked against pinned v0.8.0 commit `338af991`: its `workflow/repo_data/config/config.default.yaml` explicitly sets `interconnect: [western]`, `transmission_network: 'reeds'`, `topological_boundaries: 'reeds_zone'`, and `planning_horizons: [2030, 2040, 2050]`. The pinned `workflow/Snakefile` also merges `config.cluster.yaml`, `config.common.yaml`, `config.plotting.yaml`, `config.api.yaml`, and `config.sector.yaml`. Review their overrides and the full dry-run DAG before execution; configuration presence is not proof a completed network will retain `LAF_state`. The full default workflow may
 require much more compute, disk, external weather inputs, credentials and
 runtime than this repository's GitHub CI affords. Avoid adding it to CI.
 
