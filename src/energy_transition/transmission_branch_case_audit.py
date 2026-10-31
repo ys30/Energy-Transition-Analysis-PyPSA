@@ -35,11 +35,14 @@ def audit_branch_case(frame: pd.DataFrame, *, case_year: int, kind: str) -> dict
         invalid = numeric.lt(0) if column=="resistance_ohm" else numeric.le(0)
         if invalid.any():
             raise ValueError(f"Invalid {column}")
+    # These fields are supplied by the same dataset and are not an independent audit.
+    # Preserve the claim, but never elevate it into source authentication.
     if not frame.evidence_status.eq("independently_verified").all():
-        raise ValueError("A URL is not sufficient: independently verified branch evidence required")
+        raise ValueError("Claimed evidence status missing; independent authentication still required")
     if not pd.to_numeric(frame.source_year).eq(case_year).all():
         raise ValueError("Branch source year differs from declared case year")
     return {"ready_for_engineering_review":True,
+            "claimed_evidence_status":"independently_verified_unconfirmed",
             "source_authenticity_independently_confirmed":False,
             "ready_for_pypsa_physical_calibration":False,
             "ready_for_historical_2024_calibration":False,
