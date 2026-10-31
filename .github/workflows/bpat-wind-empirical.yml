@@ -129,7 +129,7 @@ jobs:
           }
           out=root/"bpat_wind_reconciliation"
           out.mkdir(parents=True,exist_ok=True)
-          (out/"excluded_source_wind_audit.json").write_text(json.dumps(result,indent=2)+"\\n")
+          (out/"excluded_source_wind_audit.json").write_text(json.dumps(result,indent=2)+"\n")
           print(json.dumps(result,indent=2))
           PY
       - name: Publish BPAT-only excluded source audit alongside annual totals
