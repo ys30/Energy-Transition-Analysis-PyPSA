@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import pandas as pd
+import numpy as np
 
 
 def review_queue(plant_totals: pd.DataFrame) -> pd.DataFrame:
@@ -17,8 +18,10 @@ def review_queue(plant_totals: pd.DataFrame) -> pd.DataFrame:
     if p.empty or p.plant_id.duplicated().any():
         raise ValueError("Missing or duplicate BPAT wind plants")
     p["net_generation_mwh"]=pd.to_numeric(p.net_generation_mwh,errors="raise")
-    if not p.net_generation_mwh.notna().all():
-        raise ValueError("Missing source generation")
+    if not np.isfinite(p.net_generation_mwh.to_numpy(dtype=float)).all():
+        raise ValueError("Non-finite source generation")
+    if (p.net_generation_mwh < 0).any():
+        raise ValueError("Negative annual plant generation is invalid for priority shares")
     p=p.sort_values("net_generation_mwh",ascending=False).reset_index(drop=True)
     p["priority_rank"]=range(1,len(p)+1)
     total=float(p.net_generation_mwh.sum())
