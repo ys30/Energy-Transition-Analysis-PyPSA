@@ -17,6 +17,9 @@ def audit(path: Path, out: Path):
     if not required.issubset(b.columns): raise ValueError("Missing built-network LAF or geography")
     laf=pd.to_numeric(b["LAF_state"],errors="coerce")
     bad=int((~np.isfinite(laf)).sum())
+    bad_mask=~np.isfinite(laf)
+    missing_by_state={str(k):int(v) for k,v in bad_mask.groupby(b["state"]).sum().items() if v}
+    missing_by_zone={str(k):int(v) for k,v in bad_mask.groupby(b["reeds_zone"]).sum().items() if v}
     negative=int((laf.dropna()<0).sum())
     per_state=laf.groupby(b["state"]).agg(["count","sum","min","max"])
     per_zone=laf.groupby([b["state"],b["reeds_zone"]]).sum()
@@ -24,6 +27,9 @@ def audit(path: Path, out: Path):
       "source":"LAF_state embedded in pinned upstream-built elec_base_network.nc",
       "buses":len(b),"invalid_laf_values":bad,"negative_laf_values":negative,
       "nonzero_laf_buses":int((laf.fillna(0)>0).sum()),
+      "missing_laf_by_state":missing_by_state,
+      "missing_laf_by_zone":missing_by_zone,
+      "laf_complete_for_all_buses":bad==0,
       "state_totals":{str(k):{"count":int(v["count"]),"sum":float(v["sum"]),"min":float(v["min"]),"max":float(v["max"])} for k,v in per_state.to_dict("index").items()},
       "state_zone_laf_sums":[{"state":str(s),"reeds_zone":str(z),"sum_laf":float(val)} for (s,z),val in per_zone.items()],
       "reeds_zone_count":int(b.reeds_zone.nunique()),
@@ -31,8 +37,11 @@ def audit(path: Path, out: Path):
       "allocation_provenance_review_required":True,
       "hourly_efs_allocated":False
     }
-    if bad or negative: raise ValueError(f"Invalid LAF data: nonfinite={bad}, negative={negative}")
-    if (per_state["sum"]>1.0001).any(): raise ValueError("LAF sums exceed 1 for some state")
+    # Missing upstream LAFs require separate investigation; do not coerce to zero.
+    # Audit remains executable and explicitly records that load allocation is blocked.
+    if negative: raise ValueError(f"Negative LAF data: {negative}")
+    result["empirical_load_allocation_admitted"]=bool(bad==0 and (per_state["sum"]<=1.0001).all())
+    result["state_sums_exceed_one"]=[str(k) for k,v in per_state["sum"].items() if v>1.0001]
     out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(result,indent=2)+"\n")
     print(json.dumps({k:v for k,v in result.items() if k!="state_zone_laf_sums"},indent=2))
