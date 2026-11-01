@@ -1,0 +1,47 @@
+name: PyPSA-USA pinned data_model DAG probe
+'on':
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  data-model-dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Project B package
+        run: python -m pip install -e '.[dev]'
+      - name: Checkout pinned upstream and initialize configs
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/PyPSA/pypsa-usa.git /tmp/pypsa-usa
+          git -C /tmp/pypsa-usa checkout 338af9912addbaf038c6098fe27e1e6ef099d8aa
+          (cd /tmp/pypsa-usa && bash init_pypsa_usa.sh)
+          python -m energy_transition.pypsa_usa_build_preflight --checkout /tmp/pypsa-usa --report outputs/upstream-preflight.json
+      - name: Install pinned-era Snakemake engine for DAG inspection
+        run: |
+          python -m pip install 'snakemake>=7.0,<8.0' 'pulp<2.8'
+      - name: Execute data_model dry run without upstream data downloads
+        id: dag
+        continue-on-error: true
+        working-directory: /tmp/pypsa-usa/workflow
+        run: |
+          set -o pipefail
+          snakemake -n -j1 --configfile config/config.default.yaml data_model 2>&1 | tee "$GITHUB_WORKSPACE/dag-probe.log"
+      - name: Publish dry-run outcome
+        if: always()
+        run: |
+          echo "dry_run_outcome=${{ steps.dag.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "This probe does not build or claim to validate an empirical Western network." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pypsa-usa-data-model-dag-probe
+          path: |
+            dag-probe.log
+            outputs/upstream-preflight.json
+      - name: Fail if DAG probe failed
+        if: steps.dag.outcome != 'success'
+        run: exit 1
