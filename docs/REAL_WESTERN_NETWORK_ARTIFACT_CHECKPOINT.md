@@ -17,10 +17,10 @@ From the checked-out upstream `workflow/` directory after
 
 ```bash
 # Preview the exact DAG without downloading source data.
-uv run snakemake -n -j1 --configfile config/config.default.yaml data_model
+uv run snakemake -n -j1 data_model --configfile config/config.default.yaml
 
 # Execute only after reviewing required inputs and compute/disk demand.
-uv run snakemake -j1 --configfile config/config.default.yaml data_model
+uv run snakemake -j1 data_model --configfile config/config.default.yaml
 ```
 
 In this pinned version, the default scenario specifies `western`,
