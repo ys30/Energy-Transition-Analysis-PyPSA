@@ -1,6 +1,10 @@
 name: PyPSA-USA pinned data_model DAG probe
 'on':
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/pypsa-usa-data-model-dag-probe.yml
 permissions:
   contents: read
 jobs:
