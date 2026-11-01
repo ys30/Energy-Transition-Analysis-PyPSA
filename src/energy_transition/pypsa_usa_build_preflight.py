@@ -37,6 +37,14 @@ def preflight(root: Path) -> dict:
     }
     if mismatch:
         raise ValueError(f"Pinned Western ReEDS run config mismatch: {mismatch}")
+    demand = cfg.get("electricity", {}).get("demand", {})
+    demand_expected = {"profile": "efs"}
+    scenario_expected = {"efs_case": "reference", "efs_speed": "moderate"}
+    if any(demand.get(k) != v for k, v in demand_expected.items()):
+        raise ValueError("Pinned PyPSA-USA EFS demand profile mismatch")
+    if any(demand.get("scenario", {}).get(k) != v
+           for k, v in scenario_expected.items()):
+        raise ValueError("Pinned PyPSA-USA EFS demand scenario mismatch")
     snakefile = (root / "workflow" / "Snakefile").read_text(encoding="utf-8")
     merged = ("config.cluster.yaml", "config.common.yaml",
               "config.plotting.yaml", "config.api.yaml", "config.sector.yaml")
@@ -70,6 +78,7 @@ def preflight(root: Path) -> dict:
     return {
         "upstream_sha": actual,
         "verified_default_config": EXPECTED,
+        "verified_efs_demand": {**demand_expected, **scenario_expected},
         "other_configs_merged": list(merged),
         "config_file_sha256": digests,
         "snakefile_sha256": hashlib.sha256(snakefile.encode()).hexdigest(),
