@@ -9,6 +9,7 @@ on:
       - 'src/energy_transition/ba_crosswalk.py'
       - 'src/energy_transition/eia860_generation_readiness.py'
       - 'src/energy_transition/eia860_western_network_coverage.py'
+      - 'src/energy_transition/eia860_state_overlap_assert.py'
 permissions:
   contents: read
   actions: read
@@ -55,6 +56,11 @@ jobs:
             --generators outputs/eia860/generator_ba_audit_${{ matrix.year }}.csv \
             --network /tmp/verified-western/real-western-base-network.nc \
             --out outputs/eia860/eia860_western_network_coverage_${{ matrix.year }}.json
+      - name: Enforce genuine generator-bus state coverage
+        run: |
+          python -m energy_transition.eia860_state_overlap_assert \
+            --coverage-json outputs/eia860/eia860_western_network_coverage_${{ matrix.year }}.json \
+            --out outputs/eia860/eia860_state_overlap_assert_${{ matrix.year }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
