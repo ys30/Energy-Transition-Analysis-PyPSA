@@ -4,6 +4,36 @@ The pinned PyPSA-USA v0.8.0 preflight workflow succeeds, but **it does not
 produce a built network NetCDF**. The next dependency is a genuine built
 network from an actual upstream run, not another synthetic PyPSA fixture.
 
+## Concrete upstream Snakemake build target (verified in pinned source)
+
+The pinned PyPSA-USA `workflow/Snakefile` defines `rule data_model`
+whose input is `resources/{run-name}/{interconnect}/elec_s{simpl}_c{clusters}_ec_l{ll}_{opts}_{sector}.nc`
+(with the exact prefix and wildcards resolved by the effective configuration).
+By contrast, `rule all` enumerates downstream plots. For a network artifact,
+target **`data_model`**, not a broad default `all`.
+
+From the checked-out upstream `workflow/` directory after
+`init_pypsa_usa.sh`:
+
+```bash
+# Preview the exact DAG without downloading source data.
+uv run snakemake -n -j1 --configfile config/config.default.yaml data_model
+
+# Execute only after reviewing required inputs and compute/disk demand.
+uv run snakemake -j1 --configfile config/config.default.yaml data_model
+```
+
+In this pinned version, the default scenario specifies `western`,
+`reeds`, 2030/2040/2050 EFS reference/moderate years. The rule's
+`elec_*.nc` output is **a model network candidate**. Inspect its buses
+and the `LAF_state` column before treating it as a valid real-data
+source. The network file need not be published in Git (large upstream data
+and license conditions apply).
+
+**This target has been identified from the official pinned Snakefile,
+not executed to completion in Project B.** No built network files or derived
+real weights are claimed.
+
 ## Required evidence for first empirical import
 
 - Exact upstream Git revision `338af9912addbaf038c6098fe27e1e6ef099d8aa`
