@@ -13,6 +13,7 @@ on:
       - 'src/energy_transition/eia860_eia923_plant_universe_audit.py'
       - 'src/energy_transition/eia860_unmatched_plant_capacity_review.py'
       - 'src/energy_transition/eia860_unmatched_fuel_priority.py'
+      - 'src/energy_transition/eia923_qualification_failure_diagnostic.py'
 jobs:
   generation:
     runs-on: ubuntu-latest
@@ -76,6 +77,12 @@ jobs:
           python -m energy_transition.eia860_unmatched_fuel_priority \
             --unmatched outputs/eia923_generation/eia860_unmatched_plant_capacity_2024.csv \
             --out outputs/eia923_generation/eia860_unmatched_fuel_priority_2024.csv
+      - name: Diagnose EIA-923 hydro and solar Page1 qualification failure reasons
+        run: |
+          python -m energy_transition.eia923_qualification_failure_diagnostic \
+            --eia860 /tmp/eia860/generator_ba_audit_2024.csv \
+            --eia923 outputs/eia923_generation/annual_monthly_reconciliation.csv \
+            --out outputs/eia923_generation/eia923_fuel_qualification_failure_reasons_2024.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
