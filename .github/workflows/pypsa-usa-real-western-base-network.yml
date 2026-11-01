@@ -7,6 +7,7 @@ name: PyPSA-USA real Western base network build
       - .github/workflows/pypsa-usa-real-western-base-network.yml
       - src/energy_transition/pypsa_base_network_validate.py
       - src/energy_transition/pypsa_base_geography_inventory.py
+      - src/energy_transition/pypsa_real_bus_zone_crosswalk.py
 permissions:
   contents: read
 jobs:
@@ -70,6 +71,13 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.pypsa_base_geography_inventory \
             --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
             --out "$GITHUB_WORKSPACE/real-base-network-geography.json"
+      - name: Export actual bus-to-state/ReEDS crosswalk
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.pypsa_real_bus_zone_crosswalk \
+            --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
+            --csv "$GITHUB_WORKSPACE/real-western-bus-reeds-crosswalk.csv" \
+            --report "$GITHUB_WORKSPACE/real-western-bus-reeds-crosswalk.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -79,6 +87,8 @@ jobs:
             real-base-network-evidence.json
             real-base-network-structure.json
             real-base-network-geography.json
+            real-western-bus-reeds-crosswalk.csv
+            real-western-bus-reeds-crosswalk.json
             real-western-base-network.nc
       - name: Report actual build failure
         if: steps.build.outcome != 'success'
