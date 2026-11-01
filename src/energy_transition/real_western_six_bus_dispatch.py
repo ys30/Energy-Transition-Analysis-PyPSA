@@ -40,7 +40,15 @@ def solve(path,out,hours=24):
  if abs(actual-output)>max(0.01,actual*1e-8):raise ValueError("Power balance failed")
  max_ratio=float((sub.lines_t.p0.abs()/sub.lines.s_nom).max().max())
  if max_ratio>1.000001:raise ValueError("Thermal line limit violated")
- result={"buses":len(buses),"real_lines":len(lines),"hours":hours,
+ utilization=(sub.lines_t.p0.abs()/sub.lines.s_nom)
+ congested=utilization.columns[(utilization>=0.999999).any(axis=0)].tolist()
+ line_peak={str(k):float(utilization[k].max()) for k in utilization.columns}
+ if not congested:raise ValueError("No thermal limit binding in pilot")
+ result={"binding_line_ids":[str(k) for k in congested],
+         "maximum_utilization_by_line":line_peak,
+         "binding_line_count":len(congested),
+         "thermal_binding_verified":True,
+         "buses":len(buses),"real_lines":len(lines),"hours":hours,
          "actual_efs_mwh":actual,"dispatched_mwh":output,
          "max_line_thermal_utilization":max_ratio,
          "solver_status":status,"solver_condition":condition,
