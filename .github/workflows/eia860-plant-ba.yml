@@ -18,6 +18,7 @@ on:
       - 'src/energy_transition/eia860_candidate_change_audit.py'
       - 'src/energy_transition/eia860_changed_bus_distance_ties.py'
       - 'src/energy_transition/eia860_material_candidate_review.py'
+      - 'src/energy_transition/eia860_material_candidate_evidence.py'
 permissions:
   contents: read
   actions: read
@@ -115,6 +116,14 @@ jobs:
             --changed outputs/eia860/eia860_changed_candidate_buses_${{ matrix.year }}.csv \
             --year ${{ matrix.year }} \
             --out-dir outputs/eia860
+      - name: Join materially shifted plant IDs to official BA and real bus ReEDS evidence
+        run: |
+          python -m energy_transition.eia860_material_candidate_evidence \
+            --material outputs/eia860/eia860_material_bus_changes_${{ matrix.year }}.csv \
+            --plant-ba outputs/eia860/plant_ba_raw_audit_${{ matrix.year }}.csv \
+            --network /tmp/verified-western/real-western-base-network.nc \
+            --year ${{ matrix.year }} \
+            --out outputs/eia860/eia860_material_bus_change_evidence_${{ matrix.year }}.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
