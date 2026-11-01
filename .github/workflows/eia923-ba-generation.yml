@@ -9,6 +9,7 @@ on:
       - 'src/energy_transition/eia860_eia923_ba_screen.py'
       - 'src/energy_transition/eia923_ba_capacity_ratio_gate.py'
       - 'src/energy_transition/eia923_withheld_generation_coverage.py'
+      - 'src/energy_transition/eia923_coverage_ratio_sensitivity.py'
 jobs:
   generation:
     runs-on: ubuntu-latest
@@ -49,6 +50,12 @@ jobs:
           python -m energy_transition.eia923_withheld_generation_coverage \
             --qualified outputs/eia923_generation/generation_qualified_ba_fuel.csv \
             --out outputs/eia923_generation/eia923_withheld_annual_coverage_2024.csv
+      - name: Test qualified versus all-reported EIA-923 ratio sensitivity
+        run: |
+          python -m energy_transition.eia923_coverage_ratio_sensitivity \
+            --screen outputs/eia923_generation/eia860_eia923_ba_comparison_2024.csv \
+            --coverage outputs/eia923_generation/eia923_withheld_annual_coverage_2024.csv \
+            --out outputs/eia923_generation/eia923_qualification_ratio_sensitivity_2024.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
