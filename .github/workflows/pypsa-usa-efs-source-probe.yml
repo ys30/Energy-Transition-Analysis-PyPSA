@@ -9,6 +9,7 @@ name: PyPSA-USA EFS source acquisition probe
       - src/energy_transition/nlr_efs_coverage_audit.py
       - src/energy_transition/nlr_efs_western_hourly.py
       - src/energy_transition/nlr_efs_annual_metrics.py
+      - src/energy_transition/reeds_efs_geography_audit.py
 permissions:
   contents: read
 jobs:
@@ -84,6 +85,11 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.nlr_efs_annual_metrics \
             --csv outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
             --out outputs/efs-core-west-annual-mwh-state-peaks.json
+      - name: Audit pinned ReEDS Western geography against EFS states
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.reeds_efs_geography_audit \
+            --membership /tmp/pypsa-usa/workflow/repo_data/ReEDS_Constraints/membership.csv \
+            --out outputs/reeds-efs-western-geography.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -96,6 +102,7 @@ jobs:
             outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
             outputs/efs-core-west-2030-2040-2050-audit.json
             outputs/efs-core-west-annual-mwh-state-peaks.json
+            outputs/reeds-efs-western-geography.json
       - name: Enforce acquisition outcome
         if: steps.efs.outcome != 'success'
         run: exit 1
