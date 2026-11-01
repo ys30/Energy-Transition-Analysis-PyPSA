@@ -7,6 +7,11 @@ import argparse,json
 from pathlib import Path
 import pandas as pd
 import pypsa
+STATE_CODES={"Arizona":"AZ","California":"CA","Colorado":"CO","Idaho":"ID",
+ "Montana":"MT","Nevada":"NV","New Mexico":"NM","Oregon":"OR",
+ "Texas":"TX","Utah":"UT","Washington":"WA","Wyoming":"WY"}
+def standardize(values):
+ return values.astype("string").str.strip().replace(STATE_CODES).str.upper()
 
 def audit(gens,network):
  df=pd.read_csv(gens,dtype={"plant_id":"string","generator_id":"string"})
@@ -19,17 +24,23 @@ def audit(gens,network):
  if op.empty:raise ValueError("No operating mapped units")
  b=n.buses.copy()
  if "state" not in b:raise ValueError("Network bus state missing")
- bus_states=set(b.state.dropna().astype(str).str.upper())
- gen_states=set(op.state.dropna().astype(str).str.upper())
+ bus_code=standardize(b.state)
+ gen_code=standardize(op.state)
+ bus_states=set(bus_code.dropna())
+ gen_states=set(gen_code.dropna())
+ unknown=sorted(bus_states-set(STATE_CODES.values()))
+ if unknown:raise ValueError(f"Unmapped Western bus state labels: {unknown}")
  overlap=sorted(gen_states&bus_states)
+ if not overlap:raise ValueError("Zero overlap after normalized state names: check EIA and network schemas")
  rows=[]
  for state in sorted(gen_states|bus_states):
-  g=op.loc[op.state==state]
+  g=op.loc[gen_code.eq(state)]
   rows.append({"state":state,"operating_generators":len(g),
     "operating_nameplate_mw":float(g.capacity_mw.sum()),
-    "actual_network_buses":int(b.state.astype(str).eq(state).sum()),
+    "actual_network_buses":int(bus_code.eq(state).sum()),
     "network_and_generator_state_overlap":state in overlap})
- return {"source":"EIA-860 official 2024 operating generators and pinned actual PyPSA-USA base network",
+ return {"source":"EIA-860 official operating generators and pinned actual PyPSA-USA base network",
+  "state_labels_normalized":True,
   "states_in_both":overlap,"state_comparison":rows,
   "operating_generators_total":len(op),"operating_nameplate_mw":float(op.capacity_mw.sum()),
   "generator_bus_crosswalk_verified":False,
