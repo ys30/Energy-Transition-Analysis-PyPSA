@@ -7,6 +7,7 @@ on:
       - 'src/energy_transition/eia860_capacity.py'
       - 'src/energy_transition/eia860_plant_ba.py'
       - 'src/energy_transition/ba_crosswalk.py'
+      - 'src/energy_transition/eia860_generation_readiness.py'
 permissions:
   contents: read
 jobs:
@@ -32,6 +33,12 @@ jobs:
             --year ${{ matrix.year }} \
             --generators outputs/eia860/western_state_generators_${{ matrix.year }}.csv \
             --output outputs/eia860
+      - name: Audit verified operating EIA generator fleet for real PyPSA supply mapping
+        run: |
+          python -m energy_transition.eia860_generation_readiness \
+            --audit outputs/eia860/generator_ba_audit_${{ matrix.year }}.csv \
+            --year ${{ matrix.year }} \
+            --out outputs/eia860/eia860_generation_readiness_${{ matrix.year }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
