@@ -33,7 +33,7 @@ jobs:
         working-directory: /tmp/pypsa-usa/workflow
         run: |
           set -o pipefail
-          snakemake -n -j1 --configfile config/config.default.yaml data_model 2>&1 | tee "$GITHUB_WORKSPACE/dag-probe.log"
+          snakemake -n -j1 data_model --configfile config/config.default.yaml 2>&1 | tee "$GITHUB_WORKSPACE/dag-probe.log"
       - name: Publish dry-run outcome
         if: always()
         run: |
