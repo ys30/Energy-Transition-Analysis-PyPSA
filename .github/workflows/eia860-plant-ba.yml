@@ -8,8 +8,10 @@ on:
       - 'src/energy_transition/eia860_plant_ba.py'
       - 'src/energy_transition/ba_crosswalk.py'
       - 'src/energy_transition/eia860_generation_readiness.py'
+      - 'src/energy_transition/eia860_western_network_coverage.py'
 permissions:
   contents: read
+  actions: read
 jobs:
   inventory-and-mapping:
     runs-on: ubuntu-latest
@@ -39,6 +41,18 @@ jobs:
             --audit outputs/eia860/generator_ba_audit_${{ matrix.year }}.csv \
             --year ${{ matrix.year }} \
             --out outputs/eia860/eia860_generation_readiness_${{ matrix.year }}.json
+      - name: Download previously verified Western grid network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41281576025 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/verified-western
+          test -s /tmp/verified-western/real-western-base-network.nc
+      - name: Compare EIA fleet geography against actual Western bus states
+        run: |
+          python -m energy_transition.eia860_western_network_coverage \
+            --generators outputs/eia860/generator_ba_audit_${{ matrix.year }}.csv \
+            --network /tmp/verified-western/real-western-base-network.nc \
+            --out outputs/eia860/eia860_western_network_coverage_${{ matrix.year }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
