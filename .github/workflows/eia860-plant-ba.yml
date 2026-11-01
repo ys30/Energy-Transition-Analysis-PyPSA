@@ -13,6 +13,7 @@ on:
       - 'src/energy_transition/eia860_plant_coordinates.py'
       - 'src/energy_transition/eia860_plant_bus_candidates.py'
       - 'src/energy_transition/eia860_plant_bus_distance_qc.py'
+      - 'src/energy_transition/eia860_plant_bus_topology_qc.py'
 permissions:
   contents: read
   actions: read
@@ -81,6 +82,12 @@ jobs:
             --candidates outputs/eia860/eia860_geographic_plant_bus_candidates_${{ matrix.year }}.csv \
             --year ${{ matrix.year }} \
             --out-dir outputs/eia860
+      - name: Check real grid connectivity and ReEDS labels of plant-bus candidates
+        run: |
+          python -m energy_transition.eia860_plant_bus_topology_qc \
+            --candidates outputs/eia860/eia860_geographic_plant_bus_candidates_${{ matrix.year }}.csv \
+            --network /tmp/verified-western/real-western-base-network.nc \
+            --year ${{ matrix.year }} --out-dir outputs/eia860
       - uses: actions/upload-artifact@v4
         if: always()
         with:
