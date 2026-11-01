@@ -6,6 +6,7 @@ name: PyPSA-USA real Western base network build
     paths:
       - .github/workflows/pypsa-usa-real-western-base-network.yml
       - src/energy_transition/pypsa_base_network_validate.py
+      - src/energy_transition/pypsa_base_geography_inventory.py
 permissions:
   contents: read
 jobs:
@@ -63,6 +64,12 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.pypsa_base_network_validate \
             --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
             --out "$GITHUB_WORKSPACE/real-base-network-structure.json"
+      - name: Inventory real network bus geography labels
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.pypsa_base_geography_inventory \
+            --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
+            --out "$GITHUB_WORKSPACE/real-base-network-geography.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -71,6 +78,7 @@ jobs:
             real-base-network-build.log
             real-base-network-evidence.json
             real-base-network-structure.json
+            real-base-network-geography.json
             real-western-base-network.nc
       - name: Report actual build failure
         if: steps.build.outcome != 'success'
