@@ -109,22 +109,22 @@ jobs:
             --source /tmp/verified-efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
             --zonal "$GITHUB_WORKSPACE/efs-real-laf-zonal-pilot.csv.gz" \
             --out "$GITHUB_WORKSPACE/efs-real-laf-hourly-conservation.json"
-      - name: Attach real 2030 EFS seven-state zonal load to actual PyPSA buses
+      - name: Attach and verify real EFS zonal loads for 2030, 2040 and 2050
         if: steps.build.outcome == 'success'
         run: |
-          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.efs_real_load_attachment_pilot \
-            --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
-            --zonal "$GITHUB_WORKSPACE/efs-real-laf-zonal-pilot.csv.gz" \
-            --year 2030 \
-            --out "$GITHUB_WORKSPACE/efs-real-2030-local-hour-load-only.nc"
-      - name: Verify reimported 2030 PyPSA NetCDF retains all EFS zonal MWh
-        if: steps.build.outcome == 'success'
-        run: |
-          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.efs_real_load_roundtrip_validate \
-            --network "$GITHUB_WORKSPACE/efs-real-2030-local-hour-load-only.nc" \
-            --zonal "$GITHUB_WORKSPACE/efs-real-laf-zonal-pilot.csv.gz" \
-            --year 2030 \
-            --out "$GITHUB_WORKSPACE/efs-real-2030-load-roundtrip-audit.json"
+          set -euo pipefail
+          for year in 2030 2040 2050; do
+            PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.efs_real_load_attachment_pilot \
+              --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
+              --zonal "$GITHUB_WORKSPACE/efs-real-laf-zonal-pilot.csv.gz" \
+              --year "$year" \
+              --out "$GITHUB_WORKSPACE/efs-real-${year}-local-hour-load-only.nc"
+            PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.efs_real_load_roundtrip_validate \
+              --network "$GITHUB_WORKSPACE/efs-real-${year}-local-hour-load-only.nc" \
+              --zonal "$GITHUB_WORKSPACE/efs-real-laf-zonal-pilot.csv.gz" \
+              --year "$year" \
+              --out "$GITHUB_WORKSPACE/efs-real-${year}-load-roundtrip-audit.json"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -142,6 +142,10 @@ jobs:
             efs-real-laf-hourly-conservation.json
             efs-real-2030-local-hour-load-only.nc
             efs-real-2030-load-roundtrip-audit.json
+            efs-real-2040-local-hour-load-only.nc
+            efs-real-2040-load-roundtrip-audit.json
+            efs-real-2050-local-hour-load-only.nc
+            efs-real-2050-load-roundtrip-audit.json
             real-western-base-network.nc
       - name: Report actual build failure
         if: steps.build.outcome != 'success'
