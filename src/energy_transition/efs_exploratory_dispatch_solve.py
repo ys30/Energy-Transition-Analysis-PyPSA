@@ -46,4 +46,5 @@ if __name__=="__main__":
     p.add_argument("--zonal",type=Path,required=True)
     p.add_argument("--out",type=Path,required=True)
     p.add_argument("--year",type=int,default=2030)
-    a=p.parse_args();run(a.zonal,a.out,a.year)
+    p.add_argument("--hours",type=int,default=24)
+    a=p.parse_args();run(a.zonal,a.out,a.year,a.hours)
