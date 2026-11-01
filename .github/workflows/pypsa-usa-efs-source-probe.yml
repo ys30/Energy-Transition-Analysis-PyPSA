@@ -31,14 +31,14 @@ jobs:
         working-directory: /tmp/pypsa-usa/workflow
         run: |
           set -o pipefail
-          snakemake -j1 retrieve_nrel_efs_data --configfile config/config.default.yaml 2>&1 | tee "$GITHUB_WORKSPACE/efs-acquisition.log"
+          snakemake -j1 data/nrel_efs/EFSLoadProfile_Reference_Moderate.csv --configfile config/config.default.yaml 2>&1 | tee "$GITHUB_WORKSPACE/efs-acquisition.log"
       - name: Inventory source files and checksums
         if: steps.efs.outcome == 'success'
         working-directory: /tmp/pypsa-usa/workflow
         run: |
           python - <<'PY' > "$GITHUB_WORKSPACE/efs-source-inventory.json"
           import json, pathlib, hashlib
-          paths=list(pathlib.Path("data").rglob("*efs*"))+list(pathlib.Path("resources").rglob("*efs*"))
+          paths=list(pathlib.Path("data/nrel_efs").rglob("EFSLoadProfile_*.csv"))
           files=sorted({str(p):p for p in paths if p.is_file()}.values(), key=str)
           print(json.dumps({"files":[{"path":str(p),"bytes":p.stat().st_size,"sha256":hashlib.file_digest(p.open("rb"),"sha256").hexdigest()} for p in files],"network_built":False,"laf_derived":False},indent=2))
           PY
