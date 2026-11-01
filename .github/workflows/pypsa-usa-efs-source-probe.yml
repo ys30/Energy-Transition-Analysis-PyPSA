@@ -6,6 +6,7 @@ name: PyPSA-USA EFS source acquisition probe
     paths:
       - .github/workflows/pypsa-usa-efs-source-probe.yml
       - src/energy_transition/nlr_efs_source_inspect.py
+      - src/energy_transition/nlr_efs_coverage_audit.py
 permissions:
   contents: read
 jobs:
@@ -62,6 +63,12 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src${PYTHONPATH:+:$PYTHONPATH}" python -m energy_transition.nlr_efs_source_inspect \
             --csv /tmp/pypsa-usa/workflow/data/nrel_efs/EFSLoadProfile_Reference_Moderate.csv \
             --out outputs/nlr-efs-source-schema.json
+      - name: Audit real EFS year and state coverage in chunks
+        if: steps.efs.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.nlr_efs_coverage_audit \
+            --csv /tmp/pypsa-usa/workflow/data/nrel_efs/EFSLoadProfile_Reference_Moderate.csv \
+            --out outputs/nlr-efs-coverage.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -70,6 +77,7 @@ jobs:
             efs-acquisition.log
             efs-source-inventory.json
             outputs/nlr-efs-source-schema.json
+            outputs/nlr-efs-coverage.json
       - name: Enforce acquisition outcome
         if: steps.efs.outcome != 'success'
         run: exit 1
