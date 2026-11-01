@@ -15,6 +15,7 @@ on:
       - 'src/energy_transition/eia860_plant_bus_distance_qc.py'
       - 'src/energy_transition/eia860_plant_bus_topology_qc.py'
       - 'src/energy_transition/eia860_main_component_candidates.py'
+      - 'src/energy_transition/eia860_candidate_change_audit.py'
 permissions:
   contents: read
   actions: read
@@ -95,6 +96,12 @@ jobs:
             --plants outputs/eia860/official_eia860_plant_coordinates_${{ matrix.year }}.csv \
             --network /tmp/verified-western/real-western-base-network.nc \
             --out outputs/eia860/eia860_main_component_candidates_${{ matrix.year }}.csv
+      - name: Compare plant candidate buses before and after primary-grid restriction
+        run: |
+          python -m energy_transition.eia860_candidate_change_audit \
+            --original outputs/eia860/eia860_geographic_plant_bus_candidates_${{ matrix.year }}.csv \
+            --main outputs/eia860/eia860_main_component_candidates_${{ matrix.year }}.csv \
+            --out outputs/eia860/eia860_changed_candidate_buses_${{ matrix.year }}.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
