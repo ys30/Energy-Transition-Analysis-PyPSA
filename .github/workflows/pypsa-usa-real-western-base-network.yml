@@ -19,6 +19,7 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/real_line_rating_distribution.py
       - src/energy_transition/real_western_multibus_candidates.py
       - src/energy_transition/efs_hour_semantics_gate.py
+      - src/energy_transition/real_western_bus_coordinate_audit.py
 permissions:
   contents: read
   actions: read
@@ -170,6 +171,12 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.efs_hour_semantics_gate \
             --zonal "$GITHUB_WORKSPACE/efs-real-laf-zonal-pilot.csv.gz" \
             --out "$GITHUB_WORKSPACE/efs-localhour-utc-readiness.json"
+      - name: Audit actual Western bus coordinates for prospective plant matching
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_western_bus_coordinate_audit \
+            --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
+            --out "$GITHUB_WORKSPACE/real-western-bus-coordinate-audit.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -183,6 +190,7 @@ jobs:
             real-line-rating-distribution.json
             real-western-multibus-candidates.json
             efs-localhour-utc-readiness.json
+            real-western-bus-coordinate-audit.json
             efs-real-2030-load-connectivity.json
             efs-real-2040-load-connectivity.json
             efs-real-2050-load-connectivity.json
