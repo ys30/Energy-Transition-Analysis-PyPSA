@@ -11,6 +11,7 @@ on:
       - 'src/energy_transition/eia860_western_network_coverage.py'
       - 'src/energy_transition/eia860_state_overlap_assert.py'
       - 'src/energy_transition/eia860_plant_coordinates.py'
+      - 'src/energy_transition/eia860_plant_bus_candidates.py'
 permissions:
   contents: read
   actions: read
@@ -67,6 +68,12 @@ jobs:
           python -m energy_transition.eia860_plant_coordinates \
             --year ${{ matrix.year }} \
             --out-dir outputs/eia860
+      - name: Generate same-state geographic plant-to-bus CANDIDATES
+        run: |
+          python -m energy_transition.eia860_plant_bus_candidates \
+            --plants outputs/eia860/official_eia860_plant_coordinates_${{ matrix.year }}.csv \
+            --network /tmp/verified-western/real-western-base-network.nc \
+            --out outputs/eia860/eia860_geographic_plant_bus_candidates_${{ matrix.year }}.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
