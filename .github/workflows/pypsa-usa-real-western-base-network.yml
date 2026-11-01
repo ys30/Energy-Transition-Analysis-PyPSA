@@ -12,6 +12,7 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/efs_real_laf_zonal_pilot.py
       - src/energy_transition/efs_real_laf_hourly_conservation.py
       - src/energy_transition/efs_real_load_attachment_pilot.py
+      - src/energy_transition/efs_real_load_roundtrip_validate.py
 permissions:
   contents: read
   actions: read
@@ -116,6 +117,14 @@ jobs:
             --zonal "$GITHUB_WORKSPACE/efs-real-laf-zonal-pilot.csv.gz" \
             --year 2030 \
             --out "$GITHUB_WORKSPACE/efs-real-2030-local-hour-load-only.nc"
+      - name: Verify reimported 2030 PyPSA NetCDF retains all EFS zonal MWh
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.efs_real_load_roundtrip_validate \
+            --network "$GITHUB_WORKSPACE/efs-real-2030-local-hour-load-only.nc" \
+            --zonal "$GITHUB_WORKSPACE/efs-real-laf-zonal-pilot.csv.gz" \
+            --year 2030 \
+            --out "$GITHUB_WORKSPACE/efs-real-2030-load-roundtrip-audit.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -132,6 +141,7 @@ jobs:
             efs-real-laf-zonal-pilot.csv.gz
             efs-real-laf-hourly-conservation.json
             efs-real-2030-local-hour-load-only.nc
+            efs-real-2030-load-roundtrip-audit.json
             real-western-base-network.nc
       - name: Report actual build failure
         if: steps.build.outcome != 'success'
