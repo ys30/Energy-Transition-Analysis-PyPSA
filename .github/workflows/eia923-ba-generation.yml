@@ -6,12 +6,14 @@ on:
       - '.github/workflows/eia923-ba-generation.yml'
       - 'src/energy_transition/eia923_ba_generation.py'
       - 'src/energy_transition/eia923_qualification.py'
+      - 'src/energy_transition/eia860_eia923_ba_screen.py'
 jobs:
   generation:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,6 +25,18 @@ jobs:
       - name: Qualify reconciled annual generation and report withheld rows
         run: |
           python -m energy_transition.eia923_qualification --reconciliation outputs/eia923_generation/annual_monthly_reconciliation.csv --output outputs/eia923_generation
+      - name: Retrieve verified 2024 EIA-860 BA operating capacity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41349585538 -R "${{ github.repository }}" -n eia860-plant-ba-2024 -D /tmp/eia860
+          test -s /tmp/eia860/eia860_ba_fuel_geographic_inventory_2024.csv
+      - name: Cross-check qualified EIA-923 BA generation against actual EIA-860 nameplate
+        run: |
+          python -m energy_transition.eia860_eia923_ba_screen \
+            --eia860 /tmp/eia860/eia860_ba_fuel_geographic_inventory_2024.csv \
+            --eia923 outputs/eia923_generation/generation_qualified_ba_fuel.csv \
+            --out outputs/eia923_generation/eia860_eia923_ba_comparison_2024.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
