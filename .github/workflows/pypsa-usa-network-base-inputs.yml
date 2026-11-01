@@ -40,6 +40,34 @@ jobs:
           if any("error" in x or x.get("http_status") not in (200,206) for x in records):
             raise SystemExit("One or more official upstream source archives are currently inaccessible")
           PY
+      - name: Download and validate actual pinned upstream network archives
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pypsa-western-archives
+          curl -fL --retry 3 --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/4538590/files/USATestSystem.zip' \
+            -o /tmp/pypsa-western-archives/USATestSystem.zip
+          curl -fL --retry 3 --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/14219029/files/pypsa_usa_data.zip' \
+            -o /tmp/pypsa-western-archives/pypsa_usa_data.zip
+          python - <<'PY'
+          import pathlib,zipfile,hashlib,json
+          out=[]
+          for p in sorted(pathlib.Path("/tmp/pypsa-western-archives").glob("*.zip")):
+              with zipfile.ZipFile(p) as z:
+                  damaged=z.testzip()
+                  if damaged: raise RuntimeError(f"Corrupt member: {damaged}")
+                  entries=z.infolist()
+                  details={"archive":p.name,"bytes":p.stat().st_size,
+                           "sha256":hashlib.file_digest(p.open("rb"),"sha256").hexdigest(),
+                           "file_count":len(entries),
+                           "uncompressed_bytes":sum(i.file_size for i in entries),
+                           "examples":[x.filename for x in entries[:12]]}
+                  out.append(details)
+          if len(out)!=2: raise RuntimeError("Two archives required")
+          pathlib.Path("upstream-base-archive-manifest.json").write_text(json.dumps({"archives":out,"network_built":False},indent=2))
+          print(json.dumps(out,indent=2))
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -47,3 +75,4 @@ jobs:
           path: |
             upstream-base-input-access.log
             upstream-base-input-access.json
+            upstream-base-archive-manifest.json
