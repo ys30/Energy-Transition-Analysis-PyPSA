@@ -17,6 +17,7 @@ on:
       - 'src/energy_transition/eia860_main_component_candidates.py'
       - 'src/energy_transition/eia860_candidate_change_audit.py'
       - 'src/energy_transition/eia860_changed_bus_distance_ties.py'
+      - 'src/energy_transition/eia860_material_candidate_review.py'
 permissions:
   contents: read
   actions: read
@@ -108,6 +109,12 @@ jobs:
           python -m energy_transition.eia860_changed_bus_distance_ties \
             --changed outputs/eia860/eia860_changed_candidate_buses_${{ matrix.year }}.csv \
             --out outputs/eia860/eia860_changed_bus_distance_ties_${{ matrix.year }}.json
+      - name: Export exact plant IDs with material candidate bus changes
+        run: |
+          python -m energy_transition.eia860_material_candidate_review \
+            --changed outputs/eia860/eia860_changed_candidate_buses_${{ matrix.year }}.csv \
+            --year ${{ matrix.year }} \
+            --out-dir outputs/eia860
       - uses: actions/upload-artifact@v4
         if: always()
         with:
