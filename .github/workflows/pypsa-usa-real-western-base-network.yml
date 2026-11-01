@@ -14,6 +14,7 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/efs_real_load_attachment_pilot.py
       - src/energy_transition/efs_real_load_roundtrip_validate.py
       - src/energy_transition/real_western_topology_connectivity.py
+      - src/energy_transition/real_western_load_connectivity_gate.py
 permissions:
   contents: read
   actions: read
@@ -132,6 +133,15 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_western_topology_connectivity \
             --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
             --out "$GITHUB_WORKSPACE/real-western-topology-connectivity.json"
+      - name: Check actual EFS loads outside primary connected grid
+        if: steps.build.outcome == 'success'
+        run: |
+          set -euo pipefail
+          for year in 2030 2040 2050; do
+            PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_western_load_connectivity_gate \
+              --network "$GITHUB_WORKSPACE/efs-real-${year}-local-hour-load-only.nc" \
+              --out "$GITHUB_WORKSPACE/efs-real-${year}-load-connectivity.json"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -141,6 +151,9 @@ jobs:
             real-base-network-evidence.json
             real-base-network-structure.json
             real-western-topology-connectivity.json
+            efs-real-2030-load-connectivity.json
+            efs-real-2040-load-connectivity.json
+            efs-real-2050-load-connectivity.json
             real-base-network-geography.json
             real-western-bus-reeds-crosswalk.csv
             real-western-bus-reeds-crosswalk.json
