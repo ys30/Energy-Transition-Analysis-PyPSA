@@ -48,6 +48,14 @@ jobs:
              'snapshots':len(n.snapshots),'base_network_built':True,
              'full_electricity_model_built':False,'laf_verified':False},indent=2))
           PY
+          cat "$GITHUB_WORKSPACE/real-base-network-evidence.json"
+          size=$(stat -c %s resources/Default/western/elec_base_network.nc)
+          if [ "$size" -le 200000000 ]; then
+            cp resources/Default/western/elec_base_network.nc "$GITHUB_WORKSPACE/real-western-base-network.nc"
+            echo "Base network included in downloadable CI artifact" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Base network exceeds 200 MB; metadata only, no full NetCDF artifact" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -55,6 +63,7 @@ jobs:
           path: |
             real-base-network-build.log
             real-base-network-evidence.json
+            real-western-base-network.nc
       - name: Report actual build failure
         if: steps.build.outcome != 'success'
         run: exit 1
