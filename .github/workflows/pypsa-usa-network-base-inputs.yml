@@ -1,0 +1,49 @@
+name: PyPSA-USA Western network base-input acquisition
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/pypsa-usa-network-base-inputs.yml
+permissions:
+  contents: read
+jobs:
+  source-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check pinned upstream source archives and runner capacity
+        run: |
+          python - <<'PY' | tee upstream-base-input-access.log
+          import json, urllib.request, shutil
+          urls={
+            "USATestSystem":"https://zenodo.org/record/4538590/files/USATestSystem.zip",
+            "pypsa_usa_data":"https://zenodo.org/records/14219029/files/pypsa_usa_data.zip",
+          }
+          available=shutil.disk_usage(".").free
+          records=[]
+          for name,url in urls.items():
+            try:
+              req=urllib.request.Request(url,method="HEAD",headers={"User-Agent":"PyPSA-USA-reproducibility-probe"})
+              with urllib.request.urlopen(req,timeout=30) as resp:
+                size=resp.headers.get("Content-Length")
+                records.append({"archive":name,"url":url,"http_status":resp.status,"content_length_bytes":int(size) if size and size.isdigit() else None,"final_url":resp.url})
+            except Exception as e:
+              records.append({"archive":name,"url":url,"error":str(e)})
+          report={"pinned_upstream_commit":"338af9912addbaf038c6098fe27e1e6ef099d8aa","available_disk_bytes":available,"archive_checks":records,"archives_downloaded":False,"network_built":False}
+          with open("upstream-base-input-access.json","w") as f: json.dump(report,f,indent=2)
+          print(json.dumps(report,indent=2))
+          if any("error" in x or x.get("http_status") not in (200,206) for x in records):
+            raise SystemExit("One or more official upstream source archives are currently inaccessible")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pinned-western-base-input-source-access
+          path: |
+            upstream-base-input-access.log
+            upstream-base-input-access.json
