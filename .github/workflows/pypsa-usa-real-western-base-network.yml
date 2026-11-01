@@ -16,6 +16,7 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/real_western_topology_connectivity.py
       - src/energy_transition/real_western_load_connectivity_gate.py
       - src/energy_transition/real_line_near_efs_load.py
+      - src/energy_transition/real_line_rating_distribution.py
 permissions:
   contents: read
   actions: read
@@ -149,6 +150,12 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_line_near_efs_load \
             --network "$GITHUB_WORKSPACE/efs-real-2030-local-hour-load-only.nc" \
             --out "$GITHUB_WORKSPACE/real-rated-lines-near-efs-load.json"
+      - name: Screen realistic ratings on actual load-adjacent Western lines
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_line_rating_distribution \
+            --network "$GITHUB_WORKSPACE/efs-real-2030-local-hour-load-only.nc" \
+            --out "$GITHUB_WORKSPACE/real-line-rating-distribution.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -159,6 +166,7 @@ jobs:
             real-base-network-structure.json
             real-western-topology-connectivity.json
             real-rated-lines-near-efs-load.json
+            real-line-rating-distribution.json
             efs-real-2030-load-connectivity.json
             efs-real-2040-load-connectivity.json
             efs-real-2050-load-connectivity.json
