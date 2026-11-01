@@ -11,6 +11,7 @@ on:
       - 'src/energy_transition/eia923_withheld_generation_coverage.py'
       - 'src/energy_transition/eia923_coverage_ratio_sensitivity.py'
       - 'src/energy_transition/eia860_eia923_plant_universe_audit.py'
+      - 'src/energy_transition/eia860_unmatched_plant_capacity_review.py'
 jobs:
   generation:
     runs-on: ubuntu-latest
@@ -63,6 +64,12 @@ jobs:
             --eia860 /tmp/eia860/generator_ba_audit_2024.csv \
             --eia923 outputs/eia923_generation/annual_monthly_reconciliation.csv \
             --out outputs/eia923_generation/eia860_eia923_plant_universe_2024.csv
+      - name: Rank 2024 unmatched EIA-860 operating plant capacity by BA and fuel
+        run: |
+          python -m energy_transition.eia860_unmatched_plant_capacity_review \
+            --eia860 /tmp/eia860/generator_ba_audit_2024.csv \
+            --eia923 outputs/eia923_generation/annual_monthly_reconciliation.csv \
+            --out outputs/eia923_generation/eia860_unmatched_plant_capacity_2024.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
