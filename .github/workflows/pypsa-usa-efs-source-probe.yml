@@ -8,6 +8,7 @@ name: PyPSA-USA EFS source acquisition probe
       - src/energy_transition/nlr_efs_source_inspect.py
       - src/energy_transition/nlr_efs_coverage_audit.py
       - src/energy_transition/nlr_efs_western_hourly.py
+      - src/energy_transition/nlr_efs_annual_metrics.py
 permissions:
   contents: read
 jobs:
@@ -77,6 +78,12 @@ jobs:
             --csv /tmp/pypsa-usa/workflow/data/nrel_efs/EFSLoadProfile_Reference_Moderate.csv \
             --out outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
             --report outputs/efs-core-west-2030-2040-2050-audit.json
+      - name: Verify annual demand and state peaks from real EFS artifact
+        if: steps.efs.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.nlr_efs_annual_metrics \
+            --csv outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --out outputs/efs-core-west-annual-mwh-state-peaks.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -88,6 +95,7 @@ jobs:
             outputs/nlr-efs-coverage.json
             outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
             outputs/efs-core-west-2030-2040-2050-audit.json
+            outputs/efs-core-west-annual-mwh-state-peaks.json
       - name: Enforce acquisition outcome
         if: steps.efs.outcome != 'success'
         run: exit 1
