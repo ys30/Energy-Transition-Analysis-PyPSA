@@ -44,7 +44,8 @@ def solve(path,out,hours=24):
  congested=utilization.columns[(utilization>=0.999999).any(axis=0)].tolist()
  line_peak={str(k):float(utilization[k].max()) for k in utilization.columns}
  if not congested:raise ValueError("No thermal limit binding in pilot")
- result={"binding_line_ids":[str(k) for k in congested],
+ result={"planning_year":int(src.snapshots[0].year),
+         "binding_line_ids":[str(k) for k in congested],
          "maximum_utilization_by_line":line_peak,
          "binding_line_count":len(congested),
          "thermal_binding_verified":True,
