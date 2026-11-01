@@ -25,9 +25,9 @@ git checkout 338af9912addbaf038c6098fe27e1e6ef099d8aa
 bash init_pypsa_usa.sh
 cd workflow
 # First inspect the copied, merged configs and the planned targets.
-uv run snakemake -n -j1 --configfile config/config.default.yaml
-# Only execute the full workflow after confirming the dry run and resources.
-uv run snakemake -j1 --configfile config/config.default.yaml
+uv run snakemake -n -j1 --configfile config/config.default.yaml data_model
+# Only execute the network target after confirming the dry run and resources.
+uv run snakemake -j1 --configfile config/config.default.yaml data_model
 ```
 
 Checked against pinned v0.8.0 commit `338af991`: its `workflow/repo_data/config/config.default.yaml` explicitly sets `interconnect: [western]`, `transmission_network: 'reeds'`, `topological_boundaries: 'reeds_zone'`, and `planning_horizons: [2030, 2040, 2050]`. The pinned `workflow/Snakefile` also merges `config.cluster.yaml`, `config.common.yaml`, `config.plotting.yaml`, `config.api.yaml`, and `config.sector.yaml`. Review their overrides and the full dry-run DAG before execution; configuration presence is not proof a completed network will retain `LAF_state`. The full default workflow may
