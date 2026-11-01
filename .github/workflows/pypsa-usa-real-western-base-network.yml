@@ -8,6 +8,7 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/pypsa_base_network_validate.py
       - src/energy_transition/pypsa_base_geography_inventory.py
       - src/energy_transition/pypsa_real_bus_zone_crosswalk.py
+      - src/energy_transition/pypsa_real_laf_state_audit.py
 permissions:
   contents: read
 jobs:
@@ -78,6 +79,12 @@ jobs:
             --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
             --csv "$GITHUB_WORKSPACE/real-western-bus-reeds-crosswalk.csv" \
             --report "$GITHUB_WORKSPACE/real-western-bus-reeds-crosswalk.json"
+      - name: Audit actual upstream LAF_state embedded in network
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.pypsa_real_laf_state_audit \
+            --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
+            --out "$GITHUB_WORKSPACE/real-western-laf-state.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -89,6 +96,7 @@ jobs:
             real-base-network-geography.json
             real-western-bus-reeds-crosswalk.csv
             real-western-bus-reeds-crosswalk.json
+            real-western-laf-state.json
             real-western-base-network.nc
       - name: Report actual build failure
         if: steps.build.outcome != 'success'
