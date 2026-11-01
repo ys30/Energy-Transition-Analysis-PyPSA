@@ -6,6 +6,7 @@ name: Real Western six-bus constrained EFS pilot
     paths:
       - .github/workflows/real-six-bus-efs.yml
       - src/energy_transition/real_western_six_bus_dispatch.py
+      - src/energy_transition/real_six_bus_multiyear_compare.py
 permissions:
   contents: read
   actions: read
@@ -36,8 +37,15 @@ jobs:
               --network "/tmp/network/efs-real-${year}-local-hour-load-only.nc" \
               --out "outputs/real-six-bus-constrained-${year}-24h.json"
           done
+      - name: Check cross-year comparability and export verified comparison CSV
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_six_bus_multiyear_compare \
+            --input-dir outputs \
+            --out outputs/verified-real-six-bus-2030-2050-comparison.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: real-six-bus-efs-constrained-solve
-          path: outputs/*.json
+          path: |
+            outputs/*.json
+            outputs/*.csv
