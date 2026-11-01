@@ -12,6 +12,7 @@ on:
       - 'src/energy_transition/eia860_state_overlap_assert.py'
       - 'src/energy_transition/eia860_plant_coordinates.py'
       - 'src/energy_transition/eia860_plant_bus_candidates.py'
+      - 'src/energy_transition/eia860_plant_bus_distance_qc.py'
 permissions:
   contents: read
   actions: read
@@ -74,6 +75,12 @@ jobs:
             --plants outputs/eia860/official_eia860_plant_coordinates_${{ matrix.year }}.csv \
             --network /tmp/verified-western/real-western-base-network.nc \
             --out outputs/eia860/eia860_geographic_plant_bus_candidates_${{ matrix.year }}.csv
+      - name: Audit spatial candidate distances and export long-distance review list
+        run: |
+          python -m energy_transition.eia860_plant_bus_distance_qc \
+            --candidates outputs/eia860/eia860_geographic_plant_bus_candidates_${{ matrix.year }}.csv \
+            --year ${{ matrix.year }} \
+            --out-dir outputs/eia860
       - uses: actions/upload-artifact@v4
         if: always()
         with:
