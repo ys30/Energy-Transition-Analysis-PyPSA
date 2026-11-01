@@ -59,7 +59,7 @@ jobs:
       - name: Inspect downloaded EFS CSV source schema
         if: steps.efs.outcome == 'success'
         run: |
-          python -m energy_transition.nlr_efs_source_inspect \
+          PYTHONPATH="$GITHUB_WORKSPACE/src${PYTHONPATH:+:$PYTHONPATH}" python -m energy_transition.nlr_efs_source_inspect \
             --csv /tmp/pypsa-usa/workflow/data/nrel_efs/EFSLoadProfile_Reference_Moderate.csv \
             --out outputs/nlr-efs-source-schema.json
       - uses: actions/upload-artifact@v4
