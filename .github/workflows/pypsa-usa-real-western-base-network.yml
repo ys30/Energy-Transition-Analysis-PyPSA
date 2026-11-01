@@ -5,6 +5,7 @@ name: PyPSA-USA real Western base network build
     branches: [main]
     paths:
       - .github/workflows/pypsa-usa-real-western-base-network.yml
+      - src/energy_transition/pypsa_base_network_validate.py
 permissions:
   contents: read
 jobs:
@@ -56,6 +57,12 @@ jobs:
           else
             echo "Base network exceeds 200 MB; metadata only, no full NetCDF artifact" >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Validate real base topology endpoints and emit structural audit
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.pypsa_base_network_validate \
+            --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
+            --out "$GITHUB_WORKSPACE/real-base-network-structure.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -63,6 +70,7 @@ jobs:
           path: |
             real-base-network-build.log
             real-base-network-evidence.json
+            real-base-network-structure.json
             real-western-base-network.nc
       - name: Report actual build failure
         if: steps.build.outcome != 'success'
