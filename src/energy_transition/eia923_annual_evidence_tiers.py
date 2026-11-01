@@ -13,7 +13,15 @@ def examine(source,output):
  if need-set(d):raise ValueError("Missing original EIA-923 reconciliation fields")
  if d.source_row_id.duplicated().any():raise ValueError("Duplicate Page1 records")
  d["annual_reported_mwh"]=pd.to_numeric(d.annual_reported_mwh,errors="coerce")
- d["monthly_certified"]=d.fully_numeric.astype(str).str.lower().eq("true") & d.reconciles.astype(str).str.lower().eq("true")
+ d["missing_months"]=pd.to_numeric(d.missing_months,errors="coerce")
+ if d.missing_months.isna().any() or d.missing_months.lt(0).any() or d.missing_months.gt(12).any():
+  raise ValueError("Invalid or missing monthly-coverage counts")
+ if d.source_row_id.isna().any():
+  raise ValueError("Missing source record identifiers")
+ d["monthly_certified"]=(d.fully_numeric.astype(str).str.lower().eq("true")
+  & d.reconciles.astype(str).str.lower().eq("true")
+  & d.missing_months.eq(0)
+  & d.annual_reported_mwh.notna())
  d["annual_report_available"]=d.annual_reported_mwh.notna()
  d["evidence_tier"]="no_reported_annual_numeric_value"
  d.loc[d.annual_report_available,"evidence_tier"]="annual_reported_only_not_monthly_certified"
