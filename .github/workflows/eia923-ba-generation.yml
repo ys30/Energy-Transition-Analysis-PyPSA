@@ -14,6 +14,7 @@ on:
       - 'src/energy_transition/eia860_unmatched_plant_capacity_review.py'
       - 'src/energy_transition/eia860_unmatched_fuel_priority.py'
       - 'src/energy_transition/eia923_qualification_failure_diagnostic.py'
+      - 'src/energy_transition/eia923_failure_reason_summary.py'
 jobs:
   generation:
     runs-on: ubuntu-latest
@@ -83,6 +84,11 @@ jobs:
             --eia860 /tmp/eia860/generator_ba_audit_2024.csv \
             --eia923 outputs/eia923_generation/annual_monthly_reconciliation.csv \
             --out outputs/eia923_generation/eia923_fuel_qualification_failure_reasons_2024.csv
+      - name: Publish exact hydro solar qualification failure reason totals
+        run: |
+          python -m energy_transition.eia923_failure_reason_summary \
+            --failures outputs/eia923_generation/eia923_fuel_qualification_failure_reasons_2024.csv \
+            --out outputs/eia923_generation/eia923_failure_reason_summary_2024.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
