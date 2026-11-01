@@ -1,0 +1,38 @@
+name: Real Western six-bus constrained EFS pilot
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/real-six-bus-efs.yml
+      - src/energy_transition/real_western_six_bus_dispatch.py
+permissions:
+  contents: read
+  actions: read
+jobs:
+  six-bus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PyPSA with HiGHS
+        run: python -m pip install 'pypsa==0.31.2' 'highspy>=1.7,<2'
+      - name: Download verified real Western EFS load-bearing network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41281576025 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/network
+          test -s /tmp/network/efs-real-2030-local-hour-load-only.nc
+      - name: Solve actual six-bus five-line subnetwork
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_western_six_bus_dispatch \
+            --network /tmp/network/efs-real-2030-local-hour-load-only.nc \
+            --out outputs/real-six-bus-constrained-2030-24h.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-six-bus-efs-constrained-solve
+          path: outputs/*.json
