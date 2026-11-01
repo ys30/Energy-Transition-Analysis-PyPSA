@@ -9,6 +9,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+NON_US = {"AB", "BC", "MEX"}
 CORE = {"AZ","CA","CO","ID","MT","NM","NV","OR","UT","WA","WY"}
 
 
@@ -30,20 +31,25 @@ def audit_membership(membership: Path) -> dict:
             by_state[state]["other"].append(key)
     west = sorted(state for state, counts in by_state.items() if counts["western"])
     partial = sorted(state for state in west if by_state[state]["other"])
-    missing = sorted(set(west) - CORE)
+    missing = sorted((set(west) - NON_US) - CORE)
+    non_us = sorted(set(west) & NON_US)
     extras = sorted(CORE - set(west))
     return {
         "upstream": "PyPSA/pypsa-usa pinned v0.8.0 ReEDS_Constraints/membership.csv",
         "western_reeds_states": west,
+        "western_us_states": sorted(set(west) - NON_US),
+        "western_cross_border_regions": non_us,
+        "western_cross_border_ba_count": sum(len(by_state[s]["western"]) for s in non_us),
         "western_reeds_ba_count": sum(len(by_state[s]["western"]) for s in west),
         "core_11_efs_pilot_states": sorted(CORE),
+        "western_us_states_missing_from_core_efs_pilot": missing,
         "western_states_missing_from_core_efs_pilot": missing,
         "core_pilot_states_absent_from_western": extras,
         "states_split_across_interconnects": partial,
         "western_ba_by_state": {s: sorted(by_state[s]["western"]) for s in west},
         "all_state_efs_load_to_western_allowed": False,
         "laf_weights_empirically_verified": False,
-        "note": "State coverage does not imply full-state Western shares for split-state interconnects.",
+        "note": "Membership includes Canada/Mexico cross-border regions without US EFS load; state coverage does not imply full-state Western shares for split states.",
     }
 
 
