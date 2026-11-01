@@ -16,6 +16,7 @@ on:
       - 'src/energy_transition/eia860_plant_bus_topology_qc.py'
       - 'src/energy_transition/eia860_main_component_candidates.py'
       - 'src/energy_transition/eia860_candidate_change_audit.py'
+      - 'src/energy_transition/eia860_changed_bus_distance_ties.py'
 permissions:
   contents: read
   actions: read
@@ -102,6 +103,11 @@ jobs:
             --original outputs/eia860/eia860_geographic_plant_bus_candidates_${{ matrix.year }}.csv \
             --main outputs/eia860/eia860_main_component_candidates_${{ matrix.year }}.csv \
             --out outputs/eia860/eia860_changed_candidate_buses_${{ matrix.year }}.csv
+      - name: Resolve near-tied plant-bus candidate ID changes by distance thresholds
+        run: |
+          python -m energy_transition.eia860_changed_bus_distance_ties \
+            --changed outputs/eia860/eia860_changed_candidate_buses_${{ matrix.year }}.csv \
+            --out outputs/eia860/eia860_changed_bus_distance_ties_${{ matrix.year }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
