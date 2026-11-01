@@ -7,6 +7,7 @@ name: PyPSA-USA EFS source acquisition probe
       - .github/workflows/pypsa-usa-efs-source-probe.yml
       - src/energy_transition/nlr_efs_source_inspect.py
       - src/energy_transition/nlr_efs_coverage_audit.py
+      - src/energy_transition/nlr_efs_western_hourly.py
 permissions:
   contents: read
 jobs:
@@ -69,6 +70,13 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.nlr_efs_coverage_audit \
             --csv /tmp/pypsa-usa/workflow/data/nrel_efs/EFSLoadProfile_Reference_Moderate.csv \
             --out outputs/nlr-efs-coverage.json
+      - name: Produce verified core Western state-hour demand for target years
+        if: steps.efs.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.nlr_efs_western_hourly \
+            --csv /tmp/pypsa-usa/workflow/data/nrel_efs/EFSLoadProfile_Reference_Moderate.csv \
+            --out outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --report outputs/efs-core-west-2030-2040-2050-audit.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -78,6 +86,8 @@ jobs:
             efs-source-inventory.json
             outputs/nlr-efs-source-schema.json
             outputs/nlr-efs-coverage.json
+            outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+            outputs/efs-core-west-2030-2040-2050-audit.json
       - name: Enforce acquisition outcome
         if: steps.efs.outcome != 'success'
         run: exit 1
