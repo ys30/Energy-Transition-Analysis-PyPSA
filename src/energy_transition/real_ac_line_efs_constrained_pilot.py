@@ -75,6 +75,14 @@ def solve(network: Path, out: Path, hours: int = 24):
     tight_remote_mwh=float(net.generators_t.p["illustrative_remote"].sum())
     if tight_cost+1e-4<baseline_cost:
         raise ValueError("Tighter line capacity paradoxically lowered optimal cost")
+    if tight_local_mwh <= baseline_local_mwh + 0.01:
+        raise ValueError("Tight line did not increase local backup dispatch")
+    if tight_remote_mwh >= baseline_remote_mwh - 0.01:
+        raise ValueError("Tight line did not reduce remote dispatch")
+    if tight_cost <= baseline_cost + 0.01:
+        raise ValueError("Tight line did not increase illustrative dispatch cost")
+    if not np.isclose(tight_local_mwh+tight_remote_mwh,demand_mwh,rtol=1e-8,atol=0.01):
+        raise ValueError("Tight sensitivity does not conserve demand")
     result={"real_line_id":str(line_id),"sending_bus":str(sending),
         "receiving_bus":str(receiving),"real_line_r":float(line.r),
         "real_line_x":float(line.x),"real_line_s_nom_mva":rating,
@@ -93,6 +101,7 @@ def solve(network: Path, out: Path, hours: int = 24):
         "baseline_remote_mwh":baseline_remote_mwh,
         "restricted_remote_mwh":tight_remote_mwh,
         "local_backup_increase_mwh":tight_local_mwh-baseline_local_mwh,
+        "congestion_redispatch_assertions_passed":True,
         "real_line_parameters":True,"generator_parameters_illustrative":True,
         "full_western_network_solved":False,"utc_aligned":False}
     out.parent.mkdir(parents=True,exist_ok=True)
