@@ -7,6 +7,7 @@ on:
       - 'src/energy_transition/eia923_ba_generation.py'
       - 'src/energy_transition/eia923_qualification.py'
       - 'src/energy_transition/eia860_eia923_ba_screen.py'
+      - 'src/energy_transition/eia923_ba_capacity_ratio_gate.py'
 jobs:
   generation:
     runs-on: ubuntu-latest
@@ -37,6 +38,11 @@ jobs:
             --eia860 /tmp/eia860/eia860_ba_fuel_geographic_inventory_2024.csv \
             --eia923 outputs/eia923_generation/generation_qualified_ba_fuel.csv \
             --out outputs/eia923_generation/eia860_eia923_ba_comparison_2024.csv
+      - name: Audit partial generation-to-nameplate screen ratios without labeling as calibrated CF
+        run: |
+          python -m energy_transition.eia923_ba_capacity_ratio_gate \
+            --input outputs/eia923_generation/eia860_eia923_ba_comparison_2024.csv \
+            --out outputs/eia923_generation/eia923_ba_capacity_ratio_gate_2024.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
