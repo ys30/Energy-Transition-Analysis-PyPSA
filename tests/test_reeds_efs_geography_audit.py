@@ -11,7 +11,10 @@ def test_split_state_and_missing_western_state(tmp_path):
         w.writerow(["p2", "NM", "western", "NM_western"])
         w.writerow(["p3", "NM", "eastern", "NM_eastern"])
         w.writerow(["p4", "SD", "western", "SD_western"])
+        w.writerow(["p5", "BC", "western", "BC"])
     result = audit_membership(path)
     assert result["states_split_across_interconnects"] == ["NM"]
     assert result["western_states_missing_from_core_efs_pilot"] == ["SD"]
+    assert result["western_cross_border_regions"] == ["BC"]
+    assert result["western_cross_border_ba_count"] == 1
     assert result["all_state_efs_load_to_western_allowed"] is False
