@@ -25,6 +25,19 @@ jobs:
         run: |
           python -m pip install -e /tmp/pypsa-usa
           python -m pip install 'pulp==2.7.0'
+      - name: Replace retired upstream host with official NLR catalog host
+        working-directory: /tmp/pypsa-usa/workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("rules/retrieve.smk")
+          s = p.read_text()
+          old = "https://data.nrel.gov/system/files/126/EFSLoadProfile_"
+          new = "https://data.nlr.gov/system/files/126/EFSLoadProfile_"
+          assert s.count(old) == 1, "Pinned upstream download URL unexpectedly changed"
+          p.write_text(s.replace(old, new))
+          print(f"Upstream URL host overridden for the retrieval job only: {new}")
+          PY
       - name: Obtain real NREL EFS source only
         id: efs
         continue-on-error: true
