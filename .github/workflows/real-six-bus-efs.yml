@@ -25,12 +25,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh run download 41281576025 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/network
-          test -s /tmp/network/efs-real-2030-local-hour-load-only.nc
-      - name: Solve actual six-bus five-line subnetwork
+          for year in 2030 2040 2050; do
+            test -s "/tmp/network/efs-real-${year}-local-hour-load-only.nc"
+          done
+      - name: Solve actual six-bus five-line subnetwork across planning years
         run: |
-          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_western_six_bus_dispatch \
-            --network /tmp/network/efs-real-2030-local-hour-load-only.nc \
-            --out outputs/real-six-bus-constrained-2030-24h.json
+          set -euo pipefail
+          for year in 2030 2040 2050; do
+            PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_western_six_bus_dispatch \
+              --network "/tmp/network/efs-real-${year}-local-hour-load-only.nc" \
+              --out "outputs/real-six-bus-constrained-${year}-24h.json"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
