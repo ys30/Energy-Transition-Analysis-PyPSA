@@ -20,6 +20,18 @@ actual ReEDS LAF weights, or empirical Western solve has been admitted into B
 from A**. B reuses methodological lessons, not A's regional quantities.
 Engineering CI success must not be conflated with research calibration.
 
+**A handoff contract (not a Western-US input):** Project A now emits a
+`handoff_contract` in `lut_pypsa_input_manifest.json` with an artifact
+SHA-256, snapshot count, hourly resolution, MW units, source quantity, and
+`requires_explicit_geographic_mapping=true`. The associated
+`lut_load_only.nc` is a five-continent, flat-profile, load-only network.
+**B must reject it as an empirical Western-US load input** unless an
+independently documented geographic crosswalk and energy-service-demand to
+electricity-load transformation are supplied and validated. A matching hash
+establishes artifact identity, not regional compatibility. B's EIA/EFS
+pipelines remain the regional source of record; no A demand is silently
+substituted for them.
+
 ## Recruiter quick view
 
 [**Quantitative evidence, four charts and A/B/C project differentiation**](docs/recruiter_evidence_brief.md)
