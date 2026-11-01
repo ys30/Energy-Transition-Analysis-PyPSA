@@ -59,6 +59,8 @@ def solve(network: Path, out: Path, hours: int = 24):
     if not np.isclose(demand_mwh,gen_mwh,rtol=1e-8,atol=0.01):
         raise ValueError("Dispatch demand mismatch")
     baseline_cost=float(net.objective)
+    baseline_local_mwh=float(net.generators_t.p["illustrative_local_backup"].sum())
+    baseline_remote_mwh=float(net.generators_t.p["illustrative_remote"].sum())
     original_rating=float(net.lines.at[str(line_id),"s_nom"])
     restricted_rating=min(original_rating*0.25, max(1.0,float(actual.min())*0.15))
     net.lines.at[str(line_id),"s_nom"]=restricted_rating
@@ -69,6 +71,8 @@ def solve(network: Path, out: Path, hours: int = 24):
     if tight_flow>restricted_rating+max(1e-4,restricted_rating*1e-6):
         raise ValueError("Tight sensitivity rating violated")
     tight_cost=float(net.objective)
+    tight_local_mwh=float(net.generators_t.p["illustrative_local_backup"].sum())
+    tight_remote_mwh=float(net.generators_t.p["illustrative_remote"].sum())
     if tight_cost+1e-4<baseline_cost:
         raise ValueError("Tighter line capacity paradoxically lowered optimal cost")
     result={"real_line_id":str(line_id),"sending_bus":str(sending),
@@ -84,6 +88,11 @@ def solve(network: Path, out: Path, hours: int = 24):
         "tight_rating_objective_illustrative_usd":tight_cost,
         "tight_rating_cost_increase_usd":tight_cost-baseline_cost,
         "tight_rating_sensitivity_solved":True,
+        "baseline_local_backup_mwh":baseline_local_mwh,
+        "restricted_local_backup_mwh":tight_local_mwh,
+        "baseline_remote_mwh":baseline_remote_mwh,
+        "restricted_remote_mwh":tight_remote_mwh,
+        "local_backup_increase_mwh":tight_local_mwh-baseline_local_mwh,
         "real_line_parameters":True,"generator_parameters_illustrative":True,
         "full_western_network_solved":False,"utc_aligned":False}
     out.parent.mkdir(parents=True,exist_ok=True)
