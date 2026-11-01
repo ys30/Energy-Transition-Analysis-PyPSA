@@ -1,0 +1,42 @@
+name: EFS exploratory 24h dispatch optimization
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/efs-exploratory-dispatch.yml
+      - src/energy_transition/efs_exploratory_dispatch_solve.py
+permissions:
+  contents: read
+  actions: read
+jobs:
+  real-demand-synthetic-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PyPSA and HiGHS solver
+        run: python -m pip install 'pypsa==0.31.2' 'highspy>=1.7,<2'
+      - name: Retrieve prior verified genuine EFS-LAF zone data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41281576025 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/real-efs
+          test -s /tmp/real-efs/efs-real-laf-zonal-pilot.csv.gz
+      - name: Solve three independent planning year local-hour representative 24h problems
+        run: |
+          set -euo pipefail
+          mkdir -p outputs
+          for year in 2030 2040 2050; do
+            PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.efs_exploratory_dispatch_solve \
+              --zonal /tmp/real-efs/efs-real-laf-zonal-pilot.csv.gz \
+              --year "$year" --out "outputs/illustrative-dispatch-${year}.json"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-demand-synthetic-generation-solver-evidence
+          path: outputs/*.json
