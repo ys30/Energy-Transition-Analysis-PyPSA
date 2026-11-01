@@ -24,9 +24,11 @@ jobs:
           git -C /tmp/pypsa-usa checkout 338af9912addbaf038c6098fe27e1e6ef099d8aa
           (cd /tmp/pypsa-usa && bash init_pypsa_usa.sh)
           python -m energy_transition.pypsa_usa_build_preflight --checkout /tmp/pypsa-usa --report outputs/upstream-preflight.json
-      - name: Install pinned-era Snakemake engine for DAG inspection
+      - name: Install pinned upstream workflow dependencies
         run: |
-          python -m pip install 'snakemake>=7.0,<8.0' 'pulp<2.8'
+          python -m pip install -e /tmp/pypsa-usa
+          python -m pip install 'pulp==2.7.0'
+          python -c 'import pypsa, snakemake; print("PyPSA:", pypsa.__version__)'
       - name: Execute data_model dry run without upstream data downloads
         id: dag
         continue-on-error: true
