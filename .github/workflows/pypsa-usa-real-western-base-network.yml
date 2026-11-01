@@ -9,8 +9,10 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/pypsa_base_geography_inventory.py
       - src/energy_transition/pypsa_real_bus_zone_crosswalk.py
       - src/energy_transition/pypsa_real_laf_state_audit.py
+      - src/energy_transition/efs_real_laf_zonal_pilot.py
 permissions:
   contents: read
+  actions: read
 jobs:
   real-base-network:
     runs-on: ubuntu-latest
@@ -85,6 +87,17 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.pypsa_real_laf_state_audit \
             --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
             --out "$GITHUB_WORKSPACE/real-western-laf-state.json"
+      - name: Use independently verified real EFS hourly artifact for zonal LAF pilot
+        if: steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41265678862 -R "${{ github.repository }}" -n pypsa-usa-efs-source-evidence -D /tmp/verified-efs
+          test -s /tmp/verified-efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.efs_real_laf_zonal_pilot \
+            --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
+            --efs /tmp/verified-efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --out "$GITHUB_WORKSPACE/efs-real-laf-zonal-pilot.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -97,6 +110,8 @@ jobs:
             real-western-bus-reeds-crosswalk.csv
             real-western-bus-reeds-crosswalk.json
             real-western-laf-state.json
+            efs-real-laf-zonal-pilot.json
+            efs-real-laf-zonal-pilot.csv.gz
             real-western-base-network.nc
       - name: Report actual build failure
         if: steps.build.outcome != 'success'
