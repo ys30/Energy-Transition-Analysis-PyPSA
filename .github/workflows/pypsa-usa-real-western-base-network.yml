@@ -1,0 +1,56 @@
+name: PyPSA-USA real Western base network build
+'on':
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-base-network:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Checkout immutable upstream source and initialize
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/PyPSA/pypsa-usa.git /tmp/pypsa-usa
+          git -C /tmp/pypsa-usa checkout 338af9912addbaf038c6098fe27e1e6ef099d8aa
+          (cd /tmp/pypsa-usa && bash init_pypsa_usa.sh)
+      - name: Install pinned upstream runtime
+        run: |
+          python -m pip install -e /tmp/pypsa-usa
+          python -m pip install 'pulp==2.7.0'
+      - name: Run actual base-network target and record logs
+        id: build
+        continue-on-error: true
+        working-directory: /tmp/pypsa-usa/workflow
+        run: |
+          set -o pipefail
+          snakemake -j1 resources/Default/western/elec_base_network.nc --configfile config/config.default.yaml 2>&1 | tee "$GITHUB_WORKSPACE/real-base-network-build.log"
+      - name: Record actual network metadata only on successful build
+        if: steps.build.outcome == 'success'
+        working-directory: /tmp/pypsa-usa/workflow
+        run: |
+          python - <<'PY' > "$GITHUB_WORKSPACE/real-base-network-evidence.json"
+          import json,hashlib,pathlib
+          import pypsa
+          p=pathlib.Path('resources/Default/western/elec_base_network.nc')
+          if not p.is_file(): raise FileNotFoundError(str(p))
+          n=pypsa.Network(str(p))
+          with p.open('rb') as f: digest=hashlib.file_digest(f,'sha256').hexdigest()
+          print(json.dumps({'path':str(p),'sha256':digest,'bytes':p.stat().st_size,
+             'buses':len(n.buses),'lines':len(n.lines),'links':len(n.links),
+             'snapshots':len(n.snapshots),'base_network_built':True,
+             'full_electricity_model_built':False,'laf_verified':False},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-western-base-network-attempt
+          path: |
+            real-base-network-build.log
+            real-base-network-evidence.json
+      - name: Report actual build failure
+        if: steps.build.outcome != 'success'
+        run: exit 1
