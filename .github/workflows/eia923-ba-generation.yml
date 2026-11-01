@@ -10,6 +10,7 @@ on:
       - 'src/energy_transition/eia923_ba_capacity_ratio_gate.py'
       - 'src/energy_transition/eia923_withheld_generation_coverage.py'
       - 'src/energy_transition/eia923_coverage_ratio_sensitivity.py'
+      - 'src/energy_transition/eia860_eia923_plant_universe_audit.py'
 jobs:
   generation:
     runs-on: ubuntu-latest
@@ -56,6 +57,12 @@ jobs:
             --screen outputs/eia923_generation/eia860_eia923_ba_comparison_2024.csv \
             --coverage outputs/eia923_generation/eia923_withheld_annual_coverage_2024.csv \
             --out outputs/eia923_generation/eia923_qualification_ratio_sensitivity_2024.csv
+      - name: Audit exact official EIA860/EIA923 plant ID universes and unmatched generation
+        run: |
+          python -m energy_transition.eia860_eia923_plant_universe_audit \
+            --eia860 /tmp/eia860/generator_ba_audit_2024.csv \
+            --eia923 outputs/eia923_generation/annual_monthly_reconciliation.csv \
+            --out outputs/eia923_generation/eia860_eia923_plant_universe_2024.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
