@@ -5,6 +5,7 @@ name: PyPSA-USA pinned data_model DAG probe
     branches: [main]
     paths:
       - .github/workflows/pypsa-usa-data-model-dag-probe.yml
+      - src/energy_transition/pypsa_usa_dag_report.py
 permissions:
   contents: read
 jobs:
@@ -36,6 +37,10 @@ jobs:
         run: |
           set -o pipefail
           snakemake -n -j1 data_model --configfile config/config.default.yaml 2>&1 | tee "$GITHUB_WORKSPACE/dag-probe.log"
+      - name: Extract machine-readable DAG evidence
+        if: steps.dag.outcome == 'success'
+        run: |
+          python -m energy_transition.pypsa_usa_dag_report --log dag-probe.log --out outputs/pypsa-usa-data-model-dag.json
       - name: Publish dry-run outcome
         if: always()
         run: |
@@ -48,6 +53,7 @@ jobs:
           path: |
             dag-probe.log
             outputs/upstream-preflight.json
+            outputs/pypsa-usa-data-model-dag.json
       - name: Fail if DAG probe failed
         if: steps.dag.outcome != 'success'
         run: exit 1
