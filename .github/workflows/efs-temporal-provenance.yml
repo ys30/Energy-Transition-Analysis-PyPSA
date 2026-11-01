@@ -1,0 +1,34 @@
+name: EFS temporal provenance no-assumption gate
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/efs-temporal-provenance.yml
+      - src/energy_transition/efs_temporal_provenance_contract.py
+permissions:
+  contents: read
+jobs:
+  block-unverified-clock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Assert clock metadata cannot silently be invented
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          from energy_transition.efs_temporal_provenance_contract import verify
+          base=dict(source_dataset_doi="10.7799/1593122",source_file="EFSLoadProfile_Reference_Moderate",
+            source_clock="UTC_FIXED_OFFSET",utc_offset_hours=-6,calendar_year=2012,
+            leap_day_rule="8760_representative_nonleap",daylight_saving_rule="not_applied",
+            clock_reference_evidence_url="https://data.nlr.gov/submissions/126",
+            clock_reference_evidence_quote="The source's clock is not yet confirmed by this catalog.",
+            time_alignment_review_status="unverified")
+          for record in (base,dict(base,time_alignment_review_status=""),dict(base,source_clock="UNKNOWN",time_alignment_review_status="verified")):
+            try:verify(record)
+            except ValueError:pass
+            else:raise AssertionError("Unverified source clock was accepted")
+          print("PASS: EFS clock assumptions are blocked until authoritative verification")
+          PY
