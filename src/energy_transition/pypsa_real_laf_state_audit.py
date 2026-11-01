@@ -40,7 +40,21 @@ def audit(path: Path, out: Path):
     # Missing upstream LAFs require separate investigation; do not coerce to zero.
     # Audit remains executable and explicitly records that load allocation is blocked.
     if negative: raise ValueError(f"Negative LAF data: {negative}")
-    result["empirical_load_allocation_admitted"]=bool(bad==0 and (per_state["sum"]<=1.0001).all())
+    # Admit only fully observed, nonnegative state-level LAFs that do not over-allocate.
+    # These are candidate source weights, not independently certified geographic truth.
+    state_admission = {}
+    for state, metrics in per_state.iterrows():
+        missing = missing_by_state.get(str(state), 0)
+        total = float(metrics["sum"])
+        reasons = []
+        if missing: reasons.append(f"{missing} missing bus LAF values")
+        if total > 1.0001: reasons.append(f"state weight sum exceeds 1: {total}")
+        if total <= 0: reasons.append("no positive state LAF mass")
+        state_admission[str(state)] = {"preliminary_numerical_gate":not reasons, "blockers":reasons,
+                                      "state_laf_sum":total, "bus_laf_missing":missing}
+    result["per_state_admission"] = state_admission
+    result["empirical_load_allocation_admitted"]=False
+    result["independent_upstream_geography_certified"]=False
     result["state_sums_exceed_one"]=[str(k) for k,v in per_state["sum"].items() if v>1.0001]
     out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(result,indent=2)+"\n")
