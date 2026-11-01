@@ -15,6 +15,7 @@ on:
       - 'src/energy_transition/eia860_unmatched_fuel_priority.py'
       - 'src/energy_transition/eia923_qualification_failure_diagnostic.py'
       - 'src/energy_transition/eia923_failure_reason_summary.py'
+      - 'src/energy_transition/eia923_annual_evidence_tiers.py'
 jobs:
   generation:
     runs-on: ubuntu-latest
@@ -89,6 +90,11 @@ jobs:
           python -m energy_transition.eia923_failure_reason_summary \
             --failures outputs/eia923_generation/eia923_fuel_qualification_failure_reasons_2024.csv \
             --out outputs/eia923_generation/eia923_failure_reason_summary_2024.csv
+      - name: Keep reported annual-only EIA generation as separate sensitivity evidence
+        run: |
+          python -m energy_transition.eia923_annual_evidence_tiers \
+            --reconciliation outputs/eia923_generation/annual_monthly_reconciliation.csv \
+            --out outputs/eia923_generation/eia923_annual_evidence_tiers_2024.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
