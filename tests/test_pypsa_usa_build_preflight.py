@@ -15,6 +15,12 @@ def make_checkout(tmp_path, *, horizons=None):
         "scenario:\n"
         "  interconnect: [western]\n"
         f"  planning_horizons: {horizons or '[2030, 2040, 2050]'}\n"
+        "electricity:\n"
+        "  demand:\n"
+        "    profile: efs\n"
+        "    scenario:\n"
+        "      efs_case: reference\n"
+        "      efs_speed: moderate\n"
         "model_topology:\n"
         "  transmission_network: reeds\n"
         "  topological_boundaries: reeds_zone\n")
