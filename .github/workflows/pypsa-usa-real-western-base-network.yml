@@ -15,6 +15,7 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/efs_real_load_roundtrip_validate.py
       - src/energy_transition/real_western_topology_connectivity.py
       - src/energy_transition/real_western_load_connectivity_gate.py
+      - src/energy_transition/real_line_near_efs_load.py
 permissions:
   contents: read
   actions: read
@@ -142,6 +143,12 @@ jobs:
               --network "$GITHUB_WORKSPACE/efs-real-${year}-local-hour-load-only.nc" \
               --out "$GITHUB_WORKSPACE/efs-real-${year}-load-connectivity.json"
           done
+      - name: Inspect actual rated AC lines adjacent to admitted EFS loads
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_line_near_efs_load \
+            --network "$GITHUB_WORKSPACE/efs-real-2030-local-hour-load-only.nc" \
+            --out "$GITHUB_WORKSPACE/real-rated-lines-near-efs-load.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -151,6 +158,7 @@ jobs:
             real-base-network-evidence.json
             real-base-network-structure.json
             real-western-topology-connectivity.json
+            real-rated-lines-near-efs-load.json
             efs-real-2030-load-connectivity.json
             efs-real-2040-load-connectivity.json
             efs-real-2050-load-connectivity.json
