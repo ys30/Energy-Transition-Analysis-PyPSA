@@ -58,6 +58,19 @@ def solve(network: Path, out: Path, hours: int = 24):
     gen_mwh=float(net.generators_t.p.sum().sum())
     if not np.isclose(demand_mwh,gen_mwh,rtol=1e-8,atol=0.01):
         raise ValueError("Dispatch demand mismatch")
+    baseline_cost=float(net.objective)
+    original_rating=float(net.lines.at[str(line_id),"s_nom"])
+    restricted_rating=min(original_rating*0.25, max(1.0,float(actual.min())*0.15))
+    net.lines.at[str(line_id),"s_nom"]=restricted_rating
+    tight_status,tight_condition=net.optimize(solver_name="highs")
+    if (tight_status,tight_condition)!=("ok","optimal"):
+        raise RuntimeError(f"Tight line sensitivity solver {tight_status}/{tight_condition}")
+    tight_flow=float(net.lines_t.p0[str(line_id)].abs().max())
+    if tight_flow>restricted_rating+max(1e-4,restricted_rating*1e-6):
+        raise ValueError("Tight sensitivity rating violated")
+    tight_cost=float(net.objective)
+    if tight_cost+1e-4<baseline_cost:
+        raise ValueError("Tighter line capacity paradoxically lowered optimal cost")
     result={"real_line_id":str(line_id),"sending_bus":str(sending),
         "receiving_bus":str(receiving),"real_line_r":float(line.r),
         "real_line_x":float(line.x),"real_line_s_nom_mva":rating,
@@ -65,7 +78,12 @@ def solve(network: Path, out: Path, hours: int = 24):
         "actual_efs_demand_mwh":demand_mwh,"illustrative_generation_mwh":gen_mwh,
         "maximum_line_flow_mw":float(f.max()),"line_limit_verified":True,
         "solver_status":status,"solver_condition":condition,
-        "objective_illustrative_usd":float(net.objective),
+        "objective_illustrative_usd":baseline_cost,
+        "synthetic_tight_rating_mva":restricted_rating,
+        "synthetic_tight_max_flow_mw":tight_flow,
+        "tight_rating_objective_illustrative_usd":tight_cost,
+        "tight_rating_cost_increase_usd":tight_cost-baseline_cost,
+        "tight_rating_sensitivity_solved":True,
         "real_line_parameters":True,"generator_parameters_illustrative":True,
         "full_western_network_solved":False,"utc_aligned":False}
     out.parent.mkdir(parents=True,exist_ok=True)
