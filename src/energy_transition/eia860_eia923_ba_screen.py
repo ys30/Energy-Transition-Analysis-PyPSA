@@ -12,6 +12,18 @@ def audit(capacity_path,generation_path,out):
  gen=pd.read_csv(generation_path,dtype={"ba_code":"string"})
  if not {"ba_code","official_nameplate_mw"}<=set(cap):raise ValueError("Missing EIA860 capacity")
  if not {"ba_code","qualified_annual_mwh","withheld_reported_annual_mwh"}<=set(gen):raise ValueError("Missing qualified EIA923 generation")
+ for label, frame, cols in (
+  ("EIA860", cap, ["official_nameplate_mw"]),
+  ("EIA923", gen, ["qualified_annual_mwh", "withheld_reported_annual_mwh"]),
+ ):
+  if frame.empty or frame.ba_code.isna().any() or frame.ba_code.astype(str).str.strip().eq("").any():
+   raise ValueError(f"{label} has empty or missing BA identifiers")
+  for col in cols:
+   frame[col]=pd.to_numeric(frame[col],errors="coerce")
+   if frame[col].isna().any():
+    raise ValueError(f"{label} invalid numeric values in {col}")
+ if cap.official_nameplate_mw.lt(0).any():
+  raise ValueError("EIA860 negative nameplate MW")
  capacity=cap.groupby("ba_code",as_index=False).official_nameplate_mw.sum()
  gen_ba=gen.groupby("ba_code",as_index=False)[["qualified_annual_mwh","withheld_reported_annual_mwh"]].sum()
  result=gen_ba.merge(capacity,on="ba_code",how="left",validate="one_to_one")
