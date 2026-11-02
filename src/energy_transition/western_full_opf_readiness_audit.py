@@ -28,6 +28,13 @@ def inspect(network,out):
       "missing_transformer_endpoints":int((~n.transformers.bus0.isin(n.buses.index)|~n.transformers.bus1.isin(n.buses.index)).sum()),
       "full_western_opf_executed":False,
       "historical_dispatch_calibrated":False,
+      "full_opf_ready":bool(len(generators)>0 and len(loads)>0 and snaps>1 and len(n.generators_t.p_max_pu.columns)>0 and len(n.loads_t.p_set.columns)>0),
+      "missing_required_inputs":[name for name,ready in {
+        "generators":len(generators)>0,
+        "loads":len(loads)>0,
+        "multiple_snapshots":snaps>1,
+        "generator_availability_timeseries":len(n.generators_t.p_max_pu.columns)>0,
+        "load_timeseries":len(n.loads_t.p_set.columns)>0}.items() if not ready],
       "clearwater_generator_to_bus_verified":False}
     out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(report,indent=2)+"\n")
