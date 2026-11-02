@@ -25,6 +25,15 @@ def test_plant_ids_are_deduplicated_across_years(tmp_path):
     assert r["only_2023"]==1
     assert r["only_2024"]==1
     assert not pd.read_csv(out).eligible_for_real_dispatch.any()
+    persistent=pd.read_csv(tmp_path/"joined_persistent.csv",dtype={"plant_id":"string"})
+    single=pd.read_csv(tmp_path/"joined_year_specific.csv",dtype={"plant_id":"string"})
+    assert len(persistent)==2
+    assert len(single)==2
+    assert set(persistent.plant_id).isdisjoint(set(single.plant_id))
+    assert set(pd.read_csv(out,dtype={"plant_id":"string"}).plant_id)==set(persistent.plant_id)|set(single.plant_id)
+    assert persistent.review_both_years.all()
+    assert not single.review_both_years.any()
+
 
 
 def test_duplicate_plant_id_rejected(tmp_path):
