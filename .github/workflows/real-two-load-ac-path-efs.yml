@@ -37,6 +37,15 @@ jobs:
               --network "/tmp/networks/efs-real-${year}-local-hour-load-only.nc" \
               --out "outputs/two-load-ac-path-${year}-24h.json"
           done
+      - name: Solve extended 168-hour dual-load sensitivity for each year
+        run: |
+          set -euo pipefail
+          for year in 2030 2040 2050; do
+            PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_two_load_ac_path_dispatch \
+              --network "/tmp/networks/efs-real-${year}-local-hour-load-only.nc" \
+              --hours 168 \
+              --out "outputs/two-load-ac-path-${year}-168h.json"
+          done
       - name: Independently accept three-year dual-load nodal and provenance results
         run: |
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_two_load_ac_path_acceptance \
