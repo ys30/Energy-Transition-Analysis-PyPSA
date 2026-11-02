@@ -25,6 +25,7 @@ def audit(content,out):
                 "plant_mwh_numeric_sum":float(part.netgen_mwh.sum()) if len(part) and not nonnumeric else None,
                 "reported_fuel_codes":";".join(fuels),
                 "raw_nonnumeric_tokens":";".join(sorted(set(part.loc[part.netgen_mwh.isna(),"source_netgen"].astype("string").fillna("<missing>").tolist()))),
+                "observation_class":("source_dot_not_zero" if nonnumeric and set(part.loc[part.netgen_mwh.isna(),"source_netgen"].astype("string").str.strip())=={"."} else ("other_missing_or_nonnumeric" if nonnumeric else ("no_source_rows" if not len(part) else "numeric_observed"))),
                 "can_attribute_generation_to_target_generator":False})
     out.parent.mkdir(parents=True,exist_ok=True)
     result=pd.DataFrame(rows)
@@ -36,6 +37,7 @@ def audit(content,out):
         "plant_month_rows":len(result),
         "missing_plant_months":int(result.plant_page1_rows.eq(0).sum()),
         "non_numeric_plant_months":int(result.nonnumeric_cells.gt(0).sum()),
+        "source_dot_plant_months":int(result.observation_class.eq("source_dot_not_zero").sum()),
         "generator_level_mwh_attributed":False,
         "caution":"Page 1 can aggregate multiple generators, primes and fuels. Do not label plant MWh as one generator's output."}
     out.with_suffix(".json").write_text(json.dumps(report,indent=2)+"\n")
