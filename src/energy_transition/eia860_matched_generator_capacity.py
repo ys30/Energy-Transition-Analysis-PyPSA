@@ -40,12 +40,23 @@ def compare(file_2023, file_2024, output):
         delta_mw=("delta_op_mw","sum"))
     if abs(float(decomposition.delta_mw.sum())-float(joined.delta_op_mw.sum()))>1e-6:
         raise ValueError("OP transition decomposition does not reconcile")
+    # Preserve traceable plant-generator transitions, including one-sided year records.
+    changed=joined.loc[joined.transition_class.isin(["entered_op","exited_op"]) |
+                       joined["_merge"].ne("both")].copy()
+    if len(changed.loc[changed.transition_class.eq("entered_op")]) != 4 or len(changed.loc[changed.transition_class.eq("exited_op")]) != 4:
+        raise ValueError("Unexpected transition record count; inspect source-year scope")
     output.parent.mkdir(parents=True,exist_ok=True)
     joined.to_csv(output,index=False)
+    changed.to_csv(output.with_name(output.stem+"_changed_generators.csv"),index=False)
     decomposition.to_csv(output.with_name(output.stem+"_decomposition.csv"),index=False)
     both=joined.loc[joined._merge.eq("both")]
     result={
       "capacity_transition_decomposition":decomposition.to_dict(orient="records"),
+      "changed_generator_identifiers":[{"plant_id":str(r.plant_id),"generator_id":str(r.generator_id),
+          "transition_class":str(r.transition_class),"record_presence":str(r._merge),
+          "status_2023":None if pd.isna(r.reported_status_2023) else str(r.reported_status_2023),
+          "status_2024":None if pd.isna(r.reported_status_2024) else str(r.reported_status_2024),
+          "delta_op_mw":float(r.delta_op_mw)} for r in changed.itertuples(index=False)],
       "common_priority_plant_ids":len(common_plants),
       "common_plant_generator_ids":len(both),
       "op_2023_mw_in_common_plants":float(joined.op_mw_2023.sum()),
