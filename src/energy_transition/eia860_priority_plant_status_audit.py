@@ -20,6 +20,8 @@ def audit(raw, year, queue, out):
     targets=set(review.plant_id.astype(str))
     found=[]
     sheets={}
+    other_sheet_hits=[]
+    unparsed_sheets=[]
     with zipfile.ZipFile(io.BytesIO(raw)) as z:
         matches=[x for x in z.namelist() if x.lower().endswith((".xlsx",".xls")) and "3_1_generator" in x.lower()]
         if len(matches)!=1:raise ValueError("Expected exactly one generator workbook")
@@ -50,19 +52,45 @@ def audit(raw, year, queue, out):
                               "operable_sheet":sheet=="Operable",
                               "counted_as_operating":sheet=="Operable" and status=="OP",
                               "electrical_connection_verified":False})
+    # Source inventory can contain retired/cancelled sheets. Audit these separately
+    # without changing the strict historical Operable/Proposed supply gate.
+    for sheet in book.sheet_names:
+        if sheet in ("Operable","Proposed"):
+            continue
+        parsed=None
+        for hdr in (1,0,2):
+            d=pd.read_excel(book,sheet_name=sheet,header=hdr)
+            columns={str(k).strip().lower():k for k in d.columns}
+            plant_col=next((v for k,v in columns.items() if k in ("plant code","plant id","plant id number")),None)
+            if plant_col is not None:
+                parsed=(d,plant_col)
+                break
+        if parsed is None:
+            unparsed_sheets.append(str(sheet))
+            continue
+        d,plant_col=parsed
+        ids=d[plant_col].astype("string").str.strip().str.replace(r"\\.0$","",regex=True)
+        for plant in sorted(set(ids[ids.isin(targets)].dropna().astype(str))):
+            other_sheet_hits.append({"plant_id":plant,"source_sheet":str(sheet),
+                                     "year":year,"eligible_as_operating_supply":False})
     df=pd.DataFrame(found,columns=["year","plant_id","generator_id","source_sheet","reported_status",
                                    "operable_sheet","counted_as_operating","electrical_connection_verified"])
     if df.duplicated(["plant_id","generator_id"]).any():
         raise ValueError("Duplicate plant-generator across inventoried sheets")
     out.parent.mkdir(parents=True,exist_ok=True)
     df.to_csv(out,index=False)
+    pd.DataFrame(other_sheet_hits,columns=["plant_id","source_sheet","year","eligible_as_operating_supply"]).to_csv(out.with_name(out.stem+"_other_sheets.csv"),index=False)
     proposed=set(df.loc[df.source_sheet.eq("Proposed"),"plant_id"])
     operable=set(df.loc[df.source_sheet.eq("Operable"),"plant_id"])
     missing=sorted(targets-set(df.plant_id))
+    other_hits_on_missing=[row for row in other_sheet_hits if row["plant_id"] in missing]
+    unresolved=sorted(set(missing)-{row["plant_id"] for row in other_hits_on_missing})
     summary={"year":year,"priority_plant_ids":len(targets),"matched_plant_ids":len(set(df.plant_id)),
       "operable_sheet_plant_ids":len(operable),"proposed_sheet_plant_ids":len(proposed),
       "plants_in_both_sheets":len(operable&proposed),
-      "plants_not_in_either_sheet":missing,"source_sheet_rows":sheets,
+      "plants_not_in_either_sheet":missing,"other_sheet_matches_for_missing":other_hits_on_missing,
+      "unresolved_after_all_parseable_sheets":unresolved,"unparsed_workbook_sheets":unparsed_sheets,
+      "source_sheet_rows":sheets,
       "plant_59047_proposed": "59047" in proposed,
       "plant_59047_operable": "59047" in operable,
       "real_generator_bus_connections_verified":0,
