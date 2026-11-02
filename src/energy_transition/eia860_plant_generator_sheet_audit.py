@@ -22,7 +22,7 @@ def audit_zip(raw, year, plant_id):
             raise ValueError("EIA generator workbook absent")
         book=pd.ExcelFile(io.BytesIO(archive.read(files[0])))
         for sheet in book.sheet_names:
-            if sheet.lower() not in ("operable","proposed","retired","canceled or postponed","cancelled or postponed"):
+            if sheet.lower() not in ("operable","proposed","retired","retired and canceled","canceled or postponed","cancelled or postponed"):
                 continue
             table=None
             for hdr in (1,0,2):
@@ -57,11 +57,16 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument("--year",type=int,required=True)
     p.add_argument("--plant-id",default="59047")
+    p.add_argument("--generator-id",default=None)
     p.add_argument("--out",type=Path,required=True)
     a=p.parse_args()
     req=urllib.request.Request(URL.format(year=a.year),headers={"User-Agent":"research-eia860-generator-audit/1.0"})
     with urllib.request.urlopen(req,timeout=120) as r: raw=r.read()
     result=audit_zip(raw,a.year,a.plant_id)
+    if a.generator_id is not None:
+        result["requested_generator_id"]=a.generator_id
+        result["generator_records"]=[x for x in result["generator_records"] if x["generator_id"].strip()==a.generator_id]
+        result["matching_generator_rows"]=len(result["generator_records"])
     a.out.parent.mkdir(parents=True,exist_ok=True)
     a.out.write_text(json.dumps(result,indent=2)+"\n")
     print(json.dumps(result,indent=2))
