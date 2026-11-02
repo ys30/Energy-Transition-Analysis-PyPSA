@@ -83,6 +83,13 @@ def audit(raw, year, queue, out):
                                    "operable_sheet","counted_as_operating","electrical_connection_verified"])
     if df.duplicated(["plant_id","generator_id"]).any():
         raise ValueError("Duplicate plant-generator across inventoried sheets")
+    # Explicit status gate: a source-sheet label alone cannot admit operating supply.
+    invalid_op=df.loc[df.counted_as_operating & ~(
+        df.source_sheet.eq("Operable") & df.reported_status.eq("OP"))]
+    if not invalid_op.empty:
+        raise ValueError("Incorrect operating-status admission")
+    df["historical_operating_inventory_eligible"]=df.counted_as_operating
+    df["eligible_for_real_network_dispatch"]=False
     proposed=set(df.loc[df.source_sheet.eq("Proposed"),"plant_id"])
     operable=set(df.loc[df.source_sheet.eq("Operable"),"plant_id"])
     missing=sorted(targets-set(df.plant_id))
@@ -96,12 +103,15 @@ def audit(raw, year, queue, out):
         raise ValueError("Inconsistent priority queue coverage")
     out.parent.mkdir(parents=True,exist_ok=True)
     df.to_csv(out,index=False)
+    df.loc[df.historical_operating_inventory_eligible].to_csv(out.with_name(out.stem+"_op_only.csv"),index=False)
     pd.DataFrame(other_sheet_hits,columns=["plant_id","source_sheet","year","generator_id","reported_status","eligible_as_operating_supply"]).to_csv(out.with_name(out.stem+"_other_sheets.csv"),index=False)
     status_distribution={}
     for row in other_hits_on_missing:
         k=str(row["reported_status"])
         status_distribution[k]=status_distribution.get(k,0)+1
-    summary={"retired_cancelled_generator_status_counts":status_distribution,"year":year,"priority_plant_ids":len(targets),"matched_plant_ids":len(set(df.plant_id)),
+    summary={"op_only_generator_rows":int(df.historical_operating_inventory_eligible.sum()),
+      "real_network_dispatch_admitted_generator_rows":0,
+      "retired_cancelled_generator_status_counts":status_distribution,"year":year,"priority_plant_ids":len(targets),"matched_plant_ids":len(set(df.plant_id)),
       "operable_sheet_plant_ids":len(operable),"proposed_sheet_plant_ids":len(proposed),
       "plants_in_both_sheets":len(operable&proposed),
       "plants_not_in_either_sheet":missing,"other_sheet_matches_for_missing":other_hits_on_missing,
