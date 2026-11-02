@@ -1,0 +1,41 @@
+name: EIA860 priority plant source-status audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-priority-status.yml'
+      - 'src/energy_transition/eia860_priority_plant_status_audit.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  priority-source-status:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2023, 2024]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'pandas>=2,<3' openpyxl
+      - name: Retrieve verified priority plant list
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41399889385 -R "${{ github.repository }}" -n eia860-plant-ba-${{ matrix.year }} -D /tmp/priority
+          test -s /tmp/priority/eia860_interconnection_priority_${{ matrix.year }}.csv
+      - name: Audit original official EIA860 Operable and Proposed records
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.eia860_priority_plant_status_audit \
+            --queue /tmp/priority/eia860_interconnection_priority_${{ matrix.year }}.csv \
+            --year ${{ matrix.year }} \
+            --out outputs/eia860_priority_source_status_${{ matrix.year }}.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-priority-status-${{ matrix.year }}
+          path: outputs/
