@@ -17,8 +17,8 @@ PATH_LINES = ("97145", "97156", "97159")
 
 def solve(network: Path, out: Path, hours: int = 24):
     src = pypsa.Network(str(network))
-    if hours != 24 or len(src.snapshots) < hours:
-        raise ValueError("Pilot requires 24 source hourly snapshots")
+    if hours not in (24, 168) or len(src.snapshots) < hours:
+        raise ValueError("Pilot requires 24 or 168 source hourly snapshots")
     if any(b not in src.buses.index for b in PATH_BUSES):
         raise ValueError("Missing original Western path bus")
     if any(l not in src.lines.index for l in PATH_LINES):
@@ -115,5 +115,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--network", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--hours", type=int, choices=(24, 168), default=24)
     args = parser.parse_args()
-    solve(args.network, args.out)
+    solve(args.network, args.out, hours=args.hours)
