@@ -31,3 +31,17 @@ The three records account for **+232.9 MW** of the +252.6 MW OP nameplate delta.
 
 **Correction of scope:** the previous `2454 / 1` absence was only from the restricted two-sheet matching input, not from the complete EIA-860 original workbook. Its current audited status is **RE** in 2024, with original sheet provenance. Update any manuscript or display using the older “missing in 2024” phrase.
 
+
+## Original EIA-860 reported operating/retirement months (verified)
+
+[Successful five-case date-field workflow 41490753548](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41490753548), at commit `bb5fde6e`, and [main CI 41490753444](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41490753444):
+
+| Plant / generator | 2024 original source sheet and status | Source reported month | Original reported operating year |
+|---|---|---|---|
+| `66183 / CWE` | Operable, OP | Operating **January 2024** | 2024 |
+| `66811 / CW3` | Operable, OP | Operating **September 2024** | 2024 |
+| `2454 / 1` | Retired and Canceled, RE | Retirement **January 2024** | 1957 (operating month January 1957) |
+
+These fields are **self-reported EIA source months**, not independently verified daily commercial operation dates. Two wind generators together account for 307.9 MW of 2024 OP additions in this priority subcohort; retired gas generator accounts for -75.0 MW. **Do not assert annual MWh generation proportional to full-year nameplate**: January and September commissioning and January retirement create partial-year exposure.
+
+The 2023 Proposed sheet did not populate the specific operating/retirement field names captured for these two wind units; their 2024 Operable source records establish the historical reported operating months. These date fields do not verify a POI, substation, physical electrical tie, or original PyPSA bus.
