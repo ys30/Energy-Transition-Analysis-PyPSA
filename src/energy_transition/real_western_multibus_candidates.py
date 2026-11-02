@@ -32,12 +32,20 @@ def main():
   if len(local)<3 or len(subset)<2:continue
   ids=n.loads.index[n.loads.bus==bus]
   energy=float(profiles[ids].sum().sum())
+  loaded_local=sorted(set(n.loads.loc[n.loads.bus.astype(str).isin(local),"bus"].astype(str)))
+  local_load_ids=n.loads.index[n.loads.bus.astype(str).isin(local)]
+  neighborhood_mwh=float(profiles[local_load_ids].sum().sum())
+  if neighborhood_mwh<=0:continue
   seen.append({"loaded_bus":bus,"buses":len(local),"real_lines":len(subset),"original_annual_load_mwh":energy,
-               "line_ids":[str(i) for i in subset.index[:30]],"line_capacity_min_mva":float(subset.s_nom.min())})
- seen.sort(key=lambda x:(-x["real_lines"],-x["original_annual_load_mwh"]))
- result={"physical_candidate_neighborhoods":len(seen),"top_neighborhoods":seen[:10],
+               "line_ids":[str(i) for i in subset.index[:30]],"line_capacity_min_mva":float(subset.s_nom.min()),
+               "distinct_efs_load_buses":len(loaded_local),"efs_load_bus_ids":loaded_local,
+               "neighborhood_annual_load_mwh":neighborhood_mwh,
+               "multi_load_admissible":len(loaded_local)>=2})
+ seen.sort(key=lambda x:(-int(x["multi_load_admissible"]),-x["distinct_efs_load_buses"],-x["real_lines"],-x["neighborhood_annual_load_mwh"]))
+ result={"physical_candidate_neighborhoods":len(seen),"multi_load_candidate_neighborhoods":sum(x["multi_load_admissible"] for x in seen),
+         "top_neighborhoods":seen[:10],
          "selection_minimum_line_rating_mva":100,
          "real_network_parameters":True,"generation_included":False,
-         "multi_bus_opf_solved":False}
+         "multi_bus_opf_solved":False,"verified_multi_load_candidate_exists":any(x["multi_load_admissible"] for x in seen)}
  a.out.write_text(json.dumps(result,indent=2)+"\n");print(json.dumps(result,indent=2))
 if __name__=="__main__":main()
