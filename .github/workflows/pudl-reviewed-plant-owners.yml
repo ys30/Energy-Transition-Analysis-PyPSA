@@ -1,0 +1,51 @@
+name: PUDL reviewed-plant T&D-owner evidence
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/pudl-reviewed-plant-owners.yml'
+      - 'src/energy_transition/pudl_yearly_td_owner_extract.py'
+      - 'src/energy_transition/eia860_td_owner_evidence.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  owner-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2023, 2024]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install data access dependencies
+        run: pip install 'duckdb>=1.1,<2' 'pandas>=2,<3'
+      - name: Get verified year-specific interconnection priority queues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41399889385 -R "${{ github.repository }}" -n eia860-plant-ba-${{ matrix.year }} -D /tmp/queue
+          test -s /tmp/queue/eia860_interconnection_priority_${{ matrix.year }}.csv
+      - name: Extract matching PUDL transmission owners (evidence only)
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.pudl_yearly_td_owner_extract \
+            --review /tmp/queue/eia860_interconnection_priority_${{ matrix.year }}.csv \
+            --year ${{ matrix.year }} \
+            --out outputs/pudl_owners_${{ matrix.year }}.csv
+      - name: Join plant IDs and audit owner coverage
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.eia860_td_owner_evidence \
+            --review /tmp/queue/eia860_interconnection_priority_${{ matrix.year }}.csv \
+            --owners outputs/pudl_owners_${{ matrix.year }}.csv \
+            --year ${{ matrix.year }} \
+            --out outputs/eia860_review_td_owner_${{ matrix.year }}.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pudl-td-owner-evidence-${{ matrix.year }}
+          path: outputs/
