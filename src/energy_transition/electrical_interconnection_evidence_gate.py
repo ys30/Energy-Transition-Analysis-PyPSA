@@ -21,7 +21,7 @@ def audit(path,out):
            df["evidence_type"].isin(ELIGIBLE) &
            df["source_document_url"].str.startswith("https://",na=False) &
            df["source_network_bus_evidence"].notna() &
-           df["source_document_year"].str.fullmatch(r"20\\d{2}",na=False) &
+           df["source_document_year"].str.fullmatch(r"20\d{2}",na=False) &
            pd.to_numeric(df["connection_voltage_kv"],errors="coerce").gt(0) &
            df[["plant_id","generator_id","network_bus_id","substation_id"]].notna().all(axis=1))
     verified=df.loc[valid].copy()
