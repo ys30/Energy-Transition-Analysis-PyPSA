@@ -1,0 +1,39 @@
+name: EIA-860 cross-year priority plant overlap
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-interconnection-year-overlap.yml'
+      - 'src/energy_transition/eia860_interconnection_year_overlap.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  deduplicate-plants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3'
+      - name: Download both successful EIA-860 evidence queues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41399889385 -R "${{ github.repository }}" -n eia860-plant-ba-2023 -D /tmp/eia2023
+          gh run download 41399889385 -R "${{ github.repository }}" -n eia860-plant-ba-2024 -D /tmp/eia2024
+          test -s /tmp/eia2023/eia860_interconnection_priority_2023.csv
+          test -s /tmp/eia2024/eia860_interconnection_priority_2024.csv
+      - name: Audit unique plant IDs and persistent review status
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.eia860_interconnection_year_overlap \
+            --queue-2023 /tmp/eia2023/eia860_interconnection_priority_2023.csv \
+            --queue-2024 /tmp/eia2024/eia860_interconnection_priority_2024.csv \
+            --out outputs/eia860_interconnection_cross_year.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-cross-year-unique-review-plants
+          path: outputs/eia860_interconnection_cross_year.*
