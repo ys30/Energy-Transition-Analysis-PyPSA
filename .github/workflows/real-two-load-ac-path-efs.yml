@@ -52,6 +52,12 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_two_load_ac_path_acceptance \
             --input-dir outputs \
             --out outputs/two-load-three-year-acceptance.json
+      - name: Independently accept all three 168-hour dual-load solutions
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_two_load_ac_path_acceptance \
+            --input-dir outputs \
+            --hours 168 \
+            --out outputs/two-load-three-year-168h-acceptance.json
       - name: Verify 24h versus 168h dispatch comparison without annual extrapolation
         run: |
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_two_load_ac_path_window_compare \
