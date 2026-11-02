@@ -34,9 +34,14 @@ def enrich(review_path, owners_path, output_path, year):
     joined=joined.drop(columns=["_merge","plant_id_eia"])
     output_path.parent.mkdir(parents=True,exist_ok=True)
     joined.to_csv(output_path,index=False)
+    # Explicit plant-level follow-up for missing owner identity.
+    missing=joined.loc[~joined.owner_identity_available].copy()
+    missing.to_csv(output_path.with_name(output_path.stem+"_missing_owner.csv"),index=False)
+
     report={"year":year,"review_plants":len(q),
             "owner_source_matched_plants":int(joined.owner_source_joined.sum()),
             "plants_with_owner_identity":int(joined.owner_identity_available.sum()),
+            "missing_owner_plant_ids":missing.plant_id.astype(str).tolist(),
             "verified_electrical_connections":0,"real_dispatch_approved":False}
     output_path.with_suffix(".json").write_text(json.dumps(report,indent=2)+"\n")
     print(json.dumps(report,indent=2))
