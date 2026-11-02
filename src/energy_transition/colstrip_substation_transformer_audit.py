@@ -21,7 +21,11 @@ def audit(network_path,out):
               "bus0_kv":None if str(row["bus0"]) not in n.buses.index.astype(str) else str(n.buses.loc[str(row["bus0"]),"v_nom"]),
               "bus1_kv":None if str(row["bus1"]) not in n.buses.index.astype(str) else str(n.buses.loc[str(row["bus1"]),"v_nom"])})
         return result
-    report={"source_sub_id":"39703","bus_ids":sorted(target),
+    station_nominal_kv=sorted(set(float(x) for x in pd.to_numeric(buses["v_nom"],errors="coerce").dropna()))
+    report={"station_voltage_levels_kv":station_nominal_kv,
+       "source_500kv_bus_present":500.0 in station_nominal_kv,
+       "source_500_345kv_transformer_present":any({float(t["bus0_kv"]),float(t["bus1_kv"])}=={345.0,500.0} for t in incident(n.transformers) if t["bus0_kv"] is not None and t["bus1_kv"] is not None),
+       "source_sub_id":"39703","bus_ids":sorted(target),
        "bus_nominal_kv":{str(i):str(r["v_nom"]) for i,r in buses.iterrows()},
        "lines":incident(n.lines),"transformers":incident(n.transformers),"links":incident(n.links),
        "physical_colstrip_500kv_poi_supported_by_this_audit":False,
