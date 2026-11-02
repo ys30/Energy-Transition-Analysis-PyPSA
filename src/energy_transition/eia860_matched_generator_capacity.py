@@ -27,10 +27,25 @@ def compare(file_2023, file_2024, output):
         eligible=joined[f"op_{year}"].fillna(False).astype(bool)
         joined[f"op_mw_{year}"]=joined[f"nameplate_mw_{year}"].where(eligible,0).fillna(0)
     joined["delta_op_mw"]=joined.op_mw_2024-joined.op_mw_2023
+    op23=joined["op_2023"].fillna(False).astype(bool)
+    op24=joined["op_2024"].fillna(False).astype(bool)
+    joined["transition_class"]="neither_year_op"
+    joined.loc[op23 & op24,"transition_class"]="continuing_op"
+    joined.loc[~op23 & op24,"transition_class"]="entered_op"
+    joined.loc[op23 & ~op24,"transition_class"]="exited_op"
+    decomposition=joined.groupby("transition_class",as_index=False).agg(
+        generator_rows=("plant_id","size"),
+        op_2023_mw=("op_mw_2023","sum"),
+        op_2024_mw=("op_mw_2024","sum"),
+        delta_mw=("delta_op_mw","sum"))
+    if abs(float(decomposition.delta_mw.sum())-float(joined.delta_op_mw.sum()))>1e-6:
+        raise ValueError("OP transition decomposition does not reconcile")
     output.parent.mkdir(parents=True,exist_ok=True)
     joined.to_csv(output,index=False)
+    decomposition.to_csv(output.with_name(output.stem+"_decomposition.csv"),index=False)
     both=joined.loc[joined._merge.eq("both")]
     result={
+      "capacity_transition_decomposition":decomposition.to_dict(orient="records"),
       "common_priority_plant_ids":len(common_plants),
       "common_plant_generator_ids":len(both),
       "op_2023_mw_in_common_plants":float(joined.op_mw_2023.sum()),
