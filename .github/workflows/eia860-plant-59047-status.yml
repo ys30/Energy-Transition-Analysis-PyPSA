@@ -1,0 +1,35 @@
+name: EIA860 plant 59047 original generator status audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-plant-59047-status.yml'
+      - 'src/energy_transition/eia860_plant_generator_sheet_audit.py'
+permissions:
+  contents: read
+jobs:
+  plant-history:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2023, 2024]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install official EIA workbook reader
+        run: python -m pip install 'pandas>=2,<3' openpyxl
+      - name: Audit 59047 across source generator workbook sheets
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.eia860_plant_generator_sheet_audit \
+            --year ${{ matrix.year }} \
+            --plant-id 59047 \
+            --out outputs/eia860_plant_59047_${{ matrix.year }}_sheet_status.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-plant-59047-source-status-${{ matrix.year }}
+          path: outputs/*.json
