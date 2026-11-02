@@ -44,6 +44,9 @@ jobs:
             --owners outputs/pudl_owners_${{ matrix.year }}.csv \
             --year ${{ matrix.year }} \
             --out outputs/eia860_review_td_owner_${{ matrix.year }}.csv
+      - name: Record immutable checksum of extracted owner evidence
+        run: |
+          sha256sum outputs/pudl_owners_${{ matrix.year }}.csv outputs/eia860_review_td_owner_${{ matrix.year }}.csv > outputs/pudl_owner_evidence_${{ matrix.year }}.sha256
       - uses: actions/upload-artifact@v4
         if: always()
         with:
