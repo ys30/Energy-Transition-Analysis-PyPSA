@@ -32,6 +32,31 @@ jobs:
             --network /tmp/western/real-western-base-network.nc \
             --out outputs/SCENARIO_ONLY_colstrip_500_345.nc \
             --report outputs/SCENARIO_ONLY_colstrip_500_345.json
+      - name: Independently reload exported scenario and verify topology invariants
+        run: |
+          python - <<'PY'
+          import json, pypsa
+          n=pypsa.Network("outputs/SCENARIO_ONLY_colstrip_500_345.nc")
+          assert len(n.buses)==10158, len(n.buses)
+          assert len(n.transformers)==2081, len(n.transformers)
+          b="SCENARIO_ONLY_colstrip_500kV"
+          t="SCENARIO_ONLY_colstrip_500_to_345"
+          assert float(n.buses.loc[b,"v_nom"])==500.0
+          assert n.transformers.loc[t,"bus0"]==b
+          assert n.transformers.loc[t,"bus1"]=="2077254"
+          assert float(n.transformers.loc[t,"s_nom"])==500.0
+          assert float(n.transformers.loc[t,"x"])==0.1
+          assert float(n.transformers.loc[t,"r"])==0.01
+          assert len(n.generators.loc[n.generators.bus.astype(str).eq(b)])==0
+          evidence={"roundtrip_pass":True,"scenario_only":True,
+            "buses":len(n.buses),"transformers":len(n.transformers),
+            "new_bus":b,"new_transformer":t,
+            "generators_attached_to_new_bus":0,
+            "empirical_dispatch_claim":False}
+          with open("outputs/SCENARIO_ONLY_colstrip_roundtrip.json","w") as f:
+              json.dump(evidence,f,indent=2)
+          print(json.dumps(evidence,indent=2))
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
