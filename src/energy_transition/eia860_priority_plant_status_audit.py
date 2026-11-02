@@ -69,7 +69,7 @@ def audit(raw, year, queue, out):
             unparsed_sheets.append(str(sheet))
             continue
         d,plant_col=parsed
-        ids=d[plant_col].astype("string").str.strip().str.replace(r"\\.0$","",regex=True)
+        ids=d[plant_col].astype("string").str.strip().str.replace(r"\.0$","",regex=True)
         for plant in sorted(set(ids[ids.isin(targets)].dropna().astype(str))):
             other_sheet_hits.append({"plant_id":plant,"source_sheet":str(sheet),
                                      "year":year,"eligible_as_operating_supply":False})
