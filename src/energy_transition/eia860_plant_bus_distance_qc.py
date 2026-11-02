@@ -13,9 +13,17 @@ def main():
  required={"plant_id","state","nearest_candidate_bus","distance_km","assignment_status","electrical_connection_verified"}
  if required-set(d):raise ValueError("Missing candidate fields")
  if d.plant_id.duplicated().any():raise ValueError("Duplicate candidate plant IDs")
- if not d.assignment_status.eq("geographic_candidate_only").all() or d.electrical_connection_verified.any():
+ # CSV boolean strings must not be interpreted by Python string truthiness.
+ flags=d.electrical_connection_verified.astype("string").str.strip().str.lower()
+ if flags.isna().any() or not flags.isin(["true","false"]).all():
+  raise ValueError("Invalid electrical connection verification flags")
+ if not d.assignment_status.eq("geographic_candidate_only").all() or flags.eq("true").any():
   raise ValueError("Proximity candidates incorrectly marked as electrical connections")
- if d.distance_km.isna().any() or d.distance_km.lt(0).any():raise ValueError("Invalid distances")
+ if d.nearest_candidate_bus.isna().any() or d.plant_id.isna().any() or d.plant_id.duplicated().any():
+  raise ValueError("Missing or duplicate candidate identifiers")
+ d["distance_km"]=pd.to_numeric(d.distance_km,errors="coerce")
+ if d.distance_km.isna().any() or not d.distance_km.map(__import__("math").isfinite).all() or d.distance_km.lt(0).any():
+  raise ValueError("Invalid distances")
  d["distance_band"]=pd.cut(d.distance_km,[-0.001,1,5,10,25,50,float("inf")],labels=["0-1","1-5","5-10","10-25","25-50",">50"])
  flagged=d[d.distance_km>50].sort_values("distance_km",ascending=False)
  flagged.to_csv(a.out_dir/f"eia860_plant_bus_long_distance_review_{a.year}.csv",index=False)
