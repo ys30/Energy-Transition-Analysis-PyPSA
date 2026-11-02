@@ -15,6 +15,7 @@ URL="https://www.eia.gov/electricity/data/eia860/archive/xls/eia860{year}.zip"
 
 def audit_zip(raw, year, plant_id):
     found=[]
+    inspected_sheets=[]
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         files=[x for x in archive.namelist() if x.lower().endswith((".xlsx",".xls")) and "3_1_generator" in x.lower()]
         if not files:
@@ -34,6 +35,7 @@ def audit_zip(raw, year, plant_id):
             if table is None:
                 raise ValueError(f"Unrecognized {sheet} sheet schema")
             df,columns,pc,gc=table
+            inspected_sheets.append({"sheet":sheet,"rows":len(df),"id_column":str(pc)})
             ids=df[pc].astype("string").str.strip().str.replace(r"\\.0$","",regex=True)
             selection=df.loc[ids.eq(str(plant_id)).fillna(False)]
             for _,r in selection.iterrows():
@@ -46,7 +48,7 @@ def audit_zip(raw, year, plant_id):
                     "nameplate_mw":None if pd.isna(cap) else float(cap),
                     "reporting_sheet_is_operable":sheet.lower()=="operable"})
     return {"year":year,"plant_id":str(plant_id),"matching_generator_rows":len(found),
-      "original_source":URL.format(year=year),"generator_records":found,
+      "original_source":URL.format(year=year),"generator_records":found,"inspected_sheets":inspected_sheets,
       "no_matching_row_is_not_proof_of_nonexistence":True,
       "verified_electrical_connection":False}
 
