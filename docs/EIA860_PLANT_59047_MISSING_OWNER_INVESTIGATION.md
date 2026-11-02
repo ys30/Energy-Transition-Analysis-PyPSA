@@ -20,3 +20,9 @@
 ## Evidence tier
 
 G0 geographic candidate, G1 owner incomplete (for both reviewed historical years); G2 POI **not found**; G3 source-network bus **not verified**. Generator dispatch admission: **blocked**.
+
+## Confirmed original EIA-860 historical records (corrected ID normalization)
+
+[Successful 2023/2024 original-workbook audit 41408685928](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41408685928) and [CI 41408685938](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41408685938) establish that `59047 / GEN 1` appears in the **Proposed** sheet, not Operable, in **both** 2023 and 2024. Source record in both: status `P`, fuel `WND`, nameplate `190.0 MW`. The initial zero-match report was incorrect due to numeric Excel plant-ID regex handling; this was corrected in commit `688fa8e9`. Each year now matches **one** original Proposed row.
+
+**Historical supply gate:** This proposed unit must not be counted as operating capacity or admitted as a real dispatched generator in either historical year. The same source records do not establish the cause of absent PUDL transmission-owner metadata and do not identify a verified point of interconnection or PyPSA bus.
