@@ -36,3 +36,13 @@ def test_missing_ba_rejected(tmp_path):
     with pytest.raises(ValueError,match="BA identifiers"):
         run_case(tmp_path,[{"ba_code":None,"official_nameplate_mw":100}],
           [{"ba_code":"BPAT","qualified_annual_mwh":10,"withheld_reported_annual_mwh":0}])
+
+
+@pytest.mark.parametrize("capacity_rows", [
+    [{"ba_code":"BPAT","official_nameplate_mw":0}],
+    [{"ba_code":"CISO","official_nameplate_mw":100}],
+])
+def test_screen_rejects_zero_or_unmatched_capacity_denominator(tmp_path, capacity_rows):
+    with pytest.raises(ValueError,match="Missing or nonpositive EIA860 BA nameplate"):
+        run_case(tmp_path,capacity_rows,
+          [{"ba_code":"BPAT","qualified_annual_mwh":10,"withheld_reported_annual_mwh":0}])
