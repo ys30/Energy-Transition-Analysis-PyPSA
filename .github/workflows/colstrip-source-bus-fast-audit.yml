@@ -1,0 +1,39 @@
+name: Colstrip source-bus audit from verified network artifact
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/colstrip-source-bus-fast-audit.yml'
+      - 'src/energy_transition/colstrip_substation_source_ids.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -e .
+      - name: Reuse last successful upstream Western base network (immutable run)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/verified-western
+          gh run download 41531397166 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/verified-western
+          test -s /tmp/verified-western/real-western-base-network.nc
+          test -s /tmp/verified-western/real-base-network-evidence.json
+      - name: Extract Montana 500kV substation source IDs without electrical mapping claims
+        run: |
+          python -m energy_transition.colstrip_substation_source_ids \
+            --network /tmp/verified-western/real-western-base-network.nc \
+            --out outputs/colstrip-substation-source-candidates.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: colstrip-source-bus-candidates-from-verified-base
+          path: outputs/
