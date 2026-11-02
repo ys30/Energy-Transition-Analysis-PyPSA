@@ -21,6 +21,7 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/real_western_multiload_paths.py
       - src/energy_transition/efs_hour_semantics_gate.py
       - src/energy_transition/real_western_bus_coordinate_audit.py
+      - src/energy_transition/colstrip_original_bus_identity_audit.py
 permissions:
   contents: read
   actions: read
@@ -185,6 +186,12 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_western_bus_coordinate_audit \
             --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
             --out "$GITHUB_WORKSPACE/real-western-bus-coordinate-audit.json"
+      - name: Inspect explicit Colstrip original bus identities and topology
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.colstrip_original_bus_identity_audit \
+            --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
+            --out "$GITHUB_WORKSPACE/colstrip-original-bus-identity.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -200,6 +207,7 @@ jobs:
             real-western-multiload-ac-paths.json
             efs-localhour-utc-readiness.json
             real-western-bus-coordinate-audit.json
+            colstrip-original-bus-identity.json
             efs-real-2030-load-connectivity.json
             efs-real-2040-load-connectivity.json
             efs-real-2050-load-connectivity.json
