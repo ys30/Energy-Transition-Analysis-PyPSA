@@ -1,0 +1,40 @@
+name: EIA860 changed generator original source follow-up
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-changed-generator-followup.yml'
+      - 'src/energy_transition/eia860_plant_generator_sheet_audit.py'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {year: 2024, plant: '2454', generator: '1'}
+          - {year: 2023, plant: '66183', generator: 'CWE'}
+          - {year: 2024, plant: '66183', generator: 'CWE'}
+          - {year: 2023, plant: '66811', generator: 'CW3'}
+          - {year: 2024, plant: '66811', generator: 'CW3'}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'pandas>=2,<3' openpyxl
+      - name: Audit original EIA source generator record across all status sheets
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.eia860_plant_generator_sheet_audit \
+            --year ${{ matrix.year }} \
+            --plant-id ${{ matrix.plant }} \
+            --generator-id "${{ matrix.generator }}" \
+            --out outputs/plant_${{ matrix.plant }}_generator_${{ matrix.generator }}_${{ matrix.year }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-generator-${{ matrix.plant }}-${{ matrix.generator }}-${{ matrix.year }}
+          path: outputs/*.json
