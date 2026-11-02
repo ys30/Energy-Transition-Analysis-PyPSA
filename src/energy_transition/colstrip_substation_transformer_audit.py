@@ -10,7 +10,7 @@ import pandas as pd
 
 def audit(network_path,out):
     n=pypsa.Network(str(network_path))
-    buses=n.buses.loc[n.buses.sub_id.astype("string").str.replace(r"\\.0$","",regex=True).eq("39703")]
+    buses=n.buses.loc[n.buses.sub_id.astype("string").str.replace(r"\.0$","",regex=True).eq("39703")]
     target=set(map(str,buses.index))
     def incident(table):
         if table.empty or not {"bus0","bus1"}.issubset(table.columns):return []
