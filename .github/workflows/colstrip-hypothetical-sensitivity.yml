@@ -7,6 +7,7 @@ on:
       - '.github/workflows/colstrip-hypothetical-sensitivity.yml'
       - 'src/energy_transition/colstrip_hypothetical_sensitivity.py'
       - 'src/energy_transition/colstrip_capacity_arithmetic_screen.py'
+      - 'src/energy_transition/colstrip_isolated_transfer_lp.py'
 permissions:
   contents: read
   actions: read
@@ -31,6 +32,8 @@ jobs:
         run: python -m energy_transition.colstrip_hypothetical_sensitivity --network /tmp/western/real-western-base-network.nc --out outputs
       - name: Screen hypothetical nameplate against transformer MVA rating (not OPF)
         run: python -m energy_transition.colstrip_capacity_arithmetic_screen --folder outputs
+      - name: Solve isolated two-bus transfer LP (NOT Western OPF)
+        run: python -m energy_transition.colstrip_isolated_transfer_lp --folder outputs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
