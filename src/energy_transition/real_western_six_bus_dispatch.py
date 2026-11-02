@@ -43,11 +43,37 @@ def solve(path,out,hours=24):
  utilization=(sub.lines_t.p0.abs()/sub.lines.s_nom)
  congested=utilization.columns[(utilization>=0.999999).any(axis=0)].tolist()
  line_peak={str(k):float(utilization[k].max()) for k in utilization.columns}
+ # Expose topology, line flow and generator placement for diagnosing unused branches.
+ adjacency={str(b):[] for b in buses}
+ for lid,r in lines.iterrows():
+  u,v=str(r.bus0),str(r.bus1)
+  adjacency[u].append({"neighbor":v,"line_id":str(lid)})
+  adjacency[v].append({"neighbor":u,"line_id":str(lid)})
+ seen={target}
+ queue=[target]
+ while queue:
+  node=queue.pop(0)
+  for item in adjacency[node]:
+   nxt=item["neighbor"]
+   if nxt not in seen:
+    seen.add(nxt)
+    queue.append(nxt)
+ if seen!=set(map(str,buses)):
+  raise ValueError("Selected original-line six-bus topology is disconnected")
+ line_flow_peak_mw={str(k):float(sub.lines_t.p0[k].abs().max()) for k in sub.lines.index}
+ generator_energy_mwh={str(k):float(sub.generators_t.p[k].sum()) for k in sub.generators.index}
+ unused_line_ids=[k for k,v in line_flow_peak_mw.items() if v<1e-7]
  if not congested:raise ValueError("No thermal limit binding in pilot")
  result={"planning_year":int(src.snapshots[0].year),
          "binding_line_ids":[str(k) for k in congested],
          "maximum_utilization_by_line":line_peak,
          "binding_line_count":len(congested),
+         "selected_topology_connected":True,
+         "line_adjacency":adjacency,
+         "line_peak_abs_flow_mw":line_flow_peak_mw,
+         "unused_line_ids":unused_line_ids,
+         "generator_bus_assignments":{"illustrative_remote":remote,"illustrative_local":target},
+         "generator_energy_mwh":generator_energy_mwh,
          "thermal_binding_verified":True,
          "buses":len(buses),"real_lines":len(lines),"hours":hours,
          "actual_efs_mwh":actual,"dispatched_mwh":output,
