@@ -10,3 +10,9 @@
 Inspect original network bus `sub_id`, `substation_off`, voltage, grid graph and underlying substation source lineage; check whether an authoritative Colstrip station identifier from underlying transmission data can be connected to a source bus. Nearby coordinates alone are insufficient. Until a verified source record maps Colstrip to an exact model bus, do not insert Clearwater generators as real-bus injections.
 
 **Conclusion: original Western base network built, but Clearwater-to-PyPSA electrical crosswalk remains unverified.**
+
+## Follow-up: corrected Montana state filter and actual voltage spectrum
+
+[Successful fast artifact audit 41541846957](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41541846957) uses full state name `Montana` rather than only `MT` and inspects the previously successful source Western network (10,157 buses). **Montana has 295 buses, with zero at 500 kV**. Source Montana voltages: 138 kV (212), 13.8 kV (34), 345 kV (24), 18 kV (11), 1 kV (8), 13.2 kV (3), and one each at 24, 20 and 22 kV. The full network contains 174 500-kV buses elsewhere. This is a *model representation gap*, not evidence that Colstrip 500-kV physical POI is nonexistent.
+
+**Implication:** Stop looking for a literal Montana 500-kV bus in this network vintage. Evaluate the upstream network topology and voltage transformation/aggregation source: Colstrip may be absent, modeled at another voltage, or disconnected from identifiable substation metadata. No legal promotion of a nearby 345-kV node to the 500-kV physical POI without an authoritative source crosswalk.
