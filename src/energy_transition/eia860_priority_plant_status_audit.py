@@ -71,15 +71,18 @@ def audit(raw, year, queue, out):
         d,plant_col=parsed
         ids=d[plant_col].astype("string").str.strip().str.replace(r"\.0$","",regex=True)
         for plant in sorted(set(ids[ids.isin(targets)].dropna().astype(str))):
-            other_sheet_hits.append({"plant_id":plant,"source_sheet":str(sheet),
-                                     "year":year,"eligible_as_operating_supply":False})
+            plant_rows=d.loc[ids.eq(plant).fillna(False)]
+            status_col=next((v for k,v in columns.items() if k in ("status","operational status")),None)
+            generator_col=next((v for k,v in columns.items() if k in ("generator id","generator id number")),None)
+            for _, row in plant_rows.iterrows():
+                other_sheet_hits.append({"plant_id":plant,"source_sheet":str(sheet),
+                    "year":year,"generator_id":str(row[generator_col]).strip() if generator_col else None,
+                    "reported_status":str(row[status_col]).strip() if status_col else None,
+                    "eligible_as_operating_supply":False})
     df=pd.DataFrame(found,columns=["year","plant_id","generator_id","source_sheet","reported_status",
                                    "operable_sheet","counted_as_operating","electrical_connection_verified"])
     if df.duplicated(["plant_id","generator_id"]).any():
         raise ValueError("Duplicate plant-generator across inventoried sheets")
-    out.parent.mkdir(parents=True,exist_ok=True)
-    df.to_csv(out,index=False)
-    pd.DataFrame(other_sheet_hits,columns=["plant_id","source_sheet","year","eligible_as_operating_supply"]).to_csv(out.with_name(out.stem+"_other_sheets.csv"),index=False)
     proposed=set(df.loc[df.source_sheet.eq("Proposed"),"plant_id"])
     operable=set(df.loc[df.source_sheet.eq("Operable"),"plant_id"])
     missing=sorted(targets-set(df.plant_id))
@@ -91,7 +94,14 @@ def audit(raw, year, queue, out):
         raise ValueError(f"Unresolved original EIA860 priority plant IDs in {year}: {unresolved}")
     if len(set(df.plant_id) | {row["plant_id"] for row in other_sheet_hits}) != len(targets):
         raise ValueError("Inconsistent priority queue coverage")
-    summary={"year":year,"priority_plant_ids":len(targets),"matched_plant_ids":len(set(df.plant_id)),
+    out.parent.mkdir(parents=True,exist_ok=True)
+    df.to_csv(out,index=False)
+    pd.DataFrame(other_sheet_hits,columns=["plant_id","source_sheet","year","generator_id","reported_status","eligible_as_operating_supply"]).to_csv(out.with_name(out.stem+"_other_sheets.csv"),index=False)
+    status_distribution={}
+    for row in other_hits_on_missing:
+        k=str(row["reported_status"])
+        status_distribution[k]=status_distribution.get(k,0)+1
+    summary={"retired_cancelled_generator_status_counts":status_distribution,"year":year,"priority_plant_ids":len(targets),"matched_plant_ids":len(set(df.plant_id)),
       "operable_sheet_plant_ids":len(operable),"proposed_sheet_plant_ids":len(proposed),
       "plants_in_both_sheets":len(operable&proposed),
       "plants_not_in_either_sheet":missing,"other_sheet_matches_for_missing":other_hits_on_missing,
