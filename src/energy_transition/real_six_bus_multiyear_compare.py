@@ -2,7 +2,7 @@
 
 Never interpret the 24-hour EFS ordinal sample as a UTC-aligned full-year solve.
 """
-import argparse,csv,json
+import argparse,csv,json,math
 from pathlib import Path
 
 def main():
@@ -21,8 +21,12 @@ def main():
   assert r["max_line_thermal_utilization"]<=1.000001
   assert abs(r["actual_efs_mwh"]-r["dispatched_mwh"])<0.01
   assert r["generation_illustrative"] and not r["full_western_optimized"]
+  assert r["timezone_aligned"] is False and int(r["hours"])==24
+  assert r["actual_efs_mwh"]>0 and math.isfinite(float(r["actual_efs_mwh"]))
+  assert math.isfinite(float(r["illustrative_cost_usd"]))
   rows.append({"year":year,"demand_mwh":r["actual_efs_mwh"],
     "illustrative_objective_usd":r["illustrative_cost_usd"],
+    "illustrative_objective_per_mwh":r["illustrative_cost_usd"]/r["actual_efs_mwh"],
     "binding_lines":r["binding_line_count"],
     "max_line_utilization":r["max_line_thermal_utilization"],
     "status":r["solver_condition"]})
