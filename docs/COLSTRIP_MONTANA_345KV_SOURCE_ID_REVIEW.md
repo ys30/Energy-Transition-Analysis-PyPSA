@@ -21,3 +21,15 @@ Model: 345-kV at these two buses; no 500-kV bus in Montana within the currently 
 Next evidence: inspect `n.transformers` and any links at buses 2077254/2077262 and the upstream source substation table for `sub_id=39703`; check exact structural lineage, 345/500-kV relationship and whether the Colstrip project POI is represented in the network at all.
 
 **Verification status:** geographic substation cluster candidate strongly corroborated; exact electrical Clearwater-to-PyPSA link **not verified**.
+
+## Real transformer/line topology, completed audit
+
+[Successful Colstrip source substation edge and transformer audit 41543452321](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41543452321), with [successful main CI 41543452316](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41543452316), directly inspected the 10,157-bus original Western network artifact:
+
+- Source `sub_id=39703` has **9 buses**: `2077254` and `2077262` at 345 kV; `2077255` at 138 kV; `2077256`, `2077258`, `2077260`, `2077261` at 13.8 kV; `2077259` at 18 kV; `2077257` at 1 kV.
+- **7 source lines** have at least one endpoint within that station group, including IDs `100002`, `100018`, `100458`, `100462`, `100706`, `100731`, `100770`.
+- **6 source transformer entries** touch the station group: IDs `100764`–`100769`. Four connect 345 kV to 13.8/18 kV; two (`100768`, `100769`) connect 345 kV to 345 kV.
+- No links touch these station buses in this version of the model; **none of the recorded transformer endpoints is 500 kV**.
+- A nominal-voltage label alone does not establish whether the 345/345 entries represent tap-changing equipment, network simplification, or a data modeling peculiarity; inspect upstream source records before interpreting.
+
+**Result:** verified model substation-group topology, but **no verified 500/345 kV physical-to-model interface**. The two modeled 345 kV bus IDs are still *not* approved Clearwater injection buses. There are **zero** independently verified EIA generator-to-original-PyPSA bus ties. Full physical Colstrip 500 kV POI remains absent from this model's named/electrical 500-kV Montana representation.
