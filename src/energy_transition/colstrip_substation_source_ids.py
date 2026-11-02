@@ -36,7 +36,10 @@ def inspect(path,out):
     out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(report,indent=2)+"\n")
     print(json.dumps({"source_bus_count":len(b),"montana_500kv_bus_candidates":len(entries),
-         "field_inventory":cols,"verified_ties":0},indent=2))
+         "field_inventory":cols,"montana_bus_count":len(mt),
+         "montana_voltage_kv_counts":report["montana_voltage_kv_counts"],
+         "all_network_500kv_bus_count":report["all_network_500kv_bus_count"],
+         "state_label_counts":report["state_label_counts"],"verified_ties":0},indent=2))
 if __name__=="__main__":
     ap=argparse.ArgumentParser()
     ap.add_argument("--network",type=Path,required=True)
