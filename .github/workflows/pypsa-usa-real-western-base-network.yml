@@ -18,6 +18,7 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/real_line_near_efs_load.py
       - src/energy_transition/real_line_rating_distribution.py
       - src/energy_transition/real_western_multibus_candidates.py
+      - src/energy_transition/real_western_multiload_paths.py
       - src/energy_transition/efs_hour_semantics_gate.py
       - src/energy_transition/real_western_bus_coordinate_audit.py
 permissions:
@@ -165,6 +166,13 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_western_multibus_candidates \
             --network "$GITHUB_WORKSPACE/efs-real-2030-local-hour-load-only.nc" \
             --out "$GITHUB_WORKSPACE/real-western-multibus-candidates.json"
+      - name: Find AC-line shortest paths connecting two actual EFS load buses
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_western_multiload_paths \
+            --network "$GITHUB_WORKSPACE/efs-real-2030-local-hour-load-only.nc" \
+            --max-hops 15 \
+            --out "$GITHUB_WORKSPACE/real-western-multiload-ac-paths.json"
       - name: Audit EFS local hour semantics and enforce UTC-readiness warning
         if: steps.build.outcome == 'success'
         run: |
@@ -189,6 +197,7 @@ jobs:
             real-rated-lines-near-efs-load.json
             real-line-rating-distribution.json
             real-western-multibus-candidates.json
+            real-western-multiload-ac-paths.json
             efs-localhour-utc-readiness.json
             real-western-bus-coordinate-audit.json
             efs-real-2030-load-connectivity.json
