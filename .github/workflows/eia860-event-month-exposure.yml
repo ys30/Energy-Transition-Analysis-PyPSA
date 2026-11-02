@@ -1,0 +1,35 @@
+name: EIA860 2024 commissioning month exposure audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-event-month-exposure.yml'
+      - 'src/energy_transition/eia860_event_month_exposure.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exposure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download successful source generator evidence artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/verified
+          for name in source-generator-66183-CWE-2024 source-generator-66811-CW3-2024 source-generator-2454-1-2024; do
+            gh run download 41490753548 -R "${{ github.repository }}" -n "$name" -D /tmp/verified
+          done
+          ls -l /tmp/verified/*.json
+      - name: Audit monthly operating/retirement exposure without assuming event day
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.eia860_event_month_exposure \
+            --source-dir /tmp/verified \
+            --out outputs/eia860_2024_event_month_exposure.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-2024-event-month-exposure
+          path: outputs/
