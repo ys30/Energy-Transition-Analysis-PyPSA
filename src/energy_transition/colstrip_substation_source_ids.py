@@ -14,7 +14,7 @@ def inspect(path,out):
     cols=[c for c in ("sub_id","substation_off","v_nom","x","y","state","country","carrier") if c in b.columns]
     if "sub_id" not in b.columns:
         raise ValueError("Source network has no sub_id; investigate upstream bus schema")
-    target=b.loc[b.get("state",pd.Series(index=b.index,dtype="object")).astype("string").str.upper().eq("MT").fillna(False)].copy()
+    target=b.loc[b.get("state",pd.Series(index=b.index,dtype="object")).astype("string").str.strip().str.casefold().isin(["mt","montana"]).fillna(False)].copy()
     voltage=pd.to_numeric(b["v_nom"],errors="coerce") if "v_nom" in b.columns else pd.Series(index=b.index,dtype=float)
     mt=target
     entries=[]
