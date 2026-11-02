@@ -31,6 +31,7 @@ def audit(content,out):
     result.to_csv(out,index=False)
     report={"source":URL.format(year=2024),
         "nonnumeric_months_by_plant":result.loc[result.nonnumeric_cells.gt(0)].groupby("plant_id").month.apply(list).to_dict(),
+        "nonnumeric_source_tokens_by_plant":result.loc[result.nonnumeric_cells.gt(0)].groupby("plant_id").raw_nonnumeric_tokens.apply(lambda x: sorted(set(x))).to_dict(),
         "complete_numeric_months":int(((result.plant_page1_rows>0)&result.nonnumeric_cells.eq(0)).sum()),
         "plant_month_rows":len(result),
         "missing_plant_months":int(result.plant_page1_rows.eq(0).sum()),
