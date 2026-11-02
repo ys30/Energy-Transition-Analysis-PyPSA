@@ -20,6 +20,7 @@ on:
       - 'src/energy_transition/eia860_material_candidate_review.py'
       - 'src/energy_transition/eia860_material_candidate_evidence.py'
       - 'src/energy_transition/eia860_ba_fuel_geo_inventory.py'
+      - 'src/energy_transition/eia860_interconnection_priority_queue.py'
 permissions:
   contents: read
   actions: read
@@ -132,6 +133,13 @@ jobs:
             --plants outputs/eia860/official_eia860_plant_coordinates_${{ matrix.year }}.csv \
             --year ${{ matrix.year }} \
             --out outputs/eia860/eia860_ba_fuel_geographic_inventory_${{ matrix.year }}.csv
+      - name: Publish evidence-only interconnection review priority queue
+        run: |
+          python -m energy_transition.eia860_interconnection_priority_queue \
+            --candidates outputs/eia860/eia860_geographic_plant_bus_candidates_${{ matrix.year }}.csv \
+            --material outputs/eia860/eia860_material_bus_changes_${{ matrix.year }}.csv \
+            --year ${{ matrix.year }} \
+            --out outputs/eia860/eia860_interconnection_priority_${{ matrix.year }}.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:
