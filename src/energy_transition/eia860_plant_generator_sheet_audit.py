@@ -42,7 +42,14 @@ def audit_zip(raw, year, plant_id):
                 status=next((r[v] for k,v in columns.items() if k in ("status","operational status")),None)
                 fuel=next((r[v] for k,v in columns.items() if k=="energy source 1"),None)
                 cap=next((r[v] for k,v in columns.items() if "nameplate capacity" in k),None)
+                # Preserve date fields verbatim; a status switch is not itself a commissioning date.
+                date_fields={str(k): (None if pd.isna(r[v]) else str(r[v]))
+                    for k,v in columns.items()
+                    if ("operating" in k and ("month" in k or "year" in k))
+                    or ("retirement" in k and ("month" in k or "year" in k))
+                    or ("operation" in k and ("month" in k or "year" in k))}
                 found.append({"year":year,"sheet":sheet,"plant_id":str(plant_id),
+                    "source_date_fields":date_fields,
                     "generator_id":str(r[gc]),"reported_status":None if pd.isna(status) else str(status),
                     "fuel":None if pd.isna(fuel) else str(fuel),
                     "nameplate_mw":None if pd.isna(cap) else float(cap),
