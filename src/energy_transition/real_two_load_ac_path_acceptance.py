@@ -9,11 +9,13 @@ BUSES={"2040602","2040645"}
 LINES={"97145","97156","97159"}
 
 
-def validate(folder):
+def validate(folder, hours=24):
+    if hours not in (24,168):
+        raise ValueError('Unsupported scenario window')
     rows=[]
     for year in YEARS:
-        d=json.loads((folder/f"two-load-ac-path-{year}-24h.json").read_text())
-        if d.get("planning_year")!=year or d.get("snapshot_hours")!=24:
+        d=json.loads((folder/f"two-load-ac-path-{year}-{hours}h.json").read_text())
+        if d.get("planning_year")!=year or d.get("snapshot_hours")!=hours:
             raise ValueError(f"{year}: time scope mismatch")
         if set(d.get("actual_efs_load_buses",[]))!=BUSES or set(d.get("lines",[]))!=LINES:
             raise ValueError(f"{year}: source network scope mismatch")
@@ -44,12 +46,12 @@ def validate(folder):
             raise ValueError(f"{year}: missing positive path flow")
         if any(not math.isfinite(float(x)) or not 0<float(x)<=1.000001 for x in util.values()):
             raise ValueError(f"{year}: invalid thermal utilization")
-        rows.append({"year":year,"24h_load_mwh":demand,"max_nodal_residual_mw":residual,
+        rows.append({"year":year,"window_load_mwh":demand,"max_nodal_residual_mw":residual,
                      "binding_line_ids":d["binding_line_ids"],
                      "illustrative_objective_usd":float(d["objective_illustrative_usd"])})
-    if not all(b["24h_load_mwh"]>a["24h_load_mwh"] for a,b in zip(rows,rows[1:])):
+    if not all(b["window_load_mwh"]>a["window_load_mwh"] for a,b in zip(rows,rows[1:])):
         raise ValueError("Cross-year sample loads not increasing")
-    return {"acceptance_passed":True,"years":list(YEARS),"results":rows,
+    return {"acceptance_passed":True,"snapshot_hours":hours,"years":list(YEARS),"results":rows,
             "actual_generation_calibrated":False,"annual_western_opf_verified":False}
 
 
@@ -57,8 +59,9 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument("--input-dir",type=Path,required=True)
     p.add_argument("--out",type=Path,required=True)
+    p.add_argument("--hours",type=int,choices=(24,168),default=24)
     a=p.parse_args()
-    result=validate(a.input_dir)
+    result=validate(a.input_dir,a.hours)
     a.out.parent.mkdir(parents=True,exist_ok=True)
     a.out.write_text(json.dumps(result,indent=2)+"\n")
     print(json.dumps(result,indent=2))
