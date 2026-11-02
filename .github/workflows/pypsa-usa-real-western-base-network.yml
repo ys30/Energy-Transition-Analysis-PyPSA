@@ -22,6 +22,7 @@ name: PyPSA-USA real Western base network build
       - src/energy_transition/efs_hour_semantics_gate.py
       - src/energy_transition/real_western_bus_coordinate_audit.py
       - src/energy_transition/colstrip_original_bus_identity_audit.py
+      - src/energy_transition/colstrip_substation_source_ids.py
 permissions:
   contents: read
   actions: read
@@ -192,6 +193,12 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.colstrip_original_bus_identity_audit \
             --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
             --out "$GITHUB_WORKSPACE/colstrip-original-bus-identity.json"
+      - name: Inventory Montana 500kV substation identifiers for Colstrip provenance review
+        if: steps.build.outcome == 'success'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.colstrip_substation_source_ids \
+            --network /tmp/pypsa-usa/workflow/resources/Default/western/elec_base_network.nc \
+            --out "$GITHUB_WORKSPACE/colstrip-substation-source-candidates.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -208,6 +215,7 @@ jobs:
             efs-localhour-utc-readiness.json
             real-western-bus-coordinate-audit.json
             colstrip-original-bus-identity.json
+            colstrip-substation-source-candidates.json
             efs-real-2030-load-connectivity.json
             efs-real-2040-load-connectivity.json
             efs-real-2050-load-connectivity.json
