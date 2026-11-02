@@ -1,0 +1,37 @@
+name: EIA860 matched priority generator capacity
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-matched-capacity.yml'
+      - 'src/energy_transition/eia860_matched_generator_capacity.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  matched-capacity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'pandas>=2,<3'
+      - name: Download successfully validated historical priority generator inventories
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41481510731 -R "${{ github.repository }}" -n eia860-priority-status-2023 -D /tmp/2023
+          gh run download 41481510731 -R "${{ github.repository }}" -n eia860-priority-status-2024 -D /tmp/2024
+      - name: Compare capacity within common plant-generator identities
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.eia860_matched_generator_capacity \
+            --year-2023 /tmp/2023/eia860_priority_source_status_2023.csv \
+            --year-2024 /tmp/2024/eia860_priority_source_status_2024.csv \
+            --out outputs/eia860_priority_matched_generator_capacity.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-matched-generator-capacity
+          path: outputs/
