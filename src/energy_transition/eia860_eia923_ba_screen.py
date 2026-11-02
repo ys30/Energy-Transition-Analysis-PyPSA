@@ -27,6 +27,9 @@ def audit(capacity_path,generation_path,out):
  capacity=cap.groupby("ba_code",as_index=False).official_nameplate_mw.sum()
  gen_ba=gen.groupby("ba_code",as_index=False)[["qualified_annual_mwh","withheld_reported_annual_mwh"]].sum()
  result=gen_ba.merge(capacity,on="ba_code",how="left",validate="one_to_one")
+ if result.official_nameplate_mw.isna().any() or result.official_nameplate_mw.le(0).any():
+  missing=result.loc[result.official_nameplate_mw.isna() | result.official_nameplate_mw.le(0),"ba_code"].astype(str).tolist()
+  raise ValueError(f"Missing or nonpositive EIA860 BA nameplate MW: {missing}")
  result["screen_hours"]=8784 # 2024 is a leap year; EIA-923 calendar year, not EFS 8760
  result["qualified_generation_over_nameplate_hours"]=result.qualified_annual_mwh/(result.official_nameplate_mw*8784)
  result["capacity_linked"]=result.official_nameplate_mw.gt(0)
