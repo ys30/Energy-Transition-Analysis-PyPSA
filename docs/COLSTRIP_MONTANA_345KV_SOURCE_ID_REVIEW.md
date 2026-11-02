@@ -33,3 +33,9 @@ Next evidence: inspect `n.transformers` and any links at buses 2077254/2077262 a
 - A nominal-voltage label alone does not establish whether the 345/345 entries represent tap-changing equipment, network simplification, or a data modeling peculiarity; inspect upstream source records before interpreting.
 
 **Result:** verified model substation-group topology, but **no verified 500/345 kV physical-to-model interface**. The two modeled 345 kV bus IDs are still *not* approved Clearwater injection buses. There are **zero** independently verified EIA generator-to-original-PyPSA bus ties. Full physical Colstrip 500 kV POI remains absent from this model's named/electrical 500-kV Montana representation.
+
+## Explicit physical-to-model interface gate — verified negative
+
+[Successful CI audit #41543996357](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41543996357), [main CI #41543996384](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41543996384): directly observed `source_500kv_bus_present=false` and `source_500_345kv_transformer_present=false` for substation-group `39703`. Network station nominal levels are `[1, 13.8, 18, 138, 345]` kV. These are direct source-network findings, not a claim that physical 500-kV Colstrip equipment is absent.
+
+**Engineering decision:** block calibrated Clearwater injections into `2077254` and `2077262` in the current network vintage. A proposed topology augmentation (adding a 500-kV POI, transformer and generation tie) must be labeled **synthetic/scenario-only** until equipment ratings, station mapping, and physical graph are independently sourced. Alternative authoritative network representation may be required. No verified generator-to-original-bus connections have been established.
