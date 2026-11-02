@@ -36,7 +36,7 @@ def audit_zip(raw, year, plant_id):
                 raise ValueError(f"Unrecognized {sheet} sheet schema")
             df,columns,pc,gc=table
             inspected_sheets.append({"sheet":sheet,"rows":len(df),"id_column":str(pc)})
-            ids=df[pc].astype("string").str.strip().str.replace(r"\\.0$","",regex=True)
+            ids=df[pc].astype("string").str.strip().str.replace(r"\.0$","",regex=True)
             selection=df.loc[ids.eq(str(plant_id)).fillna(False)]
             for _,r in selection.iterrows():
                 status=next((r[v] for k,v in columns.items() if k in ("status","operational status")),None)
