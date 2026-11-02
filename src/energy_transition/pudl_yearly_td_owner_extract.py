@@ -15,6 +15,8 @@ def extract(review, year, output):
         raise ValueError("Review plant IDs missing or duplicated")
     connection=duckdb.connect()
     connection.execute("INSTALL httpfs; LOAD httpfs")
+    # Dotted PUDL S3 bucket requires path-style URLs for TLS certificate validity.
+    connection.execute("CREATE SECRET (TYPE s3, PROVIDER config, REGION 'us-west-2', URL_STYLE 'path')")
     source="s3://pudl.catalyst.coop/nightly/out_eia__yearly_plants.parquet"
     query="""SELECT CAST(plant_id_eia AS VARCHAR) AS plant_id_eia,
                     CAST(report_date AS VARCHAR) AS report_date,
