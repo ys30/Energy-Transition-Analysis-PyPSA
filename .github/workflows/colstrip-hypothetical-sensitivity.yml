@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/colstrip-hypothetical-sensitivity.yml'
       - 'src/energy_transition/colstrip_hypothetical_sensitivity.py'
+      - 'src/energy_transition/colstrip_capacity_arithmetic_screen.py'
 permissions:
   contents: read
   actions: read
@@ -28,6 +29,8 @@ jobs:
           test -s /tmp/western/real-western-base-network.nc
       - name: Seven hypothetical capacity-impedance network roundtrips
         run: python -m energy_transition.colstrip_hypothetical_sensitivity --network /tmp/western/real-western-base-network.nc --out outputs
+      - name: Screen hypothetical nameplate against transformer MVA rating (not OPF)
+        run: python -m energy_transition.colstrip_capacity_arithmetic_screen --folder outputs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
