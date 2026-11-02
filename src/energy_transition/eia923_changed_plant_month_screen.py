@@ -24,11 +24,15 @@ def audit(content,out):
                 "plant_page1_rows":len(part),"nonnumeric_cells":nonnumeric,
                 "plant_mwh_numeric_sum":float(part.netgen_mwh.sum()) if len(part) and not nonnumeric else None,
                 "reported_fuel_codes":";".join(fuels),
+                "raw_nonnumeric_tokens":";".join(sorted(set(part.loc[part.netgen_mwh.isna(),"source_netgen"].astype("string").fillna("<missing>").tolist()))),
                 "can_attribute_generation_to_target_generator":False})
     out.parent.mkdir(parents=True,exist_ok=True)
     result=pd.DataFrame(rows)
     result.to_csv(out,index=False)
-    report={"source":URL.format(year=2024),"plant_month_rows":len(result),
+    report={"source":URL.format(year=2024),
+        "nonnumeric_months_by_plant":result.loc[result.nonnumeric_cells.gt(0)].groupby("plant_id").month.apply(list).to_dict(),
+        "complete_numeric_months":int(((result.plant_page1_rows>0)&result.nonnumeric_cells.eq(0)).sum()),
+        "plant_month_rows":len(result),
         "missing_plant_months":int(result.plant_page1_rows.eq(0).sum()),
         "non_numeric_plant_months":int(result.nonnumeric_cells.gt(0).sum()),
         "generator_level_mwh_attributed":False,
