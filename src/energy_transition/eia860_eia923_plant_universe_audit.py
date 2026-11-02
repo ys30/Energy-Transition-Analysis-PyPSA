@@ -16,8 +16,16 @@ def run(e860,e923,out):
  op.capacity_mw=pd.to_numeric(op.capacity_mw,errors="coerce")
  op=op[op.capacity_mw.ge(0)&op.capacity_mw.notna()]
  if op.empty:raise ValueError("No qualified EIA860 operating plants")
- q["qualified"]=q.reconciles.astype(str).str.lower().eq("true")&q.fully_numeric.astype(str).str.lower().eq("true")
  q.annual_reported_mwh=pd.to_numeric(q.annual_reported_mwh,errors="coerce")
+ if "missing_months" not in q.columns:
+  raise ValueError("EIA923 monthly coverage column missing: refusing to certify records")
+ q["missing_months"]=pd.to_numeric(q.missing_months,errors="coerce")
+ if q.missing_months.isna().any() or q.missing_months.lt(0).any() or q.missing_months.gt(12).any():
+  raise ValueError("Invalid EIA923 missing_months")
+ q["qualified"]=(q.reconciles.astype(str).str.lower().eq("true")
+  & q.fully_numeric.astype(str).str.lower().eq("true")
+  & q.missing_months.eq(0)
+  & q.annual_reported_mwh.notna())
  rows=[]
  for ba in sorted(q.ba_code.dropna().unique()):
   a=op[op.ba_code.eq(ba)]
