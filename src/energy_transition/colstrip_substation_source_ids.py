@@ -15,13 +15,20 @@ def inspect(path,out):
     if "sub_id" not in b.columns:
         raise ValueError("Source network has no sub_id; investigate upstream bus schema")
     target=b.loc[b.get("state",pd.Series(index=b.index,dtype="object")).astype("string").str.upper().eq("MT").fillna(False)].copy()
+    voltage=pd.to_numeric(b["v_nom"],errors="coerce") if "v_nom" in b.columns else pd.Series(index=b.index,dtype=float)
+    mt=target
     entries=[]
     for bus,row in target.iterrows():
         if "v_nom" in row and pd.to_numeric(pd.Series([row["v_nom"]]),errors="coerce").iloc[0]!=500:
             continue
         entries.append({"bus_id":str(bus),**{str(c):(None if pd.isna(row[c]) else str(row[c])) for c in cols},
             "lines_incident":int(((n.lines.bus0.astype(str)==str(bus))|(n.lines.bus1.astype(str)==str(bus))).sum()) if len(n.lines) else 0})
-    report={"source_bus_count":len(b),"montana_500kv_bus_candidates":len(entries),
+    report={"source_bus_count":len(b),
+            "state_label_counts":b["state"].astype("string").fillna("<missing>").value_counts().head(30).to_dict() if "state" in b.columns else {},
+            "montana_bus_count":len(mt),
+            "montana_voltage_kv_counts":pd.to_numeric(mt["v_nom"],errors="coerce").value_counts().head(30).rename_axis("voltage").to_dict() if "v_nom" in mt.columns else {},
+            "all_network_500kv_bus_count":int(voltage.eq(500).sum()),
+            "montana_500kv_bus_candidates":len(entries),
             "candidate_rows":entries,"field_inventory":cols,
             "documentary_substation_name_crosswalk_available":False,
             "independently_verified_clearwater_bus_ties":0,
