@@ -85,6 +85,12 @@ def audit(raw, year, queue, out):
     missing=sorted(targets-set(df.plant_id))
     other_hits_on_missing=[row for row in other_sheet_hits if row["plant_id"] in missing]
     unresolved=sorted(set(missing)-{row["plant_id"] for row in other_hits_on_missing})
+    # Fail closed if the historical priority queue cannot be reconciled against
+    # the original EIA generator workbook; do not silently treat absent IDs as zero MW.
+    if unresolved:
+        raise ValueError(f"Unresolved original EIA860 priority plant IDs in {year}: {unresolved}")
+    if len(set(df.plant_id) | {row["plant_id"] for row in other_sheet_hits}) != len(targets):
+        raise ValueError("Inconsistent priority queue coverage")
     summary={"year":year,"priority_plant_ids":len(targets),"matched_plant_ids":len(set(df.plant_id)),
       "operable_sheet_plant_ids":len(operable),"proposed_sheet_plant_ids":len(proposed),
       "plants_in_both_sheets":len(operable&proposed),
