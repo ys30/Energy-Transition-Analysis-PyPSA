@@ -36,4 +36,7 @@ jobs:
         if: always()
         with:
           name: eia860-cross-year-unique-review-plants
-          path: outputs/eia860_interconnection_cross_year.*
+          path: |
+            outputs/eia860_interconnection_cross_year.*
+            outputs/eia860_interconnection_cross_year_persistent.csv
+            outputs/eia860_interconnection_cross_year_year_specific.csv
