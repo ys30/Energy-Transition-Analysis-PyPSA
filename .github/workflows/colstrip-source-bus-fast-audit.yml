@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/colstrip-source-bus-fast-audit.yml'
       - 'src/energy_transition/colstrip_substation_source_ids.py'
+      - 'src/energy_transition/colstrip_substation_transformer_audit.py'
 permissions:
   contents: read
   actions: read
@@ -35,6 +36,11 @@ jobs:
           python -m energy_transition.colstrip_substation_source_ids \
             --network /tmp/verified-western/real-western-base-network.nc \
             --out outputs/colstrip-substation-source-candidates.json
+      - name: Inspect substation 39703 lines, transformers and links
+        run: |
+          python -m energy_transition.colstrip_substation_transformer_audit \
+            --network /tmp/verified-western/real-western-base-network.nc \
+            --out outputs/colstrip-substation-39703-transformers.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
