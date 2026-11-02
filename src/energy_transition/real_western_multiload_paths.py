@@ -29,11 +29,19 @@ def audit(network, max_hops=15):
         if not graph.has_edge(u, v) or float(row.s_nom) > graph[u][v]["rating"]:
             graph.add_edge(u, v, line_id=str(line_id), rating=float(row.s_nom))
     profiles = n.loads_t.p_set
+    # The source network retains static load definitions that have no
+    # dynamic p_set columns. Only explicitly attached EFS profiles count.
+    efs_columns = [c for c in profiles.columns if str(c).startswith("EFS_")]
     energy = {}
     for bus, group in n.loads.groupby(n.loads.bus.astype(str)):
-        columns = list(group.index)
-        value = float(profiles[columns].sum().sum())
-        if np.isfinite(value) and value > 0:
+        columns = [c for c in group.index if c in efs_columns]
+        if not columns:
+            continue
+        series = profiles.loc[:, columns]
+        if series.isna().any().any() or not np.isfinite(series.to_numpy(dtype=float)).all():
+            raise ValueError(f"Invalid EFS hourly load profile at bus {bus}")
+        value = float(series.sum().sum())
+        if value > 0:
             energy[str(bus)] = value
     loaded = sorted(energy)
     candidates = []
@@ -59,6 +67,7 @@ def audit(network, max_hops=15):
     candidates.sort(key=lambda x: (x["hops"], -min(x["load_a_annual_mwh"], x["load_b_annual_mwh"])))
     return {
         "eligible_rated_ac_lines": len(eligible),
+        "source_dynamic_efs_load_components": len(efs_columns),
         "positive_efs_load_buses": len(loaded),
         "loaded_buses_present_in_rated_ac_graph": sum(b in graph for b in loaded),
         "max_hops_searched": max_hops,
