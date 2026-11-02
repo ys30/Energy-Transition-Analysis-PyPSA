@@ -6,6 +6,7 @@ name: Verified two-load AC-path constrained EFS pilot
     paths:
       - .github/workflows/real-two-load-ac-path-efs.yml
       - src/energy_transition/real_two_load_ac_path_dispatch.py
+      - src/energy_transition/real_two_load_ac_path_acceptance.py
 permissions:
   contents: read
   actions: read
@@ -36,8 +37,13 @@ jobs:
               --network "/tmp/networks/efs-real-${year}-local-hour-load-only.nc" \
               --out "outputs/two-load-ac-path-${year}-24h.json"
           done
+      - name: Independently accept three-year dual-load nodal and provenance results
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.real_two_load_ac_path_acceptance \
+            --input-dir outputs \
+            --out outputs/two-load-three-year-acceptance.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: verified-two-load-ac-path-2030-2050
-          path: outputs/two-load-ac-path-*.json
+          path: outputs/*.json
