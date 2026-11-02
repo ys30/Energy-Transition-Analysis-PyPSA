@@ -1,0 +1,29 @@
+name: EIA923 changed plant monthly generation screen
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia923-changed-plant-month.yml'
+      - 'src/energy_transition/eia923_changed_plant_month_screen.py'
+permissions:
+  contents: read
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'pandas>=2,<3' openpyxl
+      - name: Cross-check three changed plants against official EIA923 Page 1
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.eia923_changed_plant_month_screen \
+            --out outputs/eia923_changed_plant_month_screen_2024.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia923-changed-plant-month-screen-2024
+          path: outputs/
