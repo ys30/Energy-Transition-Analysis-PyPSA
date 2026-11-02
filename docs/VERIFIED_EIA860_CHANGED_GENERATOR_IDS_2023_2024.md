@@ -18,3 +18,16 @@ These 8 transition rows sum to +232.6 MW. Continuing OP generator nameplate revi
 Important: `2454 / 1` absent from the 2024 **Operable/Proposed** matched input is *not proof of retirement or cancellation*. Search the original 2024 `Retired and Canceled` sheet by **plant ID and generator ID** to classify this properly. More broadly, source status changes in year-end inventories are not necessarily proof of physical commissioning or outage causes.
 
 The 2023–2024 status code names and historical capacity scope require source-vintage verification. Zero generator-to-PyPSA-original-bus electrical tie records independently verified. Exclude from actual empirical network dispatch pending POI and source network linkage.
+
+## Follow-up resolved from original year-specific source sheets
+
+[Successful five-case original EIA-860 audit 41489652926](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41489652926) confirms:
+
+- Plant `2454`, generator `1`: **2024 Retired and Canceled**, status **RE**, fuel **NG**, nameplate **75.0 MW**. This resolves the prior one-sided Operable/Proposed file absence: the generator is present in the complete annual original source, but not the restricted status inventory.
+- Plant `66183`, generator `CWE`: 2023 **Proposed**, status **TS**, 207.9 MW wind; 2024 **Operable**, status **OP**, 207.9 MW wind.
+- Plant `66811`, generator `CW3`: 2023 **Proposed**, status **V**, 100.0 MW wind; 2024 **Operable**, status **OP**, 100.0 MW wind.
+
+The three records account for **+232.9 MW** of the +252.6 MW OP nameplate delta. The other generator transitions collectively contribute -0.3 MW; continuing OP generators contribute +20.0 MW. This confirms source-year status changes, **not** the exact commissioning or retirement dates or an independently verified network tie.
+
+**Correction of scope:** the previous `2454 / 1` absence was only from the restricted two-sheet matching input, not from the complete EIA-860 original workbook. Its current audited status is **RE** in 2024, with original sheet provenance. Update any manuscript or display using the older “missing in 2024” phrase.
+
