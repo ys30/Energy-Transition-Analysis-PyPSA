@@ -60,11 +60,20 @@ def merge_queues(p2023, p2024, out):
     result = result.sort_values(["review_both_years", "plant_id"], ascending=[False, True])
     out.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(out, index=False)
+    # Actionable files, preserving the original ID-level provenance.
+    persistent = result.loc[result.review_both_years].copy()
+    persistent.to_csv(out.with_name(out.stem + "_persistent.csv"), index=False)
+    year_specific = result.loc[~result.review_both_years].copy()
+    year_specific.to_csv(out.with_name(out.stem + "_year_specific.csv"), index=False)
+    if len(persistent) + len(year_specific) != len(result):
+        raise ValueError("Cross-year partition does not reconcile")
+
     report = {
         "unique_priority_plant_ids": len(result),
         "year_2023_records": len(frames[0]),
         "year_2024_records": len(frames[1]),
         "review_both_years": int(result.review_both_years.sum()),
+        "persistent_review_fraction_of_unique": float(result.review_both_years.mean()),
         "only_2023": int((result.review_2023 & ~result.review_2024).sum()),
         "only_2024": int((~result.review_2023 & result.review_2024).sum()),
         "electrical_connections_verified": 0,
