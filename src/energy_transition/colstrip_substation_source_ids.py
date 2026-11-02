@@ -23,7 +23,12 @@ def inspect(path,out):
             continue
         entries.append({"bus_id":str(bus),**{str(c):(None if pd.isna(row[c]) else str(row[c])) for c in cols},
             "lines_incident":int(((n.lines.bus0.astype(str)==str(bus))|(n.lines.bus1.astype(str)==str(bus))).sum()) if len(n.lines) else 0})
-    report={"source_bus_count":len(b),
+    montana_345=[]
+    for bus,row in mt.iterrows():
+        if pd.to_numeric(pd.Series([row.get("v_nom")]),errors="coerce").iloc[0]==345:
+            montana_345.append({"bus_id":str(bus),**{str(c):(None if pd.isna(row[c]) else str(row[c])) for c in cols},
+                "lines_incident":int(((n.lines.bus0.astype(str)==str(bus))|(n.lines.bus1.astype(str)==str(bus))).sum()) if len(n.lines) else 0})
+    report={"montana_345kv_bus_records":montana_345,"montana_345kv_count":len(montana_345),"source_bus_count":len(b),
             "state_label_counts":b["state"].astype("string").fillna("<missing>").value_counts().head(30).to_dict() if "state" in b.columns else {},
             "montana_bus_count":len(mt),
             "montana_voltage_kv_counts":pd.to_numeric(mt["v_nom"],errors="coerce").value_counts().head(30).rename_axis("voltage").to_dict() if "v_nom" in mt.columns else {},
@@ -36,7 +41,8 @@ def inspect(path,out):
     out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(report,indent=2)+"\n")
     print(json.dumps({"source_bus_count":len(b),"montana_500kv_bus_candidates":len(entries),
-         "field_inventory":cols,"montana_bus_count":len(mt),
+         "field_inventory":cols,"montana_bus_count":len(mt),"montana_345kv_count":len(montana_345),
+         "montana_345kv_bus_records":montana_345,
          "montana_voltage_kv_counts":report["montana_voltage_kv_counts"],
          "all_network_500kv_bus_count":report["all_network_500kv_bus_count"],
          "state_label_counts":report["state_label_counts"],"verified_ties":0},indent=2))
