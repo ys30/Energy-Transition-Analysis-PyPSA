@@ -1,0 +1,37 @@
+name: PUDL cross-year missing owner audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/pudl-owner-missing-cross-year.yml'
+      - 'src/energy_transition/pudl_owner_missing_cross_year.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'pandas>=2,<3'
+      - name: Retrieve owner evidence from verified run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41405753838 -R "${{ github.repository }}" -n pudl-td-owner-evidence-2023 -D /tmp/owner-2023
+          gh run download 41405753838 -R "${{ github.repository }}" -n pudl-td-owner-evidence-2024 -D /tmp/owner-2024
+      - name: Verify year-over-year missing owner identities
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.pudl_owner_missing_cross_year \
+            --year-2023 /tmp/owner-2023/eia860_review_td_owner_2023.csv \
+            --year-2024 /tmp/owner-2024/eia860_review_td_owner_2024.csv \
+            --out outputs/pudl_owner_missing_cross_year.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pudl-missing-owner-cross-year
+          path: outputs/
