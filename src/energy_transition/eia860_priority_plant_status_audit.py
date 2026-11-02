@@ -42,12 +42,16 @@ def audit(raw, year, queue, out):
             ids=d[p].astype("string").str.strip().str.replace(r"\.0$","",regex=True)
             hits=d.loc[ids.isin(targets)].copy()
             status_key=next((v for k,v in col.items() if k in ("status","operational status")),None)
+            capacity_key=next((v for k,v in col.items() if "nameplate capacity" in k),None)
+            if capacity_key is None:raise ValueError(f"Missing nameplate capacity in {sheet}")
             for _,r in hits.iterrows():
                 pid=str(r[p]).removesuffix(".0")
                 gen=str(r[g]).strip()
                 if not gen or gen=="nan":raise ValueError("Missing generator ID")
                 status=str(r[status_key]).strip() if status_key else ""
+                capacity=pd.to_numeric(r[capacity_key],errors="coerce")
                 found.append({"year":year,"plant_id":pid,"generator_id":gen,
+                              "nameplate_mw":float(capacity) if pd.notna(capacity) else None,
                               "source_sheet":sheet,"reported_status":status,
                               "operable_sheet":sheet=="Operable",
                               "counted_as_operating":sheet=="Operable" and status=="OP",
@@ -79,7 +83,7 @@ def audit(raw, year, queue, out):
                     "year":year,"generator_id":str(row[generator_col]).strip() if generator_col else None,
                     "reported_status":str(row[status_col]).strip() if status_col else None,
                     "eligible_as_operating_supply":False})
-    df=pd.DataFrame(found,columns=["year","plant_id","generator_id","source_sheet","reported_status",
+    df=pd.DataFrame(found,columns=["year","plant_id","generator_id","nameplate_mw","source_sheet","reported_status",
                                    "operable_sheet","counted_as_operating","electrical_connection_verified"])
     if df.duplicated(["plant_id","generator_id"]).any():
         raise ValueError("Duplicate plant-generator across inventoried sheets")
@@ -89,6 +93,9 @@ def audit(raw, year, queue, out):
     if not invalid_op.empty:
         raise ValueError("Incorrect operating-status admission")
     df["historical_operating_inventory_eligible"]=df.counted_as_operating
+    op_capacity=df.loc[df.counted_as_operating,"nameplate_mw"]
+    if op_capacity.isna().any() or (op_capacity<=0).any():
+        raise ValueError("OP-only capacity contains missing or nonpositive nameplate MW")
     df["eligible_for_real_network_dispatch"]=False
     proposed=set(df.loc[df.source_sheet.eq("Proposed"),"plant_id"])
     operable=set(df.loc[df.source_sheet.eq("Operable"),"plant_id"])
@@ -109,7 +116,8 @@ def audit(raw, year, queue, out):
     for row in other_hits_on_missing:
         k=str(row["reported_status"])
         status_distribution[k]=status_distribution.get(k,0)+1
-    summary={"op_only_generator_rows":int(df.historical_operating_inventory_eligible.sum()),
+    summary={"op_only_nameplate_mw":float(op_capacity.sum()),
+      "op_only_generator_rows":int(df.historical_operating_inventory_eligible.sum()),
       "real_network_dispatch_admitted_generator_rows":0,
       "retired_cancelled_generator_status_counts":status_distribution,"year":year,"priority_plant_ids":len(targets),"matched_plant_ids":len(set(df.plant_id)),
       "operable_sheet_plant_ids":len(operable),"proposed_sheet_plant_ids":len(proposed),
