@@ -63,15 +63,59 @@ def candidate_weights(buses: pd.DataFrame, *, tolerance: float = 1e-6):
     }
 
 
+
+def verify_western_membership(weights: pd.DataFrame, mapping: dict) -> dict:
+    """Reject partial/foreign zone coverage before any Western demand export.
+
+    Numeric source-bus allocation remains a *candidate*, not verified LAF
+    provenance. A single zone assigned to a different state is fatal.
+    """
+    if "state_to_all_membership_zones" not in mapping:
+        raise ValueError("Missing full Western membership map")
+    expected = {
+        (str(state).strip(), str(zone).strip())
+        for state, zones in mapping["state_to_all_membership_zones"].items()
+        for zone in zones
+    }
+    if not expected:
+        raise ValueError("Empty Western state-to-zone membership")
+    actual = {
+        (str(row.state).strip(), str(row.zone).strip())
+        for row in weights.itertuples(index=False)
+    }
+    if len(actual) != len(weights):
+        raise ValueError("Duplicate source state-zone pairs")
+    absent = sorted(expected - actual)
+    unexpected = sorted(actual - expected)
+    if absent or unexpected:
+        raise ValueError(
+            f"Western membership disagreement: missing={absent}, extra={unexpected}. "
+            "Do not silently discard out-of-region demand or re-normalize."
+        )
+    # Per-state full-share normalization was already validated upstream.
+    return {
+        "expected_western_membership_pairs": len(expected),
+        "candidate_source_state_zone_pairs": len(actual),
+        "western_membership_exactly_matched": True,
+        "independent_geographic_source_provenance_verified": False,
+        "admitted_for_empirical_dispatch": False,
+    }
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--network", type=Path, required=True)
     p.add_argument("--weights", type=Path, required=True)
     p.add_argument("--report", type=Path, required=True)
+    p.add_argument("--membership-report", type=Path,
+                   help="Official Western state-to-all-membership-zones audit JSON")
     args = p.parse_args()
     import pypsa
     network = pypsa.Network(args.network)
     weights, report = candidate_weights(network.buses)
+    if args.membership_report:
+        membership = json.loads(args.membership_report.read_text(encoding="utf-8"))
+        report.update(verify_western_membership(weights, membership))
     args.weights.parent.mkdir(parents=True, exist_ok=True)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     weights.to_csv(args.weights, index=False, float_format="%.17g")
