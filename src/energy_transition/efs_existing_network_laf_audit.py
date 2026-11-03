@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 
 from .efs_source_bus_laf_extraction import candidate_weights
 
@@ -30,6 +31,32 @@ def audit_bus_laf(buses: pd.DataFrame) -> dict:
     if len(available) != len(required):
         report["blocker"] = "Missing source bus fields; cannot derive LAF from this network"
         return report
+    # Diagnose actual missing bus attributes instead of reporting a generic
+    # blocker. These counts refer to the saved network, not upstream EFS.
+    diagnostics = {}
+    for col in required:
+        values = buses[col]
+        blank = values.astype("string").str.strip().eq("").fillna(False)
+        numeric_bad = pd.Series(False, index=buses.index)
+        if col == "LAF_state":
+            numeric = pd.to_numeric(values, errors="coerce")
+            numeric_bad = numeric.notna() & (
+                ~np.isfinite(numeric.to_numpy(dtype=float))
+                | (numeric < 0) | (numeric > 1)
+            )
+        invalid = values.isna() | blank | numeric_bad
+        diagnostics[col] = {
+            "missing_null": int(values.isna().sum()),
+            "blank_text": int(blank.sum()),
+            "invalid_numeric": int(numeric_bad.sum()),
+            "affected_bus_count": int(invalid.sum()),
+            "affected_bus_examples": [str(i) for i in buses.index[invalid][:15]],
+        }
+    report["field_diagnostics"] = diagnostics
+    report["fully_populated_required_bus_count"] = int(
+        sum(all(not pd.isna(row[k]) and str(row[k]).strip() != ""
+                for k in required) for _, row in buses.iterrows())
+    )
     try:
         _, evidence = candidate_weights(buses)
     except (ValueError, TypeError, KeyError) as exc:
