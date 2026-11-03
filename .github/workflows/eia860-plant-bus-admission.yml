@@ -13,6 +13,7 @@ on:
       - 'src/energy_transition/eia860_operating_bus_review_priority.py'
       - 'src/energy_transition/eia860_poi_document_review_queue.py'
       - 'src/energy_transition/eia860_facility_lead_network_audit.py'
+      - 'src/energy_transition/eia860_facility_voltage_bus_candidates.py'
       - 'docs/eia860_official_facility_document_leads_2024.csv'
 permissions:
   contents: read
@@ -146,6 +147,25 @@ jobs:
           assert d['facility_leads']==2
           assert d['generator_injections_approved']==0
           assert d['independently_verified_source_facility_to_original_bus']==0
+          PY
+      - name: Search original Western network for same-state voltage-compatible facility bus alternatives
+        run: |
+          python -m energy_transition.eia860_facility_voltage_bus_candidates \
+            --leads docs/eia860_official_facility_document_leads_2024.csv \
+            --candidates outputs/eia860_plant_bus/eia860_2024_geographic_bus_candidates.csv \
+            --network /tmp/western/real-western-base-network.nc \
+            --radius-km 75 \
+            --max-per-plant 10 \
+            --out outputs/eia860_plant_bus/official_facility_alternate_bus_candidates_2024.csv
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/eia860_plant_bus/official_facility_alternate_bus_candidates_2024.json').read_text())
+          assert r['facility_leads']==2
+          assert r['generator_injections_approved']==0
+          assert r['independently_verified_electrical_connections']==0
+          for plant in r['plant_summaries']:
+              print(f"Plant {plant['plant_id']} {plant['plant_name']}: {plant['same_state_voltage_compatible_candidates_within_radius']} voltage-compatible candidate buses within {r['radius_km']}km; nearest {plant['nearest_compatible_distance_km']}km (NOT approved)")
           PY
       - name: Create explicitly empty reviewed electrical evidence inventory
         run: |
