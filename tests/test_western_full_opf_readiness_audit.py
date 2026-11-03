@@ -21,6 +21,12 @@ def test_one_dynamic_load_does_not_certify_all_loads(tmp_path):
     inspect(net,out)
     result=json.loads(out.read_text())
     assert "static" in result["load_components_without_dynamic_profile"]
+    assert result["static_only_nonzero_load_ids"] == ["static"]
+    assert result["static_only_zero_load_ids"] == []
+    assert result["effective_load_invalid_cells"] == 0
+    # 10+11+12 MW dynamic + 5 MW constant over three 1h snapshots.
+    assert result["unweighted_snapshot_load_sum_mw"] == 48.0
+    assert result["unweighted_snapshot_load_sum_is_certified_annual_mwh"] is False
     assert result["readiness_gates"]["load_timeseries_complete"] is False
     assert result["full_opf_ready"] is False
     assert "generator_operational_inputs_verified" in result["missing_required_inputs"]
