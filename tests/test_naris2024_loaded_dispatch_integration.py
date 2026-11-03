@@ -84,6 +84,8 @@ def test_isolated_member_zone_receives_local_supply_not_transfer(tmp_path):
     report["total_load_mwh"] = 376.0
     report_path.write_text(json.dumps(report))
     result = solve_loaded_network(net, report_path, synthetic_fixture=True)
+    assert result["hypothetical_central_source_bus"] in {"p8", "p9"}
+    assert result["hypothetical_central_source_bus"] != "p19"
     assert result["isolated_zone_ids"] == ["p19"]
     assert result["isolated_zone_count"] == 1
     assert result["isolated_zone_demand_mwh"] == pytest.approx(36.0)
