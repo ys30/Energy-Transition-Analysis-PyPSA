@@ -69,8 +69,10 @@ def audit(leads_path: Path, candidates_path: Path, network_path: Path,
         if not 25<=lat<=50 or not -125<=lon<=-102:
             raise ValueError("Invalid plant coordinates")
         subset["distance_km"]=haversine_km(lat,lon,subset.latitude,subset.longitude)
-        local=subset.loc[subset.distance_km.le(radius_km)]
-        local=local.loc[local.voltage_kv.apply(lambda x:any(abs(x-v)<0.01 for v in voltages))]
+        geographic_local=subset.loc[subset.distance_km.le(radius_km)]
+        compatible_mask=subset.voltage_kv.apply(lambda x:any(abs(x-v)<0.01 for v in voltages))
+        compatible_state=subset.loc[compatible_mask].copy()
+        local=compatible_state.loc[compatible_state.distance_km.le(radius_km)]
         local=local.sort_values(["distance_km","voltage_kv"]).head(max_per_plant)
         for bus_id,bus in local.iterrows():
             line_count=int(((n.lines.bus0.astype(str)==str(bus_id))|(n.lines.bus1.astype(str)==str(bus_id))).sum())
@@ -87,6 +89,9 @@ def audit(leads_path: Path, candidates_path: Path, network_path: Path,
         summary.append({"plant_id":str(r.plant_id),"plant_name":str(r.plant_name),
                         "same_state_voltage_compatible_candidates_within_radius":int(len(local)),
                         "nearest_compatible_distance_km":float(local.distance_km.min()) if not local.empty else None,
+                        "nearest_compatible_distance_anywhere_same_state_km":float(compatible_state.distance_km.min()) if not compatible_state.empty else None,
+                        "geographic_buses_within_radius":int(len(geographic_local)),
+                        "geographic_bus_voltage_counts_within_radius":{str(k):int(v) for k,v in geographic_local.voltage_kv.value_counts().sort_index().items()},
                         "documented_facility_bus_approved":False})
     out.parent.mkdir(parents=True,exist_ok=True)
     columns=["plant_id","plant_name","documented_facility_voltages_kv","candidate_bus_id",
