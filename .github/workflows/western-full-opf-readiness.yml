@@ -28,6 +28,23 @@ jobs:
           test -s /tmp/western/real-western-base-network.nc
       - name: Audit full-network OPF inputs
         run: python -m energy_transition.western_full_opf_readiness_audit --network /tmp/western/real-western-base-network.nc --out outputs/western-opf-readiness.json
+      - name: Obtain three previously validated EFS load-bearing networks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs
+          gh run download 41390831322 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/efs
+          for year in 2030 2040 2050; do
+            test -s "/tmp/efs/efs-real-${year}-local-hour-load-only.nc"
+          done
+      - name: Audit all three load-bearing networks without claiming generation readiness
+        run: |
+          set -euo pipefail
+          for year in 2030 2040 2050; do
+            python -m energy_transition.western_full_opf_readiness_audit \
+              --network "/tmp/efs/efs-real-${year}-local-hour-load-only.nc" \
+              --out "outputs/western-opf-readiness-efs-${year}.json"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
