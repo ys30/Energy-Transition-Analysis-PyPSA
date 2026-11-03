@@ -46,7 +46,7 @@ jobs:
           report=classify_missing_laf_buses(network)
           out=Path('outputs/western_missing_laf_bus_roles.json')
           out.parent.mkdir(parents=True,exist_ok=True)
-          out.write_text(json.dumps(report,indent=2)+'\\n')
+          out.write_text(json.dumps(report,indent=2)+'\n')
           summary={k:v for k,v in report.items() if k!='classification_by_bus'}
           print(json.dumps(summary,indent=2))
           assert report['missing_laf_can_be_assumed_zero'] is False
