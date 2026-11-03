@@ -32,6 +32,8 @@ def test_nearby_voltage_compatible_bus_is_not_approved(tmp_path):
     report=audit(leads,candidates,network,out,radius_km=20,max_per_plant=5)
     df=pd.read_csv(out)
     assert report["voltage_compatible_geographic_candidates"]==1
+    assert report["plant_summaries"][0]["geographic_buses_within_radius"]==2
+    assert report["plant_summaries"][0]["nearest_compatible_distance_anywhere_same_state_km"] < 20
     assert report["generator_injections_approved"]==0
     assert report["plant_summaries"][0]["same_state_voltage_compatible_candidates_within_radius"]==1
     assert df.iloc[0].candidate_bus_id=="compatible_nearby"
@@ -46,6 +48,8 @@ def test_no_compatible_bus_is_valid_blocked_screen(tmp_path):
     out=tmp_path/"none.csv"
     report=audit(leads,candidates,network,out,radius_km=0.1)
     assert report["voltage_compatible_geographic_candidates"]==0
+    assert report["plant_summaries"][0]["geographic_buses_within_radius"]==1
+    assert report["plant_summaries"][0]["nearest_compatible_distance_anywhere_same_state_km"] > 0.1
     assert pd.read_csv(out).empty
 
 
