@@ -35,6 +35,8 @@ def test_differentiate_missing_bus_with_load_from_non_load():
     assert r["missing_laf_can_be_assumed_zero"] is False
     assert r["missing_laf_buses_may_be_excluded"] is False
     assert r["empirical_laf_admitted"] is False
+    assert r["topology_only_network_for_load_generation"] is False
+    assert r["load_absence_proves_zero_future_efs_demand"] is False
 
 
 def test_missing_bus_without_load_not_automatically_excluded():
@@ -51,3 +53,16 @@ def test_required_geography_is_mandatory():
     n.buses=n.buses.drop(columns=["reeds_state"])
     with pytest.raises(ValueError, match="Required geographic"):
         classify_missing_laf_buses(n)
+
+
+def test_topology_only_base_network_does_not_certify_zero_demand():
+    n=fixture()
+    n.loads=n.loads.iloc[:0]
+    n.loads_t.p_set=pd.DataFrame()
+    n.generators=n.generators.iloc[:0]
+    report=classify_missing_laf_buses(n)
+    assert report["topology_only_network_for_load_generation"] is True
+    assert report["network_component_counts"]["loads"] == 0
+    assert report["network_component_counts"]["generators"] == 0
+    assert report["missing_laf_buses_may_be_excluded"] is False
+    assert report["load_absence_proves_zero_future_efs_demand"] is False
