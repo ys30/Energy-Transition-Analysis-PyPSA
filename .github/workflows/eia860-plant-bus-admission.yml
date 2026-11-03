@@ -1,0 +1,75 @@
+name: EIA860 plant-to-bus evidence admission (candidate-only)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-plant-bus-admission.yml'
+      - 'src/energy_transition/eia860_plant_bus_evidence_gate.py'
+      - 'src/energy_transition/eia860_plant_bus_candidates.py'
+      - 'src/energy_transition/eia860_plant_coordinates.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evidence-admission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install geographic and network audit tools
+        run: |
+          python -m pip install -e '.[dev]' openpyxl xlrd
+          python -m pip install 'pypsa>=0.30,<1.0'
+      - name: Retrieve previously validated Western network artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western
+          gh run download 41531397166 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/western
+          test -s /tmp/western/real-western-base-network.nc
+      - name: Extract official EIA860 2024 plant coordinates
+        run: |
+          python -m energy_transition.eia860_plant_coordinates --year 2024 --out-dir outputs/eia860_plant_bus
+      - name: Produce geographic candidates against original real Western buses
+        run: |
+          python -m energy_transition.eia860_plant_bus_candidates \
+            --plants outputs/eia860_plant_bus/official_eia860_plant_coordinates_2024.csv \
+            --network /tmp/western/real-western-base-network.nc \
+            --out outputs/eia860_plant_bus/eia860_2024_geographic_bus_candidates.csv
+      - name: Create explicitly empty reviewed electrical evidence inventory
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          out = Path('outputs/eia860_plant_bus/reviewed_electrical_bus_evidence.csv')
+          pd.DataFrame(columns=[
+              'plant_id','verified_bus_id','evidence_source','reviewer',
+              'evidence_status','electrical_connection_verified'
+          ]).to_csv(out,index=False)
+          PY
+      - name: Fail closed without independent electrical connection evidence
+        run: |
+          python -m energy_transition.eia860_plant_bus_evidence_gate \
+            --candidates outputs/eia860_plant_bus/eia860_2024_geographic_bus_candidates.csv \
+            --evidence outputs/eia860_plant_bus/reviewed_electrical_bus_evidence.csv \
+            --network /tmp/western/real-western-base-network.nc \
+            --out outputs/eia860_plant_bus/eia860_2024_bus_evidence_admission.csv
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('outputs/eia860_plant_bus/eia860_2024_bus_evidence_admission.json').read_text())
+          assert report['candidate_plants'] > 0
+          assert report['independently_reviewed_electrical_bus_evidence_records'] == 0
+          assert report['full_western_opf_ready'] is False
+          print('Verified: real geographic candidates were NOT admitted as electrical connections.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-2024-geographic-bus-admission-screen
+          path: outputs/eia860_plant_bus/
+          retention-days: 30
