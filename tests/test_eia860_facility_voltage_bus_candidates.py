@@ -51,7 +51,7 @@ def test_no_compatible_bus_is_valid_blocked_screen(tmp_path):
 
 def test_unverified_lead_claiming_bus_is_rejected(tmp_path):
     leads,candidates,network=inputs(tmp_path)
-    d=pd.read_csv(leads)
+    d=pd.read_csv(leads, dtype={"network_bus_id": "string"})
     d.loc[0,"network_bus_id"]="compatible_nearby"
     d.to_csv(leads,index=False)
     with pytest.raises(ValueError,match="cannot claim"):
