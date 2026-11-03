@@ -27,7 +27,9 @@ def test_one_dynamic_load_does_not_certify_all_loads(tmp_path):
     # 10+11+12 MW dynamic + 5 MW constant over three 1h snapshots.
     assert result["unweighted_snapshot_load_sum_mw"] == 48.0
     assert result["unweighted_snapshot_load_sum_is_certified_annual_mwh"] is False
-    assert result["readiness_gates"]["load_timeseries_complete"] is False
+    assert result["all_loads_have_dynamic_profiles"] is False
+    assert result["readiness_gates"]["load_effective_profiles_complete"] is True
+    assert result["load_profiles_include_valid_static_constants"] is True
     assert result["full_opf_ready"] is False
     assert "generator_operational_inputs_verified" in result["missing_required_inputs"]
 
