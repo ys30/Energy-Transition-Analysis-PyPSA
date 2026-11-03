@@ -61,6 +61,10 @@ jobs:
           assert 'p19' in membership['added_isolated_zones']
           assert r['zones']==membership['required_western_zones']==membership['result_buses']==35
           assert r['directional_links']==membership['directed_links']==131
+          assert r['isolated_zone_ids']==membership['all_isolated_zones']==['p19']
+          assert r['isolated_zone_count']==1
+          assert abs(r['isolated_zone_demand_mwh']-r['isolated_zone_local_generation_mwh'])<1e-3
+          assert abs(sum(r['hypothetical_backup_by_zone_mwh'].values())-r['hypothetical_backup_mwh'])<1e-3
           assert r['snapshots']==24, r
           assert r['solver_status']=='ok' and r['solver_condition']=='optimal', r
           assert r['max_nodal_balance_residual_mw'] < 1e-3
