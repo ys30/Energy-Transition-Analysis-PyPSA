@@ -60,6 +60,8 @@ jobs:
           assert r['source_facility_to_generator_bus_verified'] is False
           for s in r['hourly_cases']:
               assert len(s['hourly'])==24
+              assert len(s['per_source_line_metrics'])==9
+              assert sum(line['congested_hours'] for line in s['per_source_line_metrics'])==s['congested_line_hours']
               assert s['max_nodal_residual_mw']<0.15
               assert all(h['max_line_abs_flow_mw']<=s['hypothetical_line_capacity_mw']+0.15 for h in s['hourly'])
           PY
@@ -70,6 +72,8 @@ jobs:
             --out-dir outputs/synthetic_24h_figures
           test -s outputs/synthetic_24h_figures/synthetic_24h_cost_capacity.png
           test -s outputs/synthetic_24h_figures/synthetic_24h_backup_capacity.png
+          test -s outputs/synthetic_24h_figures/synthetic_24h_per_line_congestion.png
+          test -s outputs/synthetic_24h_figures/synthetic_24h_per_line_metrics.csv
           test -s outputs/synthetic_24h_figures/synthetic_24h_scenario_metrics.csv
       - uses: actions/upload-artifact@v4
         if: always()
