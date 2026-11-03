@@ -10,6 +10,7 @@ on:
       - 'src/energy_transition/eia860_plant_coordinates.py'
       - 'src/energy_transition/eia860_plant_bus_distance_qc.py'
       - 'src/energy_transition/eia860_operating_plant_bus_screen.py'
+      - 'src/energy_transition/eia860_operating_bus_review_priority.py'
 permissions:
   contents: read
   actions: read
@@ -86,6 +87,24 @@ jobs:
           assert d['qualified_operating_generator_rows_on_candidate_plants']>0
           assert d['approved_electrical_connections']==0
           assert d['full_western_opf_ready'] is False
+          PY
+      - name: Rank operating plant candidate evidence reviews by capacity and distance
+        run: |
+          python -m energy_transition.eia860_operating_bus_review_priority \
+            --screen outputs/eia860_plant_bus/eia860_2024_op_plant_candidate_screen.csv \
+            --out outputs/eia860_plant_bus/eia860_2024_op_plant_bus_review_priority.csv
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('outputs/eia860_plant_bus')
+          screening=json.loads((root/'eia860_2024_op_plant_candidate_screen.json').read_text())
+          priority=json.loads((root/'eia860_2024_op_plant_bus_review_priority.json').read_text())
+          assert screening['candidate_plants_with_qualified_op_generator']==priority['screened_operating_plants']
+          assert screening['qualified_operating_generator_rows_on_candidate_plants']==priority['screened_operating_generators']
+          assert abs(screening['qualified_operating_nameplate_mw_on_candidate_plants']-priority['screened_operating_nameplate_mw'])<0.001
+          assert screening['candidate_op_plants_over_50km']==priority['operating_plants_over_50km']
+          assert priority['electrical_connections_verified']==0
+          print('Verified operating nameplate, plant and >50km review conservation')
           PY
       - name: Create explicitly empty reviewed electrical evidence inventory
         run: |
