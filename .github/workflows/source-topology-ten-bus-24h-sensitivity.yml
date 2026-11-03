@@ -62,6 +62,7 @@ jobs:
               assert len(s['hourly'])==24
               assert len(s['per_source_line_metrics'])==9
               assert sum(line['congested_hours'] for line in s['per_source_line_metrics'])==s['congested_line_hours']
+              assert all(line['sum_absolute_nodal_price_spread_units_per_mwh_hours']>=0 for line in s['per_source_line_metrics'])
               assert s['max_nodal_residual_mw']<0.15
               assert all(h['max_line_abs_flow_mw']<=s['hypothetical_line_capacity_mw']+0.15 for h in s['hourly'])
           PY
