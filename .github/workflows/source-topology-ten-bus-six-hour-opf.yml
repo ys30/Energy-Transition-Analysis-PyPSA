@@ -61,6 +61,7 @@ jobs:
           for s in x['hypothetical_scenarios']:
               assert len(s['snapshots'])==6
               assert all(abs(t['generator_load_balance_residual_mw'])<0.1 for t in s['snapshots'])
+              assert all(t['maximum_nodal_balance_residual_mw']<0.15 for t in s['snapshots'])
               assert all(t['line_max_abs_flow_mw']<=s['hypothetical_line_rating_mw']+0.1 for t in s['snapshots'])
           PY
       - uses: actions/upload-artifact@v4
