@@ -47,7 +47,9 @@ def inspect(network,out):
         "loads":len(loads)>0,
         "multiple_snapshots":snaps>1,
         "generator_availability_timeseries_complete":len(generators)>0 and not static_only_generators,
-        "load_timeseries_complete":len(loads)>0 and not static_only_loads,
+        # A load with a finite constant p_set is a valid PyPSA load, even if
+        # it has no dynamic p_set column. Report dynamic coverage separately.
+        "load_effective_profiles_complete":len(loads)>0 and effective_load_invalid_cells==0,
         "load_numeric_values_complete":len(loads)>0 and effective_load_invalid_cells==0,
         "line_endpoints_valid":missing_line_endpoints==0,
         "transformer_endpoints_valid":missing_transformer_endpoints==0,
@@ -85,6 +87,8 @@ def inspect(network,out):
       "missing_transformer_endpoints":missing_transformer_endpoints,
       "generator_components_without_dynamic_availability":static_only_generators,
       "load_components_without_dynamic_profile":static_only_loads,
+      "all_loads_have_dynamic_profiles":len(loads)>0 and not static_only_loads,
+      "load_profiles_include_valid_static_constants":bool(static_only_loads and not static_only_invalid),
       "readiness_gates":gates,
       "full_western_opf_executed":False,
       "historical_dispatch_calibrated":False,
