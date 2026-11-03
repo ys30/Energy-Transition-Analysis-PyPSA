@@ -30,7 +30,7 @@ def match(plants_path,network_path,out):
   distances=6371.0088*2*np.arcsin(np.clip(chord/2,0,1))
   for (idx,row),i,d in zip(group.iterrows(),ii,distances):
    bus=buses.iloc[int(i)]
-   rows.append({"plant_id":str(row.plant_id),"state":state,"nearest_candidate_bus":str(buses.index[int(i)]),
+   rows.append({"plant_id":str(row.plant_id),"plant_name":str(row.plant_name) if "plant_name" in row and pd.notna(row.plant_name) else None,"state":state,"nearest_candidate_bus":str(buses.index[int(i)]),
     "distance_km":round(float(d),4),"plant_latitude":float(row.latitude),"plant_longitude":float(row.longitude),
     "bus_latitude":float(bus.latitude),"bus_longitude":float(bus.longitude),
     "assignment_status":"geographic_candidate_only","electrical_connection_verified":False})
