@@ -57,6 +57,54 @@ def audit_bus_laf(buses: pd.DataFrame) -> dict:
         sum(all(not pd.isna(row[k]) and str(row[k]).strip() != ""
                 for k in required) for _, row in buses.iterrows())
     )
+    # Trace missing allocation values by original geography while retaining
+    # missing shares as unknown (never zero or automatically normalized).
+    geo = buses[["reeds_state", "reeds_zone", "LAF_state"]].copy()
+    geo["numeric_laf"] = pd.to_numeric(geo["LAF_state"], errors="coerce")
+    geo["missing_laf"] = geo["numeric_laf"].isna()
+    geo["valid_laf"] = (
+        np.isfinite(geo["numeric_laf"].to_numpy(dtype=float))
+        & geo["numeric_laf"].ge(0)
+        & geo["numeric_laf"].le(1)
+    )
+    geo["usable_laf"] = geo["numeric_laf"].where(geo["valid_laf"])
+    by_geo = (geo.groupby(["reeds_state", "reeds_zone"], dropna=False)
+        .agg(source_buses=("missing_laf", "size"),
+             missing_laf_buses=("missing_laf", "sum"),
+             valid_laf_buses=("valid_laf", "sum"),
+             observed_laf_sum=("usable_laf", "sum"))
+        .reset_index())
+    by_geo = by_geo[by_geo["missing_laf_buses"].gt(0)]
+    report["missing_laf_by_state_zone"] = [
+        {"state": str(row.reeds_state), "zone": str(row.reeds_zone),
+         "source_buses": int(row.source_buses),
+         "missing_laf_buses": int(row.missing_laf_buses),
+         "valid_laf_buses": int(row.valid_laf_buses),
+         "observed_laf_sum_excluding_missing": float(row.observed_laf_sum)}
+        for row in by_geo.itertuples(index=False)
+    ]
+    by_state = geo.groupby("reeds_state", dropna=False).agg(
+        source_buses=("missing_laf", "size"),
+        missing_laf_buses=("missing_laf", "sum"),
+        valid_laf_buses=("valid_laf", "sum"),
+        observed_laf_sum=("usable_laf", "sum"),
+    ).reset_index()
+    report["laf_state_coverage"] = [
+        {"state": str(row.reeds_state),
+         "source_buses": int(row.source_buses),
+         "missing_laf_buses": int(row.missing_laf_buses),
+         "valid_laf_buses": int(row.valid_laf_buses),
+         "observed_laf_sum_excluding_missing": float(row.observed_laf_sum),
+         "full_state_laf_sum_verified": bool(
+             int(row.missing_laf_buses) == 0
+             and int(row.valid_laf_buses) == int(row.source_buses)
+             and abs(float(row.observed_laf_sum) - 1.0) <= 1e-6
+         )}
+        for row in by_state.itertuples(index=False)
+    ]
+    report["missing_laf_treated_as_zero"] = False
+    report["missing_laf_imputed"] = False
+    report["partial_state_weights_renormalized"] = False
     try:
         _, evidence = candidate_weights(buses)
     except (ValueError, TypeError, KeyError) as exc:
