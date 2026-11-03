@@ -8,6 +8,7 @@ on:
       - 'src/energy_transition/eia860_plant_bus_evidence_gate.py'
       - 'src/energy_transition/eia860_plant_bus_candidates.py'
       - 'src/energy_transition/eia860_plant_coordinates.py'
+      - 'src/energy_transition/eia860_plant_bus_distance_qc.py'
 permissions:
   contents: read
   actions: read
@@ -40,6 +41,28 @@ jobs:
             --plants outputs/eia860_plant_bus/official_eia860_plant_coordinates_2024.csv \
             --network /tmp/western/real-western-base-network.nc \
             --out outputs/eia860_plant_bus/eia860_2024_geographic_bus_candidates.csv
+      - name: Audit geographic candidate distance bands and exceptional plants
+        run: |
+          python -m energy_transition.eia860_plant_bus_distance_qc \
+            --candidates outputs/eia860_plant_bus/eia860_2024_geographic_bus_candidates.csv \
+            --out-dir outputs/eia860_plant_bus \
+            --year 2024
+      - name: Cross-check candidate and coordinate coverage
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('outputs/eia860_plant_bus')
+          coordinates=json.loads((root/'official_eia860_plant_coordinates_2024.json').read_text())
+          candidate=json.loads((root/'eia860_2024_geographic_bus_candidates.json').read_text())
+          distance=json.loads((root/'eia860_plant_bus_distance_qc_2024.json').read_text())
+          assert coordinates['valid_geographic_coordinates']==candidate['candidate_pairs']
+          assert candidate['candidate_pairs']==distance['candidate_plants']
+          assert distance['electrical_connections_verified']==0
+          assert distance['plant_bus_assignment_approved'] is False
+          assert candidate['more_than_50km']==distance['over_50km_count']
+          print('Verified source-to-candidate-to-distance inventory conservation:',distance['candidate_plants'])
+          PY
       - name: Create explicitly empty reviewed electrical evidence inventory
         run: |
           python - <<'PY'
