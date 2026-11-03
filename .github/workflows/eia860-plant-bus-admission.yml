@@ -17,6 +17,7 @@ on:
       - 'src/energy_transition/eia860_source_bus_identity_trace.py'
       - 'src/energy_transition/eia860_source_substation_group_audit.py'
       - 'docs/eia860_official_facility_document_leads_2024.csv'
+      - 'docs/western_source_network_provenance.json'
 permissions:
   contents: read
   actions: read
@@ -33,6 +34,21 @@ jobs:
         run: |
           python -m pip install -e '.[dev]' openpyxl xlrd
           python -m pip install 'pypsa>=0.30,<1.0'
+      - name: Enforce synthetic-network source lineage before real-generator comparison
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('docs/western_source_network_provenance.json').read_text())
+          assert data['upstream_commit']=='338af9912addbaf038c6098fe27e1e6ef099d8aa'
+          assert 'USATestSystem.zip' in data['source_archive']
+          assert 'synthetic' in data['source_network_family'].lower()
+          assert data['utility_authenticated_electrical_facility_identities'] is False
+          assert data['eia860_electrical_interconnection_approved'] is False
+          assert data['empirical_western_opf_ready'] is False
+          print('Topology provenance: ',data['source_network_family'])
+          print('Synthetic bus/sub_id IDs are not utility-certified physical POI identifiers')
+          PY
       - name: Retrieve previously validated Western network artifact
         env:
           GH_TOKEN: ${{ github.token }}
