@@ -1,7 +1,7 @@
 """Unit checks for conservative source-network LAF aggregation."""
 import pandas as pd
 import pytest
-from energy_transition.efs_source_bus_laf_extraction import candidate_weights
+from energy_transition.efs_source_bus_laf_extraction import candidate_weights, verify_western_membership
 
 
 def buses():
@@ -61,3 +61,38 @@ def test_sum_above_one_blocked():
     df.loc["busA", "LAF_state"] = 0.8
     with pytest.raises(ValueError, match="Full-state LAF coverage"):
         candidate_weights(df)
+
+
+def test_exact_western_membership_crosscheck_passes_without_promoting():
+    weights, _ = candidate_weights(buses())
+    mapping = {"state_to_all_membership_zones": {
+        "CA": ["p8", "p9"], "NM": ["p31"]
+    }}
+    result = verify_western_membership(weights, mapping)
+    assert result["western_membership_exactly_matched"]
+    assert result["admitted_for_empirical_dispatch"] is False
+    assert result["independent_geographic_source_provenance_verified"] is False
+
+
+@pytest.mark.parametrize("membership", [
+    {"CA": ["p8"], "NM": ["p31"]},
+    {"CA": ["p8", "p9", "p10"], "NM": ["p31"]},
+    {"CA": ["p8", "p9", "p31"], "NM": []},
+])
+def test_western_membership_mismatch_blocks_candidate(membership):
+    weights, _ = candidate_weights(buses())
+    with pytest.raises(ValueError, match="Western membership disagreement"):
+        verify_western_membership(
+            weights, {"state_to_all_membership_zones": membership}
+        )
+
+
+def test_duplicate_weight_rows_are_not_accepted_as_coverage():
+    weights, _ = candidate_weights(buses())
+    weights = pd.concat([weights, weights.iloc[[0]]], ignore_index=True)
+    with pytest.raises(ValueError, match="Duplicate source state-zone"):
+        verify_western_membership(
+            weights, {"state_to_all_membership_zones": {
+                "CA": ["p8", "p9"], "NM": ["p31"]
+            }}
+        )
