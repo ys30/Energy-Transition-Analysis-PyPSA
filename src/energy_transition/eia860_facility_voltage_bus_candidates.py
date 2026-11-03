@@ -39,7 +39,7 @@ def audit(leads_path: Path, candidates_path: Path, network_path: Path,
         raise ValueError("Invalid geographic candidates")
     if leads.network_bus_id.notna().any() or not leads.independent_electrical_bus_match_verified.astype("string").str.lower().eq("false").all():
         raise ValueError("Unverified facility leads cannot claim original bus identity")
-    joined=leads.merge(candidates,on="plant_id",how="left",validate="one_to_one")
+    joined=leads.merge(candidates.drop(columns=["plant_name"],errors="ignore"),on="plant_id",how="left",validate="one_to_one")
     if joined.nearest_candidate_bus.isna().any():
         raise ValueError("Unmatched facility geographic candidate")
     n=pypsa.Network(str(network_path))
