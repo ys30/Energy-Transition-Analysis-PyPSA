@@ -7,7 +7,7 @@ from energy_transition.eia860_poi_document_review_queue import audit
 def _screen(tmp_path):
     src=tmp_path/"screen.csv"
     pd.DataFrame([
-        dict(plant_id="1",ba_code="BA1",state="AZ",nearest_candidate_bus="b1",distance_km=3,
+        dict(plant_id="1",plant_name="Official Plant One",ba_code="BA1",state="AZ",nearest_candidate_bus="b1",distance_km=3,
              operating_generator_count=2,operating_nameplate_mw=500,
              has_qualified_operating_generator=True,electrical_connection_verified=False,
              ready_for_real_generator_injection=False),
@@ -42,6 +42,8 @@ def test_review_queue_reconciles_source_and_preserves_unverified_status(tmp_path
     priority=pd.read_csv(out/"top_operating_plant_poi_review.csv")
     far=pd.read_csv(out/"top_long_distance_operating_plant_poi_review.csv")
     assert priority.plant_id.tolist()==[1,3]
+    assert priority.loc[0,"plant_name"]=="Official Plant One"
+    assert pd.isna(priority.loc[1,"plant_name"])
     assert far.plant_id.tolist()==[3,2]
     assert not priority.eligible_for_empirical_dispatch.any()
     assert not far.electrical_connection_verified.any()
