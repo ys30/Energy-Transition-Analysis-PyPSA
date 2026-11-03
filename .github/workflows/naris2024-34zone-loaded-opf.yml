@@ -5,6 +5,7 @@ name: NARIS full-Western membership 24h synthetic-load integrated OPF
     branches: [main]
     paths:
       - 'src/energy_transition/naris2024_loaded_dispatch_integration.py'
+      - 'src/energy_transition/naris2024_empirical_readiness_gate.py'
       - 'src/energy_transition/naris2024_synthetic_24h_load_fixture.py'
       - 'src/energy_transition/naris2024_zonal_network.py'
       - 'src/energy_transition/naris2024_western_subset.py'
@@ -75,6 +76,22 @@ jobs:
           assert r['empirical_generation_dispatch_claim'] is False
           print('Full 35-zone membership 24-hour synthetic integration passed; isolated p19 retained; NOT historical calibration')
           PY
+      - name: Audit empirical-readiness gates separately from synthetic solve
+        run: |
+          python -m energy_transition.naris2024_empirical_readiness_gate \
+            --optimization outputs/naris_western_complete_synthetic_24h_opf.json \
+            --membership outputs/naris_membership_completion.json \
+            --report outputs/naris_empirical_readiness.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/naris_empirical_readiness.json').read_text())
+          assert r['readiness_gates']['synthetic_numerical_chain_passed'] is True
+          assert r['empirical_full_network_ready'] is False
+          assert r['paper_historical_grid_claim_allowed'] is False
+          assert r['isolated_zones']==['p19']
+          print('Numerical plumbing verified; empirical readiness correctly BLOCKED')
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -82,6 +99,7 @@ jobs:
           path: |
             outputs/*summary.json
             outputs/*completion.json
+            outputs/naris_empirical_readiness.json
             outputs/naris_synthetic_load_admission.json
             outputs/naris_western_complete_synthetic_24h_opf.json
           retention-days: 60
