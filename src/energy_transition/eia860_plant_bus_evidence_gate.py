@@ -52,7 +52,7 @@ def audit(candidates_path: Path, evidence_path: Path, network_path: Path, out: P
         raise ValueError("Evidence status and verification flag disagree")
     network = pypsa.Network(str(network_path))
     bus_ids = set(network.buses.index.astype(str))
-    result = candidates.merge(evidence, on="plant_id", how="left", validate="one_to_one")
+    result = candidates.merge(evidence, on="plant_id", how="left", validate="one_to_one", suffixes=("_candidate", "_evidence"))
     matched = result.evidence_status.astype("string").str.lower().str.strip().eq("reviewed_approved")
     known_bus = result.verified_bus_id.isin(bus_ids)
     source = result.evidence_source.astype("string").str.strip()
@@ -60,7 +60,7 @@ def audit(candidates_path: Path, evidence_path: Path, network_path: Path, out: P
     # Explicit independent provenance and human review are required; a
     # candidate-generated status/nearest bus alone cannot satisfy this check.
     has_provenance = source.notna() & source.str.len().gt(0) & reviewer.notna() & reviewer.str.len().gt(0)
-    verified = matched & known_bus & has_provenance & result.electrical_connection_verified.astype("string").str.lower().eq("true")
+    verified = matched & known_bus & has_provenance & result.electrical_connection_verified_evidence.astype("string").str.lower().eq("true")
     result["candidate_matches_verified_bus"] = result.nearest_candidate_bus.eq(result.verified_bus_id).fillna(False)
     result["evidence_admitted"] = verified.fillna(False)
     result["admission_status"] = "blocked_missing_or_unapproved_evidence"
