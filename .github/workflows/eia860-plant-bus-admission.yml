@@ -172,6 +172,23 @@ jobs:
           print('Top voltage-compatible geographic candidates, NOT actual facility POIs:')
           print(rows[['plant_id','candidate_bus_id','candidate_bus_voltage_kv','distance_km','connected_lines','connected_transformers']].to_string(index=False))
           PY
+      - name: Reconcile nearest candidate voltage screen against alternate-bus search
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          root=Path('outputs/eia860_plant_bus')
+          nearest=pd.read_csv(root/'official_facility_lead_network_screen_2024.csv',dtype={'plant_id':'string','geographic_candidate_bus':'string'})
+          alternates=pd.read_csv(root/'official_facility_alternate_bus_candidates_2024.csv',dtype={'plant_id':'string','candidate_bus_id':'string'})
+          for plant in nearest.itertuples(index=False):
+              compatible=alternates.loc[(alternates.plant_id==plant.plant_id)&(alternates.candidate_bus_id==plant.geographic_candidate_bus)]
+              claimed=bool(plant.candidate_voltage_in_documented_facility_set)
+              if not compatible.empty and not claimed:
+                  raise ValueError(f'Contradictory nominal voltage screening for plant {plant.plant_id} and bus {plant.geographic_candidate_bus}; inspect source conversion')
+              if claimed and compatible.empty:
+                  raise ValueError(f'Nearest voltage compatible bus {plant.geographic_candidate_bus} missing from alternate candidate output for plant {plant.plant_id}')
+              print(f'Plant {plant.plant_id}: geographic nearest bus {plant.geographic_candidate_bus} v_nom={plant.candidate_bus_v_nom_kv}, compatible={claimed}, source-consistent=True')
+          PY
       - name: Create explicitly empty reviewed electrical evidence inventory
         run: |
           python - <<'PY'
