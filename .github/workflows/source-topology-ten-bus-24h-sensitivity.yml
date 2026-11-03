@@ -1,0 +1,70 @@
+name: Synthetic Western source-topology 10-bus 24-hour sensitivity OPF
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-topology-ten-bus-24h-sensitivity.yml'
+      - 'src/energy_transition/source_topology_ten_bus_24h_sensitivity.py'
+      - 'src/energy_transition/source_topology_ten_bus_six_hour_opf.py'
+      - 'tests/test_source_topology_ten_bus_24h_sensitivity.py'
+      - 'docs/western_source_network_provenance.json'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PyPSA solver and dependencies
+        run: |
+          python -m pip install -e '.[model,dev]'
+          python -m pip install 'pypsa>=0.30,<1.0' highspy netcdf4
+      - name: Enforce synthetic network provenance
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path('docs/western_source_network_provenance.json').read_text())
+          assert 'synthetic' in x['source_network_family'].lower()
+          assert x['empirical_western_opf_ready'] is False
+          assert x['utility_authenticated_electrical_facility_identities'] is False
+          PY
+      - name: Retrieve pinned Western source network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western
+          gh run download 41531397166 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/western
+          test -s /tmp/western/real-western-base-network.nc
+      - name: Run 24-hour synthetic 10-bus capacity and solar scenarios
+        run: |
+          python -m energy_transition.source_topology_ten_bus_24h_sensitivity \
+            --network /tmp/western/real-western-base-network.nc \
+            --anchor 2040841 \
+            --out outputs/ten_bus_24h_sensitivity.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/ten_bus_24h_sensitivity.json').read_text())
+          assert r['hours']==24 and r['scenarios']==6
+          assert len(r['source_bus_ids'])==10 and len(r['source_line_ids'])==9
+          assert r['real_western_opf_executed'] is False
+          assert r['all_operational_inputs_synthetic'] is True
+          assert r['source_facility_to_generator_bus_verified'] is False
+          for s in r['hourly_cases']:
+              assert len(s['hourly'])==24
+              assert s['max_nodal_residual_mw']<0.15
+              assert all(h['max_line_abs_flow_mw']<=s['hypothetical_line_capacity_mw']+0.15 for h in s['hourly'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-western-source-ten-bus-24h-sensitivity
+          path: outputs/ten_bus_24h_sensitivity.json
+          retention-days: 60
