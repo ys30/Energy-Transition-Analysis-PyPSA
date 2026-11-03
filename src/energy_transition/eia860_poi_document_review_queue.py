@@ -41,7 +41,9 @@ def audit(screen_path: Path, out_dir: Path, top_n: int = 20):
     op["electrical_connection_verified"] = False
     op["eligible_for_empirical_dispatch"] = False
     op["geographic_distance_over_50km"] = op.distance_km.gt(50)
-    cols = ["plant_id", "ba_code", "state", "nearest_candidate_bus", "distance_km",
+    if "plant_name" not in op:
+        op["plant_name"] = pd.NA
+    cols = ["plant_id", "plant_name", "ba_code", "state", "nearest_candidate_bus", "distance_km",
             "operating_generator_count", "operating_nameplate_mw",
             "geographic_distance_over_50km", "needs_independent_poi_evidence",
             "electrical_connection_verified", "eligible_for_empirical_dispatch"]
