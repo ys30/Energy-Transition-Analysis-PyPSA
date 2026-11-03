@@ -10,6 +10,22 @@ import pandas as pd
 import numpy as np
 
 
+_STATE_CODES = {
+    "Arizona": "AZ", "California": "CA", "Colorado": "CO",
+    "Idaho": "ID", "Montana": "MT", "Nevada": "NV",
+    "New Mexico": "NM", "Oregon": "OR", "Texas": "TX",
+    "Utah": "UT", "Washington": "WA", "Wyoming": "WY",
+}
+def normalize_state_label(value: str) -> str:
+    """Normalize known source state names/codes, reject unknowns."""
+    name = str(value).strip()
+    if name in _STATE_CODES:
+        return _STATE_CODES[name]
+    if name in _STATE_CODES.values():
+        return name
+    raise ValueError(f"Unrecognized native state label: {name!r}")
+
+
 def audit_laf_key_semantics(buses: pd.DataFrame) -> dict:
     required={"reeds_state","state","reeds_zone","LAF_state"}
     missing=sorted(required-set(buses.columns))
@@ -19,9 +35,11 @@ def audit_laf_key_semantics(buses: pd.DataFrame) -> dict:
     frame["laf_numeric"]=pd.to_numeric(frame["LAF_state"],errors="coerce")
     frame["valid_laf"]=np.isfinite(frame["laf_numeric"].to_numpy(dtype=float)) & frame["laf_numeric"].ge(0)
     # Expose categorical nonagreement without assuming which key is correct.
-    labels=frame[["reeds_state","state"]].astype("string").apply(lambda c:c.str.strip())
-    matched=labels.notna().all(axis=1) & labels["reeds_state"].eq(labels["state"])
-    frame["key_match"]=matched.fillna(False)
+    if frame[["reeds_state","state"]].isna().any().any():
+        raise ValueError("Missing state labels cannot be used for key comparison")
+    frame["normalized_native_state"] = frame["state"].map(normalize_state_label)
+    frame["normalized_reeds_state"] = frame["reeds_state"].map(normalize_state_label)
+    frame["key_match"] = frame["normalized_native_state"].eq(frame["normalized_reeds_state"])
     by_state=[]
     for state, group in frame.groupby("reeds_state",dropna=False,sort=True):
         observed=group.loc[group["valid_laf"],"laf_numeric"]
@@ -34,9 +52,9 @@ def audit_laf_key_semantics(buses: pd.DataFrame) -> dict:
             "state_label_disagreement_count":int((~group["key_match"]).sum()),
             "raw_laf_sum_is_full_state_normalization_proof":False,
         })
-    pairs=(frame.groupby(["state","reeds_state"],dropna=False)
+    pairs=(frame.groupby(["normalized_native_state","normalized_reeds_state"],dropna=False)
            .size().reset_index(name="bus_count"))
-    mismatches=pairs[pairs["state"].astype("string")!=pairs["reeds_state"].astype("string")]
+    mismatches=pairs[pairs["normalized_native_state"]!=pairs["normalized_reeds_state"]]
     return {
         "source_bus_count":int(len(frame)),
         "raw_laf_origin_grouping":"full_state (removed from upstream exported bus attributes)",
@@ -44,7 +62,7 @@ def audit_laf_key_semantics(buses: pd.DataFrame) -> dict:
         "state_label_agreement_is_not_original_full_state_agreement":True,
         "state_vs_reeds_state_disagreement_buses":int((~frame["key_match"]).sum()),
         "state_reeds_state_mismatch_examples":[
-            {"state":str(r.state),"reeds_state":str(r.reeds_state),
+            {"state":str(r.normalized_native_state),"reeds_state":str(r.normalized_reeds_state),
              "bus_count":int(r.bus_count)}
             for r in mismatches.head(25).itertuples(index=False)
         ],
