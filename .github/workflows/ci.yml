@@ -13,6 +13,8 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - name: Install PyPSA for real network API integration
         run: python -m pip install 'pypsa>=0.35,<2'
+      - name: Compile modules before full test suite
+        run: python -m compileall -q src/energy_transition tests
       - name: Run full test suite with failure diagnostics
         run: python -m pytest -ra -vv --tb=long --maxfail=1 --junitxml=pytest-results.xml
       - name: Upload pytest diagnostics even on failure
