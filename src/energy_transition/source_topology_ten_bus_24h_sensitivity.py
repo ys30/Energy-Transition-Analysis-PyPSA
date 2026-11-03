@@ -60,6 +60,9 @@ def experiment(network_path:Path,out:Path,anchor="2040841",
             if (status,condition)!=("ok","optimal"):
                 raise RuntimeError(f"HiGHS solve failed: {status}/{condition}")
             records=[]
+            line_congested_hours={str(k):0 for k,_,_ in tree}
+            line_absolute_flow_mwh={str(k):0.0 for k,_,_ in tree}
+            line_peak_mw={str(k):0.0 for k,_,_ in tree}
             for t in snapshots:
                 p=n.generators_t.p.loc[t].astype(float)
                 flow0=n.lines_t.p0.loc[t].astype(float)
@@ -81,6 +84,12 @@ def experiment(network_path:Path,out:Path,anchor="2040841",
                     raise AssertionError("Source-topology nodal power balance failed")
                 if (flow0.abs()>rating+0.15).any():
                     raise AssertionError("Hypothetical line rating exceeded")
+                for key,_,_ in tree:
+                    magnitude=abs(float(flow0.at[f"source_{key}"]))
+                    line_absolute_flow_mwh[str(key)]+=magnitude
+                    line_peak_mw[str(key)]=max(line_peak_mw[str(key)],magnitude)
+                    if magnitude>=rating-0.15:
+                        line_congested_hours[str(key)]+=1
                 available=nameplate*float(solar_pu.at[t])
                 solar=float(p["solar_supply"])
                 if solar < -0.15 or solar>available+0.15:
@@ -104,7 +113,16 @@ def experiment(network_path:Path,out:Path,anchor="2040841",
             reconstructed=sum(20*x["central_mw"]+100*x["backup_mw"] for x in records)
             if abs(objective-reconstructed)>max(0.5,0.00001*abs(objective)):
                 raise AssertionError("Optimizer objective differs from dispatch accounting")
+            if sum(line_congested_hours.values())!=sum(x["congested_line_count"] for x in records):
+                raise AssertionError("Per-line and aggregate congestion counts inconsistent")
             output.append({
+                "per_source_line_metrics":[
+                    {"source_line_id":str(key),
+                     "congested_hours":line_congested_hours[str(key)],
+                     "peak_abs_flow_mw":line_peak_mw[str(key)],
+                     "sum_abs_flow_mwh":line_absolute_flow_mwh[str(key)],
+                     "hypothetical_rating_mw":float(rating)}
+                    for key,_,_ in tree],
                 "hypothetical_line_capacity_mw":rating,
                 "hypothetical_solar_nameplate_mw":nameplate,
                 "objective_synthetic_cost_units":objective,
