@@ -35,6 +35,7 @@ def test_ten_bus_six_hour_opf_and_provenance(tmp_path):
     for scenario in report["hypothetical_scenarios"]:
         assert len(scenario["snapshots"])==6
         assert all(abs(row["generator_load_balance_residual_mw"])<0.1 for row in scenario["snapshots"])
+        assert all(row["maximum_nodal_balance_residual_mw"]<0.15 for row in scenario["snapshots"])
         assert all(row["line_max_abs_flow_mw"]<=scenario["hypothetical_line_rating_mw"]+0.1 for row in scenario["snapshots"])
         assert all(row["renewable_mw"]<=row["renewable_available_mw"]+0.1 for row in scenario["snapshots"])
     assert json.loads((tmp_path/"result.json").read_text())["experimental_input_status"].startswith("synthetic")
