@@ -16,3 +16,15 @@ The `western_full_opf_readiness_audit.py` emits an explicit `full_opf_ready` boo
 4. Only then try an explicitly bounded, solved full-network OPF, compare solver feasibility and controls, and distinguish sourced/verified from hypothetical inputs.
 
 No historical Western OPF or calibrated Clearwater injection has been executed.
+
+## Important scope clarification — already verified load-bearing networks
+
+The **zero loads, zero generators, one snapshot** finding above applies ONLY to the `real-western-base-network.nc` topology artifact. It must not be generalized to every network artifact in this repository.
+
+Previously successful [EFS load-bearing network workflow #41281576025](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41281576025) created source-topology-based Western load networks with **8,760 ordinal local-hour snapshots, 20 EFS-derived zonal Load components, and independently verified NetCDF roundtrips** for each of 2030, 2040, and 2050. Their documented (incomplete-Western) EFS allocation totals are ~274.707, ~306.839, and ~350.871 TWh, respectively. See [VERIFIED_EFS_LOAD_BEARING_NETWORKS_2030_2040_2050.md](VERIFIED_EFS_LOAD_BEARING_NETWORKS_2030_2040_2050.md). These are **future scenario** loads, not historical observations; spatial coverage is partial and clocks remain ordinal rather than timezone-aligned.
+
+There is also an already successful [four-bus/two-EFS-load, real-line, illustrative-generation 24h/168h optimization workflow](VERIFIED_TWO_LOAD_AC_PATH_2030_2050_RESULTS.md), which **does not** establish genuine generator provenance or full-Western OPF readiness.
+
+**Current priority is verified generator fleet + operating constraints + costs, and regional/time alignment of load, not re-creation of the already available EFS load networks.**
+
+The expanded readiness workflow [western-full-opf-readiness.yml](../.github/workflows/western-full-opf-readiness.yml) now audits BOTH the original topology artifact and all three verified EFS load-bearing NetCDF files to enumerate the precise remaining inputs. Until its new run passes, the three audits should be treated as pending validation, not new results.
