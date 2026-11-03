@@ -125,6 +125,10 @@ jobs:
           assert priority['long_distance_plants']==initial['candidate_op_plants_over_50km']
           assert priority['source_capacity_reconciles_with_ba_state_groups']
           assert priority['electrical_connections_verified']==0
+          import pandas as pd
+          names=pd.read_csv(r/'top_operating_plant_poi_review.csv',dtype={'plant_id':'string'})
+          print('Top 10 operating plants to investigate (NOT verified POI):')
+          print(names[['plant_id','plant_name','ba_code','state','operating_nameplate_mw','distance_km']].head(10).to_string(index=False))
           PY
       - name: Create explicitly empty reviewed electrical evidence inventory
         run: |
