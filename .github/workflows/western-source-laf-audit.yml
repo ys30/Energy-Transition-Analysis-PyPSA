@@ -1,0 +1,54 @@
+name: Audit available Western network LAF source attributes
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_existing_network_laf_audit.py'
+      - 'src/energy_transition/efs_source_bus_laf_extraction.py'
+      - '.github/workflows/western-source-laf-audit.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PyPSA network reader
+        run: python -m pip install -e '.[model]' netcdf4
+      - name: Recover previously built Western source network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/western
+          test -s /tmp/western/real-western-base-network.nc
+      - name: Audit whether original source bus LAFs exist
+        run: |
+          python -m energy_transition.efs_existing_network_laf_audit \
+            --network /tmp/western/real-western-base-network.nc \
+            --report outputs/western_existing_network_laf_evidence.json
+      - name: Verify audit never equates field presence with empirically admitted loads
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path("outputs/western_existing_network_laf_evidence.json").read_text())
+          assert a["bus_count"]>0
+          assert a["empirical_load_admitted"] is False
+          assert a["candidate_weights_verified_source"] is False
+          assert a["network_physical_calibration_verified"] is False
+          print("Existing network LAF audit complete; empirical load admission remains blocked")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: western-existing-network-laf-evidence
+          path: outputs/western_existing_network_laf_evidence.json
+          if-no-files-found: warn
