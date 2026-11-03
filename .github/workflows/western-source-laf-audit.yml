@@ -7,6 +7,7 @@ name: Audit available Western network LAF source attributes
       - 'src/energy_transition/efs_existing_network_laf_audit.py'
       - 'src/energy_transition/efs_source_bus_laf_extraction.py'
       - 'src/energy_transition/efs_missing_laf_bus_roles.py'
+      - 'src/energy_transition/efs_laf_normalization_key_audit.py'
       - '.github/workflows/western-source-laf-audit.yml'
 permissions:
   contents: read
@@ -52,6 +53,24 @@ jobs:
           assert report['missing_laf_can_be_assumed_zero'] is False
           assert report['empirical_laf_admitted'] is False
           PY
+      - name: Audit full-state LAF normalization versus ReEDS state assignment
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pypsa
+          from energy_transition.efs_laf_normalization_key_audit import audit_laf_key_semantics
+          network=pypsa.Network('/tmp/western/real-western-base-network.nc')
+          report=audit_laf_key_semantics(network.buses)
+          out=Path('outputs/western_laf_normalization_key_audit.json')
+          out.parent.mkdir(parents=True,exist_ok=True)
+          out.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+          print(json.dumps({k:v for k,v in report.items()
+                if k not in ('observed_laf_by_reeds_state','state_reeds_state_mismatch_examples')},indent=2))
+          print(json.dumps(report['state_reeds_state_mismatch_examples'],indent=2))
+          assert report['historical_demand_admitted'] is False
+          assert report['renormalization_performed'] is False
+          PY
       - name: Verify audit never equates field presence with empirically admitted loads
         run: |
           python - <<'PY'
@@ -71,4 +90,5 @@ jobs:
           path: |
             outputs/western_existing_network_laf_evidence.json
             outputs/western_missing_laf_bus_roles.json
+            outputs/western_laf_normalization_key_audit.json
           if-no-files-found: warn
