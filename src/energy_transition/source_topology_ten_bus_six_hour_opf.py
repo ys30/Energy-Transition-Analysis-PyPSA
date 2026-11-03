@@ -102,6 +102,20 @@ def experiment(network_path:Path,out:Path,anchor="2040841",target_buses=10,
             flow=model.lines_t.p0.loc[t].astype(float)
             if (flow.abs()>float(rating)+0.1).any():
                 raise AssertionError("Source topology line rating exceeded")
+            # Check individual bus balances, not just system-wide totals.
+            # PyPSA's signed p0/p1 values are withdrawals at each Line endpoint.
+            p0=model.lines_t.p0.loc[t].astype(float)
+            p1=model.lines_t.p1.loc[t].astype(float)
+            nodal_residuals=[]
+            for bus in ids:
+                bus_generation=float(dispatch.loc[model.generators.index[model.generators.bus.eq(bus)]].sum())
+                bus_demand=float(demand.loc[t,bus]) if bus in leaves else 0.0
+                bus_line_withdrawal=float(p0.loc[model.lines.index[model.lines.bus0.eq(bus)]].sum() +
+                                          p1.loc[model.lines.index[model.lines.bus1.eq(bus)]].sum())
+                nodal_residuals.append(bus_generation-bus_demand-bus_line_withdrawal)
+            max_nodal_residual=max(abs(value) for value in nodal_residuals)
+            if max_nodal_residual>0.15:
+                raise AssertionError(f"Nodal power balance failed at {t}: {max_nodal_residual} MW")
             backup=float(dispatch[[f"backup_{i}" for i in range(len(leaves))]].sum())
             central=float(dispatch["central_synthetic"])
             cost=20*central+100*backup
@@ -112,7 +126,8 @@ def experiment(network_path:Path,out:Path,anchor="2040841",target_buses=10,
                 "renewable_curtailed_mw":max(0,renewable_avail-renewable),
                 "backup_mw":backup,"line_max_abs_flow_mw":float(flow.abs().max()),
                 "binding_lines_count":int(((float(rating)-flow.abs()).abs()<=0.15).sum()),
-                "generator_load_balance_residual_mw":generator_total-total_load})
+                "generator_load_balance_residual_mw":generator_total-total_load,
+                "maximum_nodal_balance_residual_mw":float(max_nodal_residual)})
         if abs(total_cost-float(model.objective))>0.5:
             raise AssertionError("Dispatch-reconstructed objective differs from optimizer")
         metrics.append({"hypothetical_line_rating_mw":float(rating),
