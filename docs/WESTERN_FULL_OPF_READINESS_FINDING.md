@@ -45,3 +45,12 @@ The expanded readiness workflow [western-full-opf-readiness.yml](../.github/work
 **2040 calendar caution:** the 8,760 snapshots run from 2040-01-01 00:00:00 through 2040-12-30 23:00:00. This is a source ordinal sequence, **not a leap-year-complete chronological calendar**, and it needs provenance-preserving time-index treatment before any annual chronological operations. The 2030 and 2050 8,760-snapshot files end on December 31. No full Western OPF was executed.
 
 The immediate blocker is a sourced generation fleet and operating/cost inputs attached to **valid electrical buses**, together with regional coverage, and load/time-axis clarification—not absence of any real-demand artifacts.
+
+
+## Resolved PyPSA load-profile coverage discrepancy — 2026-11-02
+
+Source: [completed full-network audit #41569236931](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41569236931) with all three genuine EFS NetCDF artifacts. Each of 2030/2040/2050 has **19 dynamic `loads_t.p_set` columns plus one valid static-zero `Load`**, not 19 static loads. The lone static-zero load is `EFS_<year>_p13_Arizona` (bus `2030449`, static `p_set=0.0 MW`). No nonzero static-only load, no nonnumeric dynamic load, and no missing effective load values were found.
+
+Unweighted sums across 8,760 nominal hourly snapshots reproduce **274,706,987.114121**, **306,839,206.74116015**, and **350,871,474.8471029** snapshot-MW for 2030/2040/2050 respectively. These are consistent with upstream annualized EFS allocations if one-hour snapshot assumptions hold; the OPF-readiness audit deliberately does **not** independently certify timezone/DST/year semantics, especially the 2040 ordinal leap-year issue.
+
+Readiness now distinguishes dynamic profile *coverage* from complete *effective* load values: constant `p_set` is valid PyPSA input, even if no dynamic column exists. Nevertheless, all three networks still contain **zero generators**, so no full-Western OPF or historical calibration is ready. The correctness of the zero Arizona load at source allocation level remains a separate provenance question.
