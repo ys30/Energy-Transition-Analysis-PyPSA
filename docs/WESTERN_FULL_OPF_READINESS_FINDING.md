@@ -28,3 +28,20 @@ There is also an already successful [four-bus/two-EFS-load, real-line, illustrat
 **Current priority is verified generator fleet + operating constraints + costs, and regional/time alignment of load, not re-creation of the already available EFS load networks.**
 
 The expanded readiness workflow [western-full-opf-readiness.yml](../.github/workflows/western-full-opf-readiness.yml) now audits BOTH the original topology artifact and all three verified EFS load-bearing NetCDF files to enumerate the precise remaining inputs. Until its new run passes, the three audits should be treated as pending validation, not new results.
+
+## Four-network empirical input comparison — verified latest run
+
+[Successful four-file OPF-readiness audit #41567367312](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41567367312) examined base and all three EFS load-bearing files **in the same job**.
+
+| Network | Buses | Lines | Transformers | Generators | Loads | Snapshots | Explicit load time series | Readiness |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| Original base topology | 10,157 | 9,726 | 2,080 | 0 | 0 | 1 | 0 | BLOCKED |
+| EFS 2030 | 10,157 | 9,726 | 2,080 | 0 | 20 | 8,760 | 19 | BLOCKED |
+| EFS 2040 | 10,157 | 9,726 | 2,080 | 0 | 20 | 8,760 | 19 | BLOCKED |
+| EFS 2050 | 10,157 | 9,726 | 2,080 | 0 | 20 | 8,760 | 19 | BLOCKED |
+
+**Follow-up:** 20 PyPSA Load components versus 19 explicit `loads_t.p_set` columns is not necessarily wrong because PyPSA loads can have static `p_set`; a new audit field `static_only_load_components` will enumerate the exact ID, bus and static magnitude for every load without a dynamic column. Do not call the 20th component missing until this is checked.
+
+**2040 calendar caution:** the 8,760 snapshots run from 2040-01-01 00:00:00 through 2040-12-30 23:00:00. This is a source ordinal sequence, **not a leap-year-complete chronological calendar**, and it needs provenance-preserving time-index treatment before any annual chronological operations. The 2030 and 2050 8,760-snapshot files end on December 31. No full Western OPF was executed.
+
+The immediate blocker is a sourced generation fleet and operating/cost inputs attached to **valid electrical buses**, together with regional coverage, and load/time-axis clarification—not absence of any real-demand artifacts.
