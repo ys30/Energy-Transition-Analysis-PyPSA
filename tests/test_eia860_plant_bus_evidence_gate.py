@@ -85,3 +85,16 @@ def test_approval_flag_mismatch_fails_closed(tmp_path):
     candidate, evidence, network = fixtures(tmp_path, evidence_rows=[row])
     with pytest.raises(ValueError, match="disagree"):
         audit(candidate, evidence, network, tmp_path / "result.csv")
+
+
+
+def test_empty_independent_evidence_inventory_blocks_every_real_candidate(tmp_path):
+    candidate, evidence, network = fixtures(tmp_path)
+    pd.read_csv(evidence).iloc[0:0].to_csv(evidence, index=False)
+    out = tmp_path / "no-approved-buses.csv"
+    summary = audit(candidate, evidence, network, out)
+    result = pd.read_csv(out)
+    assert summary["candidate_plants"] == 2
+    assert summary["independently_reviewed_electrical_bus_evidence_records"] == 0
+    assert not result["evidence_admitted"].any()
+    assert set(result["admission_status"]) == {"blocked_missing_or_unapproved_evidence"}
