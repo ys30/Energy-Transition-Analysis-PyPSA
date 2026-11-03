@@ -50,7 +50,10 @@ def main():
  d,details=extract(raw)
  d.to_csv(a.out_dir/f"official_eia860_plant_coordinates_{a.year}.csv",index=False)
  report={"year":a.year,"source_url":url,"source_details":details,
-   "official_plant_rows":len(d),"valid_geographic_coordinates":int(d.coordinate_qc.eq("valid").sum()),
+   "official_plant_rows":len(d),
+   "plant_names_available":int(d.plant_name.notna().sum()),
+   "plant_names_missing":int(d.plant_name.isna().sum()),
+   "valid_geographic_coordinates":int(d.coordinate_qc.eq("valid").sum()),
    "invalid_geographic_coordinates":int(d.coordinate_qc.ne("valid").sum()),
    "electrical_bus_mapping_verified":False,
    "coordinate_crs_authoritatively_verified":False}
