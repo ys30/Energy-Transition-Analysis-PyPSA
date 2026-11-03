@@ -16,7 +16,15 @@ def render(result_path:Path,out_dir:Path):
     if data.get("real_western_opf_executed") is not False or data.get("all_operational_inputs_synthetic") is not True:
         raise ValueError("Source provenance flags inconsistent")
     cases=data["hourly_cases"]
-    summary=pd.DataFrame([{k:v for k,v in case.items() if k!="hourly"} for case in cases])
+    summary=pd.DataFrame([{k:v for k,v in case.items() if k not in ("hourly","per_source_line_metrics")} for case in cases])
+    per_line=pd.DataFrame([{"hypothetical_line_capacity_mw":case["hypothetical_line_capacity_mw"],
+                             "hypothetical_solar_nameplate_mw":case["hypothetical_solar_nameplate_mw"],**line}
+                            for case in cases for line in case["per_source_line_metrics"]])
+    if len(per_line)!=54:
+        raise ValueError("Require all nine original source lines for every one of six scenarios")
+    for case in cases:
+        if sum(line["congested_hours"] for line in case["per_source_line_metrics"])!=case["congested_line_hours"]:
+            raise ValueError("Inconsistent per-line congestion counts")
     hourly=pd.DataFrame([{
         "hypothetical_line_capacity_mw":case["hypothetical_line_capacity_mw"],
         "hypothetical_solar_nameplate_mw":case["hypothetical_solar_nameplate_mw"], **row}
@@ -26,6 +34,7 @@ def render(result_path:Path,out_dir:Path):
     out_dir.mkdir(parents=True,exist_ok=True)
     summary.to_csv(out_dir/"synthetic_24h_scenario_metrics.csv",index=False)
     hourly.to_csv(out_dir/"synthetic_24h_hourly_metrics.csv",index=False)
+    per_line.to_csv(out_dir/"synthetic_24h_per_line_metrics.csv",index=False)
     fig,ax=plt.subplots(figsize=(8,4.7))
     for solar,group in summary.groupby("hypothetical_solar_nameplate_mw"):
         ordered=group.sort_values("hypothetical_line_capacity_mw")
@@ -51,6 +60,19 @@ def render(result_path:Path,out_dir:Path):
     ax.grid(alpha=0.25)
     fig.tight_layout()
     fig.savefig(out_dir/"synthetic_24h_backup_capacity.png",dpi=170)
+    plt.close(fig)
+    fig,ax=plt.subplots(figsize=(9,4.8))
+    for (rating,solar),selected in per_line.groupby(["hypothetical_line_capacity_mw","hypothetical_solar_nameplate_mw"]):
+        if rating==min(per_line.hypothetical_line_capacity_mw) or rating==max(per_line.hypothetical_line_capacity_mw):
+            ax.plot(selected.source_line_id.astype(str),selected.congested_hours,
+                    marker="o",label=f"Capacity {rating:g} MW, solar {solar:g} MW")
+    ax.set(xlabel="Original synthetic-source Line ID",ylabel="Binding hours out of 24",
+           title="Per-line congestion in synthetic source topology (not actual grid)")
+    ax.tick_params(axis="x",rotation=45)
+    ax.grid(alpha=0.25)
+    ax.legend(frameon=False,fontsize=8)
+    fig.tight_layout()
+    fig.savefig(out_dir/"synthetic_24h_per_line_congestion.png",dpi=170)
     plt.close(fig)
     return summary,hourly
 
