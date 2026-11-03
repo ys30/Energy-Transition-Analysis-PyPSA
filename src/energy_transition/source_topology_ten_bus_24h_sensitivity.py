@@ -63,6 +63,11 @@ def experiment(network_path:Path,out:Path,anchor="2040841",
             line_congested_hours={str(k):0 for k,_,_ in tree}
             line_absolute_flow_mwh={str(k):0.0 for k,_,_ in tree}
             line_peak_mw={str(k):0.0 for k,_,_ in tree}
+            # Locational marginal prices reflect this synthetic linear OPF only.
+            prices=n.buses_t.marginal_price
+            if not set(ids).issubset(prices.columns) or prices.reindex(index=snapshots,columns=ids).isna().any().any():
+                raise AssertionError("Missing source-topology synthetic nodal marginal prices")
+            line_price_spread_sum={str(k):0.0 for k,_,_ in tree}
             for t in snapshots:
                 p=n.generators_t.p.loc[t].astype(float)
                 flow0=n.lines_t.p0.loc[t].astype(float)
@@ -90,6 +95,12 @@ def experiment(network_path:Path,out:Path,anchor="2040841",
                     line_peak_mw[str(key)]=max(line_peak_mw[str(key)],magnitude)
                     if magnitude>=rating-0.15:
                         line_congested_hours[str(key)]+=1
+                    branch=lines.loc[key]
+                    spread=abs(float(prices.at[t,str(branch.bus0)])-
+                               float(prices.at[t,str(branch.bus1)]))
+                    if not np.isfinite(spread):
+                        raise AssertionError("Non-finite synthetic nodal price spread")
+                    line_price_spread_sum[str(key)]+=spread
                 available=nameplate*float(solar_pu.at[t])
                 solar=float(p["solar_supply"])
                 if solar < -0.15 or solar>available+0.15:
@@ -121,6 +132,7 @@ def experiment(network_path:Path,out:Path,anchor="2040841",
                      "congested_hours":line_congested_hours[str(key)],
                      "peak_abs_flow_mw":line_peak_mw[str(key)],
                      "sum_abs_flow_mwh":line_absolute_flow_mwh[str(key)],
+                     "sum_absolute_nodal_price_spread_units_per_mwh_hours":line_price_spread_sum[str(key)],
                      "hypothetical_rating_mw":float(rating)}
                     for key,_,_ in tree],
                 "hypothetical_line_capacity_mw":rating,
