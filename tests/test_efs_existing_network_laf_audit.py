@@ -60,3 +60,26 @@ def test_blank_zone_and_nonfinite_laf_are_separately_counted():
     assert report["field_diagnostics"]["reeds_zone"]["blank_text"] == 1
     assert report["field_diagnostics"]["LAF_state"]["invalid_numeric"] == 1
     assert report["empirical_load_admitted"] is False
+
+
+def test_missing_laf_geography_is_accounted_without_zero_imputation():
+    buses = pd.DataFrame({
+        "reeds_state": ["CA", "CA", "CA", "NM"],
+        "reeds_zone": ["p8", "p8", "p9", "p31"],
+        "LAF_state": [0.2, float("nan"), 0.5, 1.0],
+    }, index=["busA", "missing_CA_p8", "busC", "busD"])
+    report = audit_bus_laf(buses)
+    assert report["candidate_laf_extraction_passed"] is False
+    assert report["missing_laf_by_state_zone"] == [
+        {"state": "CA", "zone": "p8", "source_buses": 2,
+         "missing_laf_buses": 1, "valid_laf_buses": 1,
+         "observed_laf_sum_excluding_missing": 0.2}
+    ]
+    states = {r["state"]: r for r in report["laf_state_coverage"]}
+    assert states["CA"]["missing_laf_buses"] == 1
+    assert not states["CA"]["full_state_laf_sum_verified"]
+    assert states["NM"]["full_state_laf_sum_verified"]
+    assert report["missing_laf_imputed"] is False
+    assert report["missing_laf_treated_as_zero"] is False
+    assert report["partial_state_weights_renormalized"] is False
+    assert report["empirical_load_admitted"] is False
