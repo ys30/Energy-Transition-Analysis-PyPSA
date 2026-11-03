@@ -1,0 +1,16 @@
+{
+  "base_network": "pypsa-usa Western elec_base_network.nc",
+  "upstream_commit": "338af9912addbaf038c6098fe27e1e6ef099d8aa",
+  "upstream_retrieve_rule": "workflow/rules/retrieve.smk",
+  "upstream_build_script": "workflow/scripts/build_base_network.py",
+  "source_archive": "https://zenodo.org/record/4538590/files/USATestSystem.zip",
+  "source_network_family": "Breakthrough Energy USATestSystem synthetic transmission network",
+  "real_world_geographic_references": true,
+  "utility_authenticated_electrical_facility_identities": false,
+  "source_bus_id_meaning": "synthetic_source_model_bus_id",
+  "source_sub_id_meaning": "synthetic_source_model_substation_cluster_identifier",
+  "eia860_electrical_interconnection_approved": false,
+  "real_world_transmission_topology_validated": false,
+  "empirical_western_opf_ready": false,
+  "allowed_label": "synthetic geographically referenced Western network screening"
+}
