@@ -33,6 +33,10 @@ def test_24_hour_synthetic_cases_nodal_and_solar(tmp_path):
     assert json.loads(out.read_text())["scenarios"]==6
     for case in r["hourly_cases"]:
         assert len(case["hourly"])==24
+        assert len(case["per_source_line_metrics"])==9
+        assert {x["source_line_id"] for x in case["per_source_line_metrics"]}==set(r["source_line_ids"])
+        assert sum(x["congested_hours"] for x in case["per_source_line_metrics"])==case["congested_line_hours"]
+        assert all(0<=x["congested_hours"]<=24 for x in case["per_source_line_metrics"])
         assert case["max_nodal_residual_mw"]<0.15
         assert case["daily_solar_mwh"]>=0
         assert case["daily_solar_curtailment_mwh"]>=0
