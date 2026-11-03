@@ -11,6 +11,7 @@ on:
       - 'src/energy_transition/eia860_plant_bus_distance_qc.py'
       - 'src/energy_transition/eia860_operating_plant_bus_screen.py'
       - 'src/energy_transition/eia860_operating_bus_review_priority.py'
+      - 'src/energy_transition/eia860_poi_document_review_queue.py'
 permissions:
   contents: read
   actions: read
@@ -105,6 +106,25 @@ jobs:
           assert screening['candidate_op_plants_over_50km']==priority['operating_plants_over_50km']
           assert priority['electrical_connections_verified']==0
           print('Verified operating nameplate, plant and >50km review conservation')
+          PY
+      - name: Export top 20 operating plants needing independent point-of-interconnection evidence
+        run: |
+          python -m energy_transition.eia860_poi_document_review_queue \
+            --screen outputs/eia860_plant_bus/eia860_2024_op_plant_candidate_screen.csv \
+            --out-dir outputs/eia860_plant_bus \
+            --top-n 20
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=Path('outputs/eia860_plant_bus')
+          initial=json.loads((r/'eia860_2024_op_plant_candidate_screen.json').read_text())
+          priority=json.loads((r/'operating_plant_poi_review_summary.json').read_text())
+          assert priority['source_operating_plants']==initial['candidate_plants_with_qualified_op_generator']
+          assert priority['source_operating_generator_count']==initial['qualified_operating_generator_rows_on_candidate_plants']
+          assert abs(priority['source_operating_nameplate_mw']-initial['qualified_operating_nameplate_mw_on_candidate_plants'])<0.001
+          assert priority['long_distance_plants']==initial['candidate_op_plants_over_50km']
+          assert priority['source_capacity_reconciles_with_ba_state_groups']
+          assert priority['electrical_connections_verified']==0
           PY
       - name: Create explicitly empty reviewed electrical evidence inventory
         run: |
