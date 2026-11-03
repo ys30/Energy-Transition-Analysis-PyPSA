@@ -9,6 +9,13 @@ def inspect(network,out):
     snaps=len(n.snapshots)
     generators=n.generators
     loads=n.loads
+    dynamic_load_names=set(map(str,n.loads_t.p_set.columns)) if hasattr(n.loads_t,"p_set") else set()
+    static_only_loads=sorted(set(map(str,loads.index))-dynamic_load_names)
+    static_only_load_records=[{"load_id":name,
+        "static_p_set_mw":float(pd.to_numeric(pd.Series([loads.loc[name,"p_set"]]),errors="coerce").fillna(0).iloc[0]),
+        "bus_id":str(loads.loc[name,"bus"])} for name in static_only_loads]
+    timeline_note=("8760 ordinal local hours in leap year; NOT full-year calendar-aligned"
+        if snaps==8760 and any(str(t).startswith("2040-") for t in n.snapshots) else None)
     report={
       "network_file":str(network.name),
       "bus_count":len(n.buses),
@@ -24,6 +31,8 @@ def inspect(network,out):
       "generator_nominal_p_sum_mw":float(pd.to_numeric(generators.p_nom,errors="coerce").sum()) if "p_nom" in generators else None,
       "generator_time_series_columns":len(n.generators_t.p_max_pu.columns) if hasattr(n.generators_t,"p_max_pu") else 0,
       "load_time_series_columns":len(n.loads_t.p_set.columns) if hasattr(n.loads_t,"p_set") else 0,
+      "static_only_load_components":static_only_load_records,
+      "time_axis_caution":timeline_note,
       "missing_line_endpoints":int((~n.lines.bus0.isin(n.buses.index)|~n.lines.bus1.isin(n.buses.index)).sum()),
       "missing_transformer_endpoints":int((~n.transformers.bus0.isin(n.buses.index)|~n.transformers.bus1.isin(n.buses.index)).sum()),
       "full_western_opf_executed":False,
