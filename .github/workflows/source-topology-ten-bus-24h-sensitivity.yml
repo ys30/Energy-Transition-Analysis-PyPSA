@@ -75,6 +75,17 @@ jobs:
           test -s outputs/synthetic_24h_figures/synthetic_24h_backup_capacity.png
           test -s outputs/synthetic_24h_figures/synthetic_24h_per_line_congestion.png
           test -s outputs/synthetic_24h_figures/synthetic_24h_per_line_metrics.csv
+          python - <<'PY'
+          import pandas as pd
+          p='outputs/synthetic_24h_figures/synthetic_24h_per_line_metrics.csv'
+          x=pd.read_csv(p)
+          mid=x.loc[x.hypothetical_line_capacity_mw.eq(75)&x.hypothetical_solar_nameplate_mw.eq(75)]
+          assert len(x)==54 and len(mid)==9
+          print('TOP source-model Lines by congestion hours (synthetic 75MW line / 75MW solar):')
+          print(mid.sort_values(['congested_hours','sum_absolute_nodal_price_spread_units_per_mwh_hours'],ascending=False)[[
+              'source_line_id','congested_hours','peak_abs_flow_mw',
+              'sum_absolute_nodal_price_spread_units_per_mwh_hours']].to_string(index=False))
+          PY
           test -s outputs/synthetic_24h_figures/synthetic_24h_scenario_metrics.csv
       - uses: actions/upload-artifact@v4
         if: always()
