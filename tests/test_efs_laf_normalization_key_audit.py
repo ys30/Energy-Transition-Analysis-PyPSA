@@ -36,3 +36,26 @@ def test_missing_laf_does_not_hide_state_assignment_differences():
 def test_missing_semantic_fields_block_audit():
     with pytest.raises(ValueError,match="Source network missing fields"):
         audit_laf_key_semantics(pd.DataFrame({"LAF_state":[1.0]}))
+
+
+def test_full_state_names_compare_correctly_to_reeds_codes():
+    buses=pd.DataFrame({
+        "state":["Arizona","Arizona","Oregon","Oregon","Washington"],
+        "reeds_state":["AZ","NV","OR","ID","OR"],
+        "reeds_zone":["p8","p9","p5","p6","p2"],
+        "LAF_state":[0.2,0.3,0.2,0.2,0.1],
+    })
+    report=audit_laf_key_semantics(buses)
+    assert report["state_vs_reeds_state_disagreement_buses"]==3
+    assert {(x["state"],x["reeds_state"]) for x in report["state_reeds_state_mismatch_examples"]} == {
+        ("AZ","NV"),("OR","ID"),("WA","OR")
+    }
+
+
+def test_unknown_native_state_name_is_rejected_not_overcounted():
+    buses=pd.DataFrame({
+        "state":["Unknown State"],"reeds_state":["AZ"],
+        "reeds_zone":["p8"],"LAF_state":[1.0],
+    })
+    with pytest.raises(ValueError,match="Unrecognized native state label"):
+        audit_laf_key_semantics(buses)
