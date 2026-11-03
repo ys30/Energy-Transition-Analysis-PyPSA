@@ -1,0 +1,71 @@
+name: Synthetic Western source-topology 10-bus 6-hour OPF
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-topology-ten-bus-six-hour-opf.yml'
+      - 'src/energy_transition/source_topology_ten_bus_six_hour_opf.py'
+      - 'tests/test_source_topology_ten_bus_six_hour_opf.py'
+      - 'docs/western_source_network_provenance.json'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PyPSA, HiGHS and dependencies
+        run: |
+          python -m pip install -e '.[model,dev]'
+          python -m pip install 'pypsa>=0.30,<1.0' highspy netcdf4
+      - name: Enforce synthetic source provenance
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path('docs/western_source_network_provenance.json').read_text())
+          assert 'synthetic' in x['source_network_family'].lower()
+          assert x['empirical_western_opf_ready'] is False
+          assert x['utility_authenticated_electrical_facility_identities'] is False
+          PY
+      - name: Download validated pinned Western source-model network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western
+          gh run download 41531397166 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/western
+          test -s /tmp/western/real-western-base-network.nc
+      - name: Solve source-topology 10-bus 6-hour synthetic scenario pair
+        run: |
+          python -m energy_transition.source_topology_ten_bus_six_hour_opf \
+            --network /tmp/western/real-western-base-network.nc \
+            --anchor 2040841 \
+            --buses 10 \
+            --out outputs/ten_bus_six_hour_synthetic_opf.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path('outputs/ten_bus_six_hour_synthetic_opf.json').read_text())
+          assert x['source_model_bus_count']==10
+          assert x['source_model_line_count']==9
+          assert x['hour_count']==6
+          assert x['real_western_opf_executed'] is False
+          assert x['actual_facility_electrical_connectivity_verified'] is False
+          assert len(x['hypothetical_scenarios'])==2
+          for s in x['hypothetical_scenarios']:
+              assert len(s['snapshots'])==6
+              assert all(abs(t['generator_load_balance_residual_mw'])<0.1 for t in s['snapshots'])
+              assert all(t['line_max_abs_flow_mw']<=s['hypothetical_line_rating_mw']+0.1 for t in s['snapshots'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-western-source-ten-bus-six-hour-opf
+          path: outputs/ten_bus_six_hour_synthetic_opf.json
+          retention-days: 60
