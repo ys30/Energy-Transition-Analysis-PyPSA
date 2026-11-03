@@ -16,7 +16,8 @@ Run on a **source bus network retaining all required columns**:
 python -m energy_transition.efs_source_bus_laf_extraction \
   --network path/to/source-bus-network.nc \
   --weights outputs/candidate_efs_state_zone_weights.csv \
-  --report outputs/candidate_efs_state_zone_laf_audit.json
+  --report outputs/candidate_efs_state_zone_laf_audit.json \\
+  --membership-report outputs/naris2024_efs_state_mapping_audit.json
 ```
 
 The script groups original `LAF_state` values by original
@@ -47,3 +48,7 @@ fabricated redistribution of its external demand.
 network with independently validated LAFs has yet been admitted**. This
 does not change the empirically unready status of the 35-zone synthetic
 OPF workflow.
+
+## Western membership exact-match gate
+
+The optional `--membership-report` parameter consumes the NARIS Western membership audit's `state_to_all_membership_zones` inventory (including `p19`). It fails if any source-network LAF zone is absent, extraneous, duplicated, or assigned to the wrong state. It does not invent missing weights or silently rescale partial state demand. Passing this check proves only candidate inventory compatibility, **not** independent LAF provenance, empirical calibration, or permission to publish energy-transition effect estimates.
