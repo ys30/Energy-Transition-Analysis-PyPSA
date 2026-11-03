@@ -14,6 +14,27 @@ def inspect(network,out):
     static_only_load_records=[{"load_id":name,
         "static_p_set_mw":float(pd.to_numeric(pd.Series([loads.loc[name,"p_set"]]),errors="coerce").fillna(0).iloc[0]),
         "bus_id":str(loads.loc[name,"bus"])} for name in static_only_loads]
+    # PyPSA supports valid static p_set values as well as snapshot-specific p_set.
+    # Audit their effective values rather than equating absent dynamic columns to missing energy.
+    static_load_values=pd.to_numeric(loads.p_set,errors="coerce") if "p_set" in loads else pd.Series(dtype=float)
+    static_only_nonzero=[name for name in static_only_loads
+        if abs(float(static_load_values.loc[name]))>1e-9
+        if pd.notna(static_load_values.loc[name])]
+    static_only_zero=[name for name in static_only_loads
+        if pd.notna(static_load_values.loc[name]) and abs(float(static_load_values.loc[name]))<=1e-9]
+    static_only_invalid=[name for name in static_only_loads
+        if pd.isna(static_load_values.loc[name])]
+    dynamic_load= n.loads_t.p_set if hasattr(n.loads_t,"p_set") else pd.DataFrame(index=n.snapshots)
+    dynamic_invalid_columns=[str(name) for name in dynamic_load.columns
+        if pd.to_numeric(dynamic_load[name],errors="coerce").isna().any()]
+    effective_load=dynamic_load.reindex(index=n.snapshots,columns=loads.index)
+    for name in static_only_loads:
+        effective_load[name]=static_load_values.loc[name]
+    effective_load=effective_load.apply(pd.to_numeric,errors="coerce")
+    effective_load_invalid_cells=int(effective_load.isna().sum().sum())
+    # Sum is MW across hourly snapshots, numerically MWh only if every snapshot
+    # represents one hour and no weights differ. This audit does not certify such semantics.
+    unweighted_snapshot_load_sum=float(effective_load.sum().sum()) if not effective_load.empty else 0.0
     timeline_note=("8760 ordinal local hours in leap year; NOT full-year calendar-aligned"
         if snaps==8760 and any(str(t).startswith("2040-") for t in n.snapshots) else None)
     dynamic_generator_names=set(map(str,n.generators_t.p_max_pu.columns)) if hasattr(n.generators_t,"p_max_pu") else set()
@@ -27,6 +48,7 @@ def inspect(network,out):
         "multiple_snapshots":snaps>1,
         "generator_availability_timeseries_complete":len(generators)>0 and not static_only_generators,
         "load_timeseries_complete":len(loads)>0 and not static_only_loads,
+        "load_numeric_values_complete":len(loads)>0 and effective_load_invalid_cells==0,
         "line_endpoints_valid":missing_line_endpoints==0,
         "transformer_endpoints_valid":missing_transformer_endpoints==0,
         "calendar_semantics_verified":timeline_note is None,
@@ -51,6 +73,13 @@ def inspect(network,out):
       "generator_time_series_columns":len(n.generators_t.p_max_pu.columns) if hasattr(n.generators_t,"p_max_pu") else 0,
       "load_time_series_columns":len(n.loads_t.p_set.columns) if hasattr(n.loads_t,"p_set") else 0,
       "static_only_load_components":static_only_load_records,
+      "static_only_nonzero_load_ids":static_only_nonzero,
+      "static_only_zero_load_ids":static_only_zero,
+      "static_only_invalid_load_ids":static_only_invalid,
+      "dynamic_load_columns_with_invalid_values":dynamic_invalid_columns,
+      "effective_load_invalid_cells":effective_load_invalid_cells,
+      "unweighted_snapshot_load_sum_mw":unweighted_snapshot_load_sum,
+      "unweighted_snapshot_load_sum_is_certified_annual_mwh":False,
       "time_axis_caution":timeline_note,
       "missing_line_endpoints":missing_line_endpoints,
       "missing_transformer_endpoints":missing_transformer_endpoints,
