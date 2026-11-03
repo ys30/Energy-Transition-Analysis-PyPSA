@@ -63,6 +63,18 @@ def classify_missing_laf_buses(network) -> dict:
         "missing_laf_storage_buses": int(df["has_storage_unit"].sum()) if len(df) else 0,
         "missing_laf_transmission_endpoint_buses": int(
             (df["has_link_endpoint"] | df["has_line_endpoint"]).sum()) if len(df) else 0,
+        "network_component_counts": {
+            "loads": int(len(network.loads)),
+            "generators": int(len(network.generators)),
+            "storage_units": int(len(network.storage_units)),
+            "links": int(len(network.links)),
+            "lines": int(len(network.lines)),
+        },
+        "topology_only_network_for_load_generation": bool(
+            len(network.loads)==0 and len(network.generators)==0
+            and len(network.storage_units)==0
+        ),
+        "load_absence_proves_zero_future_efs_demand": False,
         "classification_by_bus": rows,
         "missing_laf_can_be_assumed_zero": False,
         "missing_laf_buses_may_be_excluded": False,
