@@ -63,7 +63,7 @@ def solve_loaded_network(network_path: Path, load_report_path: Path, *,
     peak = float(demand.sum(axis=1).max())
     # Hypothetical centrally located supply and fully dispatchable local backup.
     # Costs are arbitrary units per MWh, not published historical operating costs.
-    source = sorted(n.buses.index)[0]
+    # Place cheap central supply on a link-connected bus, never on an\n    # isolated membership zone (e.g., p19). This makes isolation accounting\n    # physically meaningful within the hypothetical screening case.\n    connected_buses = set(n.links.bus0).union(set(n.links.bus1))\n    source = sorted(connected_buses)[0]
     n.add("Generator", "hypothetical_central", bus=source,
           p_nom=max(peak, 1.0), marginal_cost=1.0)
     for bus in n.buses.index:
@@ -113,7 +113,7 @@ def solve_loaded_network(network_path: Path, load_report_path: Path, *,
     return {
         "snapshots": len(n.snapshots),
         "zones": len(n.buses),
-        "directional_links": len(n.links),
+        "directional_links": len(n.links),\n        "hypothetical_central_source_bus": source,
         "isolated_zone_ids": isolated,
         "isolated_zone_count": len(isolated),
         "isolated_zone_demand_mwh": isolated_load_mwh,
