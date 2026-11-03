@@ -44,6 +44,9 @@ def test_load_solve_is_explicitly_hypothetical(tmp_path):
     assert result["optimized_generation_mwh"] == pytest.approx(340.0)
     assert result["hypothetical_backup_mwh"] > 0
     assert result["max_nodal_balance_residual_mw"] < 1e-3
+    assert result["isolated_zone_count"] == 0
+    assert result["isolated_zone_demand_mwh"] == pytest.approx(0)
+    assert sum(result["hypothetical_backup_by_zone_mwh"].values()) == pytest.approx(result["hypothetical_backup_mwh"])
     assert result["historical_calibration"] is False
     assert result["generation_costs_and_capacity_hypothetical"] is True
 
@@ -69,3 +72,21 @@ def test_fail_closed_on_existing_generators(tmp_path):
     n.export_to_netcdf(net)
     with pytest.raises(ValueError, match="preexisting supply"):
         solve_loaded_network(net, report_path, synthetic_fixture=True)
+
+
+def test_isolated_member_zone_receives_local_supply_not_transfer(tmp_path):
+    net, report_path, report = fixture_case(tmp_path)
+    n = pypsa.Network(net)
+    n.add("Bus", "p19")
+    n.add("Load", "demand_p19", bus="p19", p_set=[12, 12, 12])
+    n.export_to_netcdf(net)
+    report["zones"] = 3
+    report["total_load_mwh"] = 376.0
+    report_path.write_text(json.dumps(report))
+    result = solve_loaded_network(net, report_path, synthetic_fixture=True)
+    assert result["isolated_zone_ids"] == ["p19"]
+    assert result["isolated_zone_count"] == 1
+    assert result["isolated_zone_demand_mwh"] == pytest.approx(36.0)
+    assert result["isolated_zone_local_generation_mwh"] == pytest.approx(36.0)
+    assert result["hypothetical_backup_by_zone_mwh"]["p19"] == pytest.approx(36.0)
+    assert result["optimized_generation_mwh"] == pytest.approx(376.0)
