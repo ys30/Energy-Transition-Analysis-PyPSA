@@ -6,6 +6,7 @@ name: Audit available Western network LAF source attributes
     paths:
       - 'src/energy_transition/efs_existing_network_laf_audit.py'
       - 'src/energy_transition/efs_source_bus_laf_extraction.py'
+      - 'src/energy_transition/efs_missing_laf_bus_roles.py'
       - '.github/workflows/western-source-laf-audit.yml'
 permissions:
   contents: read
@@ -34,6 +35,23 @@ jobs:
           python -m energy_transition.efs_existing_network_laf_audit \
             --network /tmp/western/real-western-base-network.nc \
             --report outputs/western_existing_network_laf_evidence.json
+      - name: Diagnose component roles of missing LAF buses
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pypsa
+          from energy_transition.efs_missing_laf_bus_roles import classify_missing_laf_buses
+          network=pypsa.Network('/tmp/western/real-western-base-network.nc')
+          report=classify_missing_laf_buses(network)
+          out=Path('outputs/western_missing_laf_bus_roles.json')
+          out.parent.mkdir(parents=True,exist_ok=True)
+          out.write_text(json.dumps(report,indent=2)+'\\n')
+          summary={k:v for k,v in report.items() if k!='classification_by_bus'}
+          print(json.dumps(summary,indent=2))
+          assert report['missing_laf_can_be_assumed_zero'] is False
+          assert report['empirical_laf_admitted'] is False
+          PY
       - name: Verify audit never equates field presence with empirically admitted loads
         run: |
           python - <<'PY'
@@ -50,5 +68,7 @@ jobs:
         if: always()
         with:
           name: western-existing-network-laf-evidence
-          path: outputs/western_existing_network_laf_evidence.json
+          path: |
+            outputs/western_existing_network_laf_evidence.json
+            outputs/western_missing_laf_bus_roles.json
           if-no-files-found: warn
