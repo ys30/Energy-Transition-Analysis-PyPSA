@@ -16,6 +16,25 @@ def inspect(network,out):
         "bus_id":str(loads.loc[name,"bus"])} for name in static_only_loads]
     timeline_note=("8760 ordinal local hours in leap year; NOT full-year calendar-aligned"
         if snaps==8760 and any(str(t).startswith("2040-") for t in n.snapshots) else None)
+    dynamic_generator_names=set(map(str,n.generators_t.p_max_pu.columns)) if hasattr(n.generators_t,"p_max_pu") else set()
+    static_only_generators=sorted(set(map(str,generators.index))-dynamic_generator_names)
+    missing_line_endpoints=int((~n.lines.bus0.isin(n.buses.index)|~n.lines.bus1.isin(n.buses.index)).sum())
+    missing_transformer_endpoints=int((~n.transformers.bus0.isin(n.buses.index)|~n.transformers.bus1.isin(n.buses.index)).sum())
+    # The presence of one dynamic column does not certify all load or generator components.
+    gates={
+        "generators":len(generators)>0,
+        "loads":len(loads)>0,
+        "multiple_snapshots":snaps>1,
+        "generator_availability_timeseries_complete":len(generators)>0 and not static_only_generators,
+        "load_timeseries_complete":len(loads)>0 and not static_only_loads,
+        "line_endpoints_valid":missing_line_endpoints==0,
+        "transformer_endpoints_valid":missing_transformer_endpoints==0,
+        "calendar_semantics_verified":timeline_note is None,
+        # Capacity, marginal costs, and operational constraints still need independent
+        # source and scenario validation; this audit cannot establish these.
+        "generator_operational_inputs_verified":False,
+        "transmission_operational_limits_verified":False,
+    }
     report={
       "network_file":str(network.name),
       "bus_count":len(n.buses),
@@ -33,17 +52,15 @@ def inspect(network,out):
       "load_time_series_columns":len(n.loads_t.p_set.columns) if hasattr(n.loads_t,"p_set") else 0,
       "static_only_load_components":static_only_load_records,
       "time_axis_caution":timeline_note,
-      "missing_line_endpoints":int((~n.lines.bus0.isin(n.buses.index)|~n.lines.bus1.isin(n.buses.index)).sum()),
-      "missing_transformer_endpoints":int((~n.transformers.bus0.isin(n.buses.index)|~n.transformers.bus1.isin(n.buses.index)).sum()),
+      "missing_line_endpoints":missing_line_endpoints,
+      "missing_transformer_endpoints":missing_transformer_endpoints,
+      "generator_components_without_dynamic_availability":static_only_generators,
+      "load_components_without_dynamic_profile":static_only_loads,
+      "readiness_gates":gates,
       "full_western_opf_executed":False,
       "historical_dispatch_calibrated":False,
-      "full_opf_ready":bool(len(generators)>0 and len(loads)>0 and snaps>1 and len(n.generators_t.p_max_pu.columns)>0 and len(n.loads_t.p_set.columns)>0),
-      "missing_required_inputs":[name for name,ready in {
-        "generators":len(generators)>0,
-        "loads":len(loads)>0,
-        "multiple_snapshots":snaps>1,
-        "generator_availability_timeseries":len(n.generators_t.p_max_pu.columns)>0,
-        "load_timeseries":len(n.loads_t.p_set.columns)>0}.items() if not ready],
+      "full_opf_ready":all(gates.values()),
+      "missing_required_inputs":[name for name,ready in gates.items() if not ready],
       "clearwater_generator_to_bus_verified":False}
     out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(report,indent=2)+"\n")
