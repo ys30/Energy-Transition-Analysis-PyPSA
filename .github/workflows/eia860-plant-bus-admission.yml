@@ -12,6 +12,8 @@ on:
       - 'src/energy_transition/eia860_operating_plant_bus_screen.py'
       - 'src/energy_transition/eia860_operating_bus_review_priority.py'
       - 'src/energy_transition/eia860_poi_document_review_queue.py'
+      - 'src/energy_transition/eia860_facility_lead_network_audit.py'
+      - 'docs/eia860_official_facility_document_leads_2024.csv'
 permissions:
   contents: read
   actions: read
@@ -129,6 +131,21 @@ jobs:
           names=pd.read_csv(r/'top_operating_plant_poi_review.csv',dtype={'plant_id':'string'})
           print('Top 10 operating plants to investigate (NOT verified POI):')
           print(names[['plant_id','plant_name','ba_code','state','operating_nameplate_mw','distance_km']].head(10).to_string(index=False))
+          PY
+      - name: Screen independently documented Grand Coulee and Palo Verde facility voltages against original grid topology
+        run: |
+          python -m energy_transition.eia860_facility_lead_network_audit \
+            --leads docs/eia860_official_facility_document_leads_2024.csv \
+            --candidates outputs/eia860_plant_bus/eia860_2024_geographic_bus_candidates.csv \
+            --network /tmp/western/real-western-base-network.nc \
+            --out outputs/eia860_plant_bus/official_facility_lead_network_screen_2024.csv
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('outputs/eia860_plant_bus/official_facility_lead_network_screen_2024.json').read_text())
+          assert d['facility_leads']==2
+          assert d['generator_injections_approved']==0
+          assert d['independently_verified_source_facility_to_original_bus']==0
           PY
       - name: Create explicitly empty reviewed electrical evidence inventory
         run: |
