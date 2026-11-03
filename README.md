@@ -70,6 +70,10 @@ The [8,784-hour storage gap-fill sensitivity](docs/verified_annual_storage_gap_s
 - **Wind reconciliation:** Qualified BPAT-attributed EIA-923 wind totals **8,820,435.41 MWh** versus EIA-930 BPAT WND **6,839,734 MWh** (signed difference **1,980,701.41 MWh**); full-year EIA-930 WND has 8,784 recorded hours. No excluded EIA-923 wind source records intersect the matched BPAT plant population in the verified audit. [Evidence](docs/verified_bpat_wind_end_to_end_official_2024.md).
 - **Independent source-population discriminator:** Of **28** EIA-923/EIA-860 BPAT-associated wind plant IDs, **20** occur on BPAT's official EIA-930A Schedule 2 reporting inventory and **8 do not**. The eight plants account for **1,802,779 MWh** of qualified EIA-923 generation. **This is evidence of a population-boundary issue, not a verified allocation of the 1.981 TWh difference**; EIA-930A includes generator-level reporting and plant IDs alone cannot reconcile all differences. [EIA-930A audit](docs/verified_bpat_wind_eia930a_population_2024.md).
 
+## Western NARIS zonal integration — verified synthetic case
+
+[**35-zone, 24-hour NARIS Link OPF numerical verification**](docs/verified_naris35_24h_synthetic_load_opf.md) documents a successful HiGHS solve using 131 directional planning interfaces. Total **hypothetical** demand and generation are both 42,840 MWh; the isolated member zone `p19` has 816 MWh of **invented** demand served entirely by **invented** local backup. This is an engineering integration and energy-balance result, **not** a historical Western-US dispatch simulation, calibrated grid, unmet demand estimate, or quantified transition benefit.
+
 ## A separate solver-verified PyPSA `Line` example
 
 A deliberately **synthetic** two-bus PyPSA + HiGHS linear-optimization sensitivity test demonstrates congestion-driven dispatch. A line rated at **25 / 50 / 125 MW** carries **25 / 50 / 100 MW**, respectively, and local backup dispatch falls **75 / 50 / 0 MW** for 100 MW load. This confirms solver integration, **not** real CISO–BPAT transmission capability or historical savings. [Verified line sweep](docs/verified_synthetic_ac_line_sweep.md).
