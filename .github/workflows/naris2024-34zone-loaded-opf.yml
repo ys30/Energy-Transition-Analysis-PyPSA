@@ -1,0 +1,78 @@
+name: NARIS 34-zone 24h synthetic-load integrated OPF
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/naris2024_loaded_dispatch_integration.py'
+      - 'src/energy_transition/naris2024_synthetic_24h_load_fixture.py'
+      - 'src/energy_transition/naris2024_zonal_network.py'
+      - 'src/energy_transition/naris2024_western_subset.py'
+      - 'src/energy_transition/naris2024_western_membership_completion.py'
+      - '.github/workflows/naris2024-34zone-loaded-opf.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install solver
+        run: python -m pip install -e '.[model,dev]' netcdf4
+      - name: Build published NARIS zonal Link topology
+        run: |
+          python -m energy_transition.naris2024_zonal_network \
+            --network outputs/naris_all.nc \
+            --report outputs/naris_source_summary.json
+          python -m energy_transition.naris2024_western_subset \
+            --input outputs/naris_all.nc \
+            --network outputs/naris_western.nc \
+            --report outputs/naris_western_summary.json
+          python -m energy_transition.naris2024_western_membership_completion \
+            --input outputs/naris_western.nc \
+            --network outputs/naris_western_complete.nc \
+            --report outputs/naris_membership_completion.json
+      - name: Generate explicitly hypothetical 24-hour load profiles
+        run: |
+          python -m energy_transition.naris2024_synthetic_24h_load_fixture \
+            --network outputs/naris_western_complete.nc \
+            --output-network outputs/naris_western_synthetic_load.nc \
+            --report outputs/naris_synthetic_load_admission.json
+      - name: Solve regional 24-hour hypothetical generation case
+        run: |
+          python -m energy_transition.naris2024_loaded_dispatch_integration \
+            --network outputs/naris_western_synthetic_load.nc \
+            --load-report outputs/naris_synthetic_load_admission.json \
+            --synthetic-fixture \
+            --report outputs/naris_34zone_synthetic_24h_opf.json
+      - name: Assert experimental scope and conservation
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/naris_34zone_synthetic_24h_opf.json').read_text())
+          assert r['snapshots']==24, r
+          assert r['zones']==34, r
+          assert r['solver_status']=='ok' and r['solver_condition']=='optimal', r
+          assert r['max_nodal_balance_residual_mw'] < 1e-3
+          assert abs(r['optimized_generation_mwh']-r['input_load_mwh']) < 1e-3
+          assert r['synthetic_fixture'] is True
+          assert r['historical_calibration'] is False
+          assert r['generation_costs_and_capacity_hypothetical'] is True
+          assert r['empirical_generation_dispatch_claim'] is False
+          print('34-zone 24-hour network integration passed; NOT historical calibration')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: naris34zone-24hour-synthetic-load-opf-evidence
+          path: |
+            outputs/*summary.json
+            outputs/*completion.json
+            outputs/naris_synthetic_load_admission.json
+            outputs/naris_34zone_synthetic_24h_opf.json
+          retention-days: 60
