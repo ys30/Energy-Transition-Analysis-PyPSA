@@ -19,8 +19,13 @@ def extract(raw):
     lat=next((v for k,v in cols.items() if k=="latitude" or k.startswith("latitude ")),None)
     lon=next((v for k,v in cols.items() if k=="longitude" or k.startswith("longitude ")),None)
     if all(v is not None for v in (plant,state,lat,lon)):
-     out=d[[plant,state,lat,lon]].copy()
-     out.columns=["plant_id","state","latitude","longitude"]
+     name=next((v for k,v in cols.items() if k in ("plant name","plant name (nameplate)")),None)
+     selected=[plant,state,lat,lon]+([name] if name is not None else [])
+     out=d[selected].copy()
+     out.columns=["plant_id","state","latitude","longitude"]+(["plant_name"] if name is not None else [])
+     if "plant_name" not in out:
+      out["plant_name"]=pd.NA
+     out["plant_name"]=out.plant_name.astype("string").str.strip()
      out.plant_id=normalize_plant_id(out.plant_id)
      out.state=out.state.astype("string").str.strip().str.upper()
      out=out[out.state.isin(WESTERN_STATES)].copy()
