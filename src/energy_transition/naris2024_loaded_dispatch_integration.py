@@ -90,6 +90,22 @@ def solve_loaded_network(network_path: Path, load_report_path: Path, *,
         ))
     if max_bus_error > 1e-3:
         raise ValueError(f"Nodal power balance failed: {max_bus_error} MW")
+    # Isolated membership zones must be reported separately: their locally
+    # supplied energy is not evidence of interzonal transmission benefit.
+    link_endpoints = set(n.links.bus0).union(set(n.links.bus1))
+    isolated = sorted(set(n.buses.index) - link_endpoints)
+    isolated_load_mwh = float(demand.loc[:, n.loads.bus.isin(isolated)].to_numpy(dtype=float).sum())
+    isolated_backup_mwh = float(production.loc[:, n.generators.bus.isin(isolated)].to_numpy(dtype=float).sum())
+    if abs(isolated_load_mwh - isolated_backup_mwh) > max(1e-3, isolated_load_mwh * 1e-8):
+        raise ValueError("Isolated-zone local supply does not match local demand")
+    backup_by_bus_mwh = {
+        str(bus): float(production[f"hypothetical_backup_{bus}"].sum())
+        for bus in n.buses.index
+    }
+    if abs(sum(backup_by_bus_mwh.values()) - float(
+        production.drop(columns="hypothetical_central").to_numpy(dtype=float).sum()
+    )) > 1e-3:
+        raise ValueError("Per-zone backup accounting inconsistent")
     generated_mwh = float(production.to_numpy(dtype=float).sum())
     loaded_mwh = float(values.sum())
     if abs(generated_mwh - loaded_mwh) > max(1e-3, loaded_mwh * 1e-8):
@@ -98,6 +114,11 @@ def solve_loaded_network(network_path: Path, load_report_path: Path, *,
         "snapshots": len(n.snapshots),
         "zones": len(n.buses),
         "directional_links": len(n.links),
+        "isolated_zone_ids": isolated,
+        "isolated_zone_count": len(isolated),
+        "isolated_zone_demand_mwh": isolated_load_mwh,
+        "isolated_zone_local_generation_mwh": isolated_backup_mwh,
+        "hypothetical_backup_by_zone_mwh": backup_by_bus_mwh,
         "input_load_mwh": loaded_mwh,
         "optimized_generation_mwh": generated_mwh,
         "hypothetical_backup_mwh": float(production.drop(
