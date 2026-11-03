@@ -45,6 +45,43 @@ def test_24_hour_synthetic_cases_nodal_and_solar(tmp_path):
         assert all(x["solar_mw"]<=x["solar_available_mw"]+0.15 for x in case["hourly"])
 
 
+    # A capacity/solar sensitivity must compare the same exogenous demand.
+    # This is a synthetic counterfactual consistency check, not a WECC calibration.
+    cases = r["hourly_cases"]
+    assert max(c["daily_demand_mwh"] for c in cases) - min(
+        c["daily_demand_mwh"] for c in cases
+    ) < 1e-6
+    for c in cases:
+        hourly = c["hourly"]
+        assert abs(sum(h["demand_mw"] for h in hourly) - c["daily_demand_mwh"]) < 1e-6
+        assert abs(sum(h["backup_mw"] for h in hourly) - c["daily_backup_mwh"]) < 1e-6
+        assert abs(sum(h["solar_mw"] for h in hourly) - c["daily_solar_mwh"]) < 1e-6
+        assert abs(sum(h["curtailed_solar_mw"] for h in hourly) -
+                   c["daily_solar_curtailment_mwh"]) < 1e-6
+        reconstructed = sum(20 * h["central_mw"] + 100 * h["backup_mw"]
+                            for h in hourly)
+        assert abs(reconstructed - c["objective_synthetic_cost_units"]) < max(
+            0.5, 1e-5 * abs(reconstructed)
+        )
+        assert all(line["peak_abs_flow_mw"] <=
+                   c["hypothetical_line_capacity_mw"] + 0.15
+                   for line in c["per_source_line_metrics"])
+    for solar in {c["hypothetical_solar_nameplate_mw"] for c in cases}:
+        ordered = sorted((c for c in cases
+                          if c["hypothetical_solar_nameplate_mw"] == solar),
+                         key=lambda c: c["hypothetical_line_capacity_mw"])
+        assert all(a["objective_synthetic_cost_units"] >=
+                   b["objective_synthetic_cost_units"] - 0.5
+                   for a, b in zip(ordered, ordered[1:]))
+    for capacity in {c["hypothetical_line_capacity_mw"] for c in cases}:
+        ordered = sorted((c for c in cases
+                          if c["hypothetical_line_capacity_mw"] == capacity),
+                         key=lambda c: c["hypothetical_solar_nameplate_mw"])
+        assert all(a["objective_synthetic_cost_units"] >=
+                   b["objective_synthetic_cost_units"] - 0.5
+                   for a, b in zip(ordered, ordered[1:]))
+
+
 def test_not_enough_same_voltage_nodes(tmp_path):
     with pytest.raises(ValueError,match="only supplied"):
         experiment(source_tree(tmp_path,count=3),tmp_path/"result.json")
