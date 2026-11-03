@@ -14,6 +14,7 @@ on:
       - 'src/energy_transition/eia860_poi_document_review_queue.py'
       - 'src/energy_transition/eia860_facility_lead_network_audit.py'
       - 'src/energy_transition/eia860_facility_voltage_bus_candidates.py'
+      - 'src/energy_transition/eia860_source_bus_identity_trace.py'
       - 'docs/eia860_official_facility_document_leads_2024.csv'
 permissions:
   contents: read
@@ -188,6 +189,22 @@ jobs:
               if claimed and compatible.empty:
                   raise ValueError(f'Nearest voltage compatible bus {plant.geographic_candidate_bus} missing from alternate candidate output for plant {plant.plant_id}')
               print(f'Plant {plant.plant_id}: geographic nearest bus {plant.geographic_candidate_bus} v_nom={plant.candidate_bus_v_nom_kv}, compatible={claimed}, source-consistent=True')
+          PY
+      - name: Trace Palo Verde original substation IDs and first-hop branch endpoints
+        run: |
+          python -m energy_transition.eia860_source_bus_identity_trace \
+            --network /tmp/western/real-western-base-network.nc \
+            --candidates outputs/eia860_plant_bus/official_facility_alternate_bus_candidates_2024.csv \
+            --plant-id 6008 \
+            --out outputs/eia860_plant_bus/palo_verde_original_bus_source_trace.csv
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path('outputs/eia860_plant_bus/palo_verde_original_bus_source_trace.json').read_text())
+          assert x['source_bus_records']>0
+          assert x['generator_injection_approved'] is False
+          assert x['facility_to_original_bus_identity_verified'] is False
+          print('Original-bus source records traced:',x['source_bus_records'])
           PY
       - name: Create explicitly empty reviewed electrical evidence inventory
         run: |
