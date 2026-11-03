@@ -1,4 +1,4 @@
-name: NARIS 34-zone 24h synthetic-load integrated OPF
+name: NARIS full-Western membership 24h synthetic-load integrated OPF
 'on':
   workflow_dispatch:
   push:
@@ -48,15 +48,20 @@ jobs:
             --network outputs/naris_western_synthetic_load.nc \
             --load-report outputs/naris_synthetic_load_admission.json \
             --synthetic-fixture \
-            --report outputs/naris_34zone_synthetic_24h_opf.json
+            --report outputs/naris_western_complete_synthetic_24h_opf.json
       - name: Assert experimental scope and conservation
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          r=json.loads(Path('outputs/naris_34zone_synthetic_24h_opf.json').read_text())
+          r=json.loads(Path('outputs/naris_western_complete_synthetic_24h_opf.json').read_text())
+          membership=json.loads(Path('outputs/naris_membership_completion.json').read_text())
+          assert membership['invented_links']==0
+          assert membership['ready_for_empirical_dispatch'] is False
+          assert 'p19' in membership['added_isolated_zones']
+          assert r['zones']==membership['required_western_zones']==membership['result_buses']==35
+          assert r['directional_links']==membership['directed_links']==131
           assert r['snapshots']==24, r
-          assert r['zones']==34, r
           assert r['solver_status']=='ok' and r['solver_condition']=='optimal', r
           assert r['max_nodal_balance_residual_mw'] < 1e-3
           assert abs(r['optimized_generation_mwh']-r['input_load_mwh']) < 1e-3
@@ -64,15 +69,15 @@ jobs:
           assert r['historical_calibration'] is False
           assert r['generation_costs_and_capacity_hypothetical'] is True
           assert r['empirical_generation_dispatch_claim'] is False
-          print('34-zone 24-hour network integration passed; NOT historical calibration')
+          print('Full 35-zone membership 24-hour synthetic integration passed; isolated p19 retained; NOT historical calibration')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: naris34zone-24hour-synthetic-load-opf-evidence
+          name: naris-western-complete-24hour-synthetic-load-opf-evidence
           path: |
             outputs/*summary.json
             outputs/*completion.json
             outputs/naris_synthetic_load_admission.json
-            outputs/naris_34zone_synthetic_24h_opf.json
+            outputs/naris_western_complete_synthetic_24h_opf.json
           retention-days: 60
