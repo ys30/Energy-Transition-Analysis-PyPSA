@@ -12,6 +12,8 @@ name: Audit available Western network LAF source attributes
       - 'tests/test_efs_four_state_laf_source_weight_diagnostic.py'
       - 'src/energy_transition/efs_pinned_pd_laf_denominator_audit.py'
       - 'tests/test_efs_pinned_pd_laf_denominator_audit.py'
+      - 'src/energy_transition/efs_null_laf_offshore_origin_audit.py'
+      - 'tests/test_efs_null_laf_offshore_origin_audit.py'
       - '.github/workflows/western-source-laf-audit.yml'
 permissions:
   contents: read
@@ -112,6 +114,20 @@ jobs:
           assert r['missing_LAF_imputed'] is False
           assert r['western_EFS_demand_admitted'] is False
           PY
+      - name: Classify all null-LAF buses against upstream offshore insertion signature
+        run: |
+          python -m energy_transition.efs_null_laf_offshore_origin_audit \
+            --network /tmp/western/real-western-base-network.nc \
+            --upstream-source /tmp/western/pinned_build_base_network.py \
+            --out outputs/western_null_laf_offshore_origin.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/western_null_laf_offshore_origin.json').read_text())
+          assert r['upstream_LAF_assigned_before_offshore_addition'] is True
+          assert r['missing_laf_values_zero_imputed'] is False
+          assert r['four_state_EFS_load_admitted'] is False
+          PY
       - name: Verify audit never equates field presence with empirically admitted loads
         run: |
           python - <<'PY'
@@ -134,4 +150,5 @@ jobs:
             outputs/western_laf_normalization_key_audit.json
             outputs/western_four_state_laf_source_weight.json
             outputs/western_pinned_pd_laf_denominator.json
+            outputs/western_null_laf_offshore_origin.json
           if-no-files-found: warn
