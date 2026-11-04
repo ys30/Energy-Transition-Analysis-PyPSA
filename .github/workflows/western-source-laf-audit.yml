@@ -127,6 +127,9 @@ jobs:
           from pathlib import Path
           r=json.loads(Path('outputs/western_null_laf_offshore_origin.json').read_text())
           assert r['upstream_LAF_assigned_before_offshore_addition'] is True
+          assert r['null_laf_bus_count']==157, 'Pinned archived Western network changed; re-review source'
+          assert r['all_null_laf_buses_match_pinned_offshore_insertion_signature'] is True
+          assert r['null_laf_offshore_both_indicators']==r['null_laf_bus_count']
           assert r['missing_laf_values_zero_imputed'] is False
           assert r['four_state_EFS_load_admitted'] is False
           PY
