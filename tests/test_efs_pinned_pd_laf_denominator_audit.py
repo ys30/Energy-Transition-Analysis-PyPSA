@@ -40,3 +40,19 @@ def test_wrong_upstream_formula_fails_closed():
     })
     with pytest.raises(ValueError,match="formula not verified"):
         audit(b,PIN_SOURCE.replace('"Pd"','"load_weight"'))
+
+
+def test_mixed_source_denominators_are_exposed_as_two_clusters():
+    b=pd.DataFrame({
+        "state":["Nevada","Nevada","Nevada"],
+        "reeds_state":["NV","NV","NV"],
+        "reeds_zone":["p9","p9","p9"],
+        "Pd":[80.0,20.0,34.99],
+        "LAF_state":[0.01,0.0025,34.99/67028.96],
+    },index=["original_a","original_b","suspect_cross_border"])
+    r=audit(b,PIN_SOURCE)
+    clusters={c["inferred_denominator_Pd"]:c for c in r["states"][0]["inferred_denominator_clusters"]}
+    assert set(clusters)=={8000.0,67028.96}
+    assert clusters[67028.96]["positive_Pd_positive_LAF_buses"]==1
+    assert "suspect_cross_border" in clusters[67028.96]["bus_examples"]
+    assert clusters[67028.96]["original_full_state_label_verified"] is False
