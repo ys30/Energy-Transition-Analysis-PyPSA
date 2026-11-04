@@ -53,3 +53,21 @@ def test_extra_year_rejected():
     src.loc[src.index[0],"year"]=2024
     with pytest.raises(ValueError,match="planning years"):
         audit_archived_pilot(src,z)
+
+
+def test_original_efs_source_may_include_explicitly_excluded_states():
+    src,z=fixtures()
+    extra=src.iloc[[0]].copy()
+    extra["state"]="CA"
+    src=pd.concat([src,extra],ignore_index=True)
+    result=audit_archived_pilot(src,z)
+    assert result["source_states_excluded_from_pilot"]==["CA"]
+    assert result["source_state_count_before_admission_filter"]==8
+    assert result["scope_state_count"]==7
+
+
+def test_missing_admitted_state_in_source_is_rejected():
+    src,z=fixtures()
+    src=src[src.state!="AZ"]
+    with pytest.raises(ValueError,match="Seven admitted states missing"):
+        audit_archived_pilot(src,z)
