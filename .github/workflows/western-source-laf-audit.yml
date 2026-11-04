@@ -8,6 +8,8 @@ name: Audit available Western network LAF source attributes
       - 'src/energy_transition/efs_source_bus_laf_extraction.py'
       - 'src/energy_transition/efs_missing_laf_bus_roles.py'
       - 'src/energy_transition/efs_laf_normalization_key_audit.py'
+      - 'src/energy_transition/efs_four_state_laf_source_weight_diagnostic.py'
+      - 'tests/test_efs_four_state_laf_source_weight_diagnostic.py'
       - '.github/workflows/western-source-laf-audit.yml'
 permissions:
   contents: read
@@ -74,6 +76,19 @@ jobs:
           assert report['historical_demand_admitted'] is False
           assert report['renormalization_performed'] is False
           PY
+      - name: Diagnose four excluded states from source load weights
+        run: |
+          python -m energy_transition.efs_four_state_laf_source_weight_diagnostic \
+            --network /tmp/western/real-western-base-network.nc \
+            --out outputs/western_four_state_laf_source_weight.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/western_four_state_laf_source_weight.json').read_text())
+          assert r['source_states_audited']==['California','Nevada','Oregon','Washington']
+          assert r['missing_laf_can_be_imputed'] is False
+          assert r['all_four_states_empirically_admitted'] is False
+          PY
       - name: Verify audit never equates field presence with empirically admitted loads
         run: |
           python - <<'PY'
@@ -94,4 +109,5 @@ jobs:
             outputs/western_existing_network_laf_evidence.json
             outputs/western_missing_laf_bus_roles.json
             outputs/western_laf_normalization_key_audit.json
+            outputs/western_four_state_laf_source_weight.json
           if-no-files-found: warn
