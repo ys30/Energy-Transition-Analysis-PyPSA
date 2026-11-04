@@ -106,8 +106,9 @@ def analyze_combined_source(
     if weights.duplicated(["source_state","reeds_zone"]).any():
         raise ValueError("Duplicate four-state source/zone weight")
     weights["weight"]=pd.to_numeric(weights.weight,errors="raise")
-    if not np.isfinite(weights.weight.to_numpy()).all() or (weights.weight<=0).any():
+    if not np.isfinite(weights.weight.to_numpy()).all() or (weights.weight<0).any():
         raise ValueError("Invalid four-state source weights")
+    zero_weight_zones=int(weights.weight.eq(0).sum())
     totals=weights.groupby("source_state").weight.sum()
     if not np.allclose(totals.loc[sorted(CANDIDATE)].to_numpy(),1,rtol=0,atol=1e-9):
         raise ValueError("Candidate four-state weights do not conserve source mass")
@@ -116,8 +117,12 @@ def analyze_combined_source(
         abs(float(supplied[s])-float(totals[s]))<1e-9 for s in CANDIDATE
     ):
         raise ValueError("Candidate weight report totals disagree with zonal table")
+    # Raw source candidate may include zone rows whose sum(LAF) is exactly
+    # zero. Keep them in the provenance inventory, but do not manufacture
+    # a zero-MW hourly load for a zone without positive allocated demand.
+    active_weights=weights.loc[weights.weight.gt(0)].copy()
     four=src[src.state.isin(CANDIDATE)].merge(
-        weights,left_on="state",right_on="source_state",how="left",validate="many_to_many"
+        active_weights,left_on="state",right_on="source_state",how="left",validate="many_to_many"
     )
     if four.weight.isna().any():
         raise ValueError("Unmapped candidate source state")
@@ -160,6 +165,7 @@ def analyze_combined_source(
     return {
         "source_state_count":11,
         "candidate_new_state_count":4,
+        "candidate_zero_weight_zones_recorded_but_not_allocated":zero_weight_zones,
         "unchanged_existing_state_count":7,
         "source_state_hour_count":int(len(src)),
         "combined_zonal_state_hour_rows":int(len(allocated)),
