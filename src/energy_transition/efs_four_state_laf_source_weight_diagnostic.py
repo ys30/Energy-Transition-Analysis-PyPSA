@@ -65,6 +65,27 @@ def audit_blocked_states(buses: pd.DataFrame) -> dict:
             })
         else:
             d["load_weight_attribute_present"]=False
+        if has_pd:
+            raw_pd=pd.to_numeric(g["Pd"],errors="coerce")
+            missing_pd=pd.to_numeric(mg["Pd"],errors="coerce")
+            d.update({
+                "Pd_attribute_present":True,
+                "Pd_missing_or_nonfinite_on_missing_laf":int(
+                    (~np.isfinite(missing_pd.to_numpy(dtype=float))).sum()),
+                "Pd_positive_on_missing_laf":int(
+                    (missing_pd.gt(0) & np.isfinite(missing_pd.to_numpy(dtype=float))).sum()),
+                "Pd_zero_on_missing_laf":int(
+                    (missing_pd.eq(0) & np.isfinite(missing_pd.to_numpy(dtype=float))).sum()),
+                "Pd_negative_on_missing_laf":int(
+                    (missing_pd.lt(0) & np.isfinite(missing_pd.to_numpy(dtype=float))).sum()),
+                "Pd_sum_missing_laf_finite_only":float(
+                    missing_pd[np.isfinite(missing_pd.to_numpy(dtype=float))].sum()),
+                "Pd_sum_all_state_finite_only":float(
+                    raw_pd[np.isfinite(raw_pd.to_numpy(dtype=float))].sum()),
+                "Pd_is_verified_EFS_allocation_weight":False,
+            })
+        else:
+            d["Pd_attribute_present"]=False
         records.append(d)
     return {
         "source_bus_count":int(len(x)),
