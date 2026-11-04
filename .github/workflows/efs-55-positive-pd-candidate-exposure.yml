@@ -54,7 +54,8 @@ jobs:
           assert r['line_transformer_zero_degree_bus_count']==877
           assert r['positive_source_pd_zero_degree_bus_count']==55
           assert abs(r['source_positive_pd_sum_mw']-1714.97)<1e-5
-          assert r['candidate_bus_year_rows']==165
+          assert r['covered_source_bus_count'] + r['outside_eleven_state_efs_source_bus_count']==55
+          assert r['candidate_bus_year_rows']==3*r['covered_source_bus_count']
           assert len(r['planning_year_rows'])==3
           assert all(x['hypothetical_exported_state_laf_annual_mwh']>=0 for x in r['planning_year_rows'])
           assert r['direct_physically_validated_efs_load_attached_to_55_buses'] is False
