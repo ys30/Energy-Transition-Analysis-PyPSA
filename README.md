@@ -74,6 +74,8 @@ The [verified 2030–2050 mixed-clock sensitivity study](docs/verified_eleven_st
 
 ![Official EIA-860 2024 historical nameplate concentrated into unverified synthetic candidate buses](figures/portfolio_eia860_distant_bus_clusters.svg)
 
+**Official plant identities and transmission-document evidence:** The [verified named-plant review](docs/verified_2024_named_plant_poi_and_sagamore_external_evidence.md) reconciles **all 63** geographically distant 2024 EIA-860 plants to their official facility names and original source coordinates. A published SPP agreement identifies **522-MW Sagamore Wind** as connecting to **Crossroads 345-kV substation**, while the model's nearby geographic candidate bus remains **unverified**. [Successful EIA identity CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41774793024). No synthetic network bus has been promoted to an independently approved POI.
+
 ## Four recruiter-ready work samples
 
 | Work sample | What was implemented | Verified evidence | Status |
