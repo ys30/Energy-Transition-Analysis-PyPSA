@@ -64,6 +64,8 @@ The [verified 2030–2050 mixed-clock sensitivity study](docs/verified_eleven_st
 
 **Scope guard:** The exact original `full_state` GIS for the two crossing source-denominator buses, actual EFS UTC/DST interpretation and Western generator/weather snapshot compatibility have **not** been independently certified. This is a reproducible **candidate temporal sensitivity**, **not** a verified Western hourly demand profile, empirical OPF, emissions forecast, or electricity-transition outcome.
 
+**Western generation admission gate:** The [four-network real source audit](docs/verified_western_efs_generation_source_admission.md) confirms that the original **10,157-bus Western topology** and all three load-bearing EFS 2030/2040/2050 NetCDF scenarios have **zero Generator components**, despite the EFS networks' 20 Load components each. [Source-admission CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41771905008). Existing EIA-860/EIA-923/EIA-930 pipelines provide historical generation evidence, **not** source-verified future unit-to-bus mapping, hourly availability or 2030–2050 costs. Full Western empirical dispatch remains blocked until authentic generation and time-alignment inputs are integrated.
+
 ## Four recruiter-ready work samples
 
 | Work sample | What was implemented | Verified evidence | Status |
