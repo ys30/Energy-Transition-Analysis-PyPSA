@@ -6,7 +6,7 @@ from energy_transition.efs_pinned_upstream_clock_audit import audit_pinned_efs_c
 def fixtures():
     source='''class ReadEfs:
     def _apply_timezones(self, df):
-        df.UtcHourID = df.LocalHourID + df.utc_shift
+        df["UtcHourID"] = df.LocalHourID + df.utc_shift
         df.UtcHourID = df.UtcHourID.map(lambda x: x if x < 8761 else x - 8760)
     def _build_datetime(self, df):
         df["hoy"] = pd.to_timedelta(df.UtcHourID - 1, unit="h")
