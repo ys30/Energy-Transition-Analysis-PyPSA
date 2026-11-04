@@ -1,0 +1,66 @@
+name: Independently audit EFS border buses with Census TIGER polygons
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-cross-bus-census-geography.yml'
+      - 'src/energy_transition/efs_cross_bus_official_polygon_audit.py'
+      - 'tests/test_efs_cross_bus_official_polygon_audit.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  census-overlay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install network and GIS dependencies
+        run: |
+          python -m pip install -e '.[model]' netcdf4 geopandas shapely pyogrio pytest
+      - name: Verify fail-closed independent overlay tests
+        run: |
+          PYTHONPATH=src python -m pytest tests/test_efs_cross_bus_official_polygon_audit.py -q
+      - name: Restore pinned Western network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-border
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs-border
+          test -s /tmp/efs-border/real-western-base-network.nc
+      - name: Obtain original Census TIGER 2023 full-resolution states
+        run: |
+          curl --fail --retry 3 --location --silent --show-error \
+            'https://www2.census.gov/geo/tiger/TIGER2023/STATE/tl_2023_us_state.zip' \
+            -o /tmp/efs-border/tl_2023_us_state.zip
+          test -s /tmp/efs-border/tl_2023_us_state.zip
+          sha256sum /tmp/efs-border/tl_2023_us_state.zip
+      - name: Compare exact crossing bus coordinates with independent Census shapes
+        run: |
+          python -m energy_transition.efs_cross_bus_official_polygon_audit \
+            --network /tmp/efs-border/real-western-base-network.nc \
+            --tiger-zip /tmp/efs-border/tl_2023_us_state.zip \
+            --out outputs/efs-cross-bus-census-2023-evidence.json
+      - name: Enforce no unverified original GIS or EFS promotion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('outputs/efs-cross-bus-census-2023-evidence.json').read_text())
+          assert report['independent_state_polygon_point_overlay_performed']
+          assert len(report['bus_audits'])==2
+          assert report['original_pinned_full_state_polygon_recovered'] is False
+          assert report['candidate_4_state_EFS_weights_empirically_admitted'] is False
+          assert report['simultaneous_utc_weather_alignment_verified'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-cross-bus-independent-census-geography
+          path: outputs/efs-cross-bus-census-2023-evidence.json
+          if-no-files-found: warn
