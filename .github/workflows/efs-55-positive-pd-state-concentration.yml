@@ -1,0 +1,61 @@
+name: Validate EFS positive-Pd zero-degree 53-bus state exposure concentration
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-55-positive-pd-state-concentration.yml'
+      - 'src/energy_transition/efs_55_positive_pd_state_concentration.py'
+      - 'tests/test_efs_55_positive_pd_state_concentration.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-state:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source analysis dependencies
+        run: python -m pip install pandas numpy pytest
+      - name: Run state-year exposure and source identity tests
+        run: PYTHONPATH=src python -m pytest tests/test_efs_55_positive_pd_state_concentration.py -q
+      - name: Restore verified 55-bus EFS source diagnostic
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/55bus
+          gh run download 41866601224 -R "${{ github.repository }}" \
+            -n efs-55-isolated-source-pd-buses-candidate-demand-screen -D /tmp/55bus
+          SOURCE=$(find /tmp/55bus -name 55_positive_pd_candidate_efs_state_annual_exposure.csv -type f -print -quit)
+          test -n "$SOURCE" && test -s "$SOURCE"
+          echo "SOURCE_55_BUS_SCREEN=$SOURCE" >> "$GITHUB_ENV"
+      - name: Summarize real-source candidate screen by state and planning year
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_55_positive_pd_state_concentration \
+            --screen "$SOURCE_55_BUS_SCREEN" \
+            --outdir outputs/efs_55_state_concentration
+      - name: Enforce source subset and no physically admitted demand
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_55_state_concentration/55bus_candidate_exposure_state_concentration.json').read_text())
+          assert r['screened_unique_source_bus_count']==53
+          assert r['screened_source_bus_year_rows']==159
+          assert abs(r['screened_source_bus_pd_mw']-1608.55)<1e-5
+          expected={2030:8965409.319741895,2040:9945565.19888348,2050:11388189.069617018}
+          for row in r['annual_state_concentration']:
+              assert abs(row['hypothetical_annual_exposure_mwh']-expected[row['year']])<0.02
+          assert r['physically_correct_bus_level_efs_allocations_admitted'] is False
+          assert r['empirical_OPF_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-53-positive-pd-source-bus-state-concentration
+          path: outputs/efs_55_state_concentration/
+          if-no-files-found: warn
