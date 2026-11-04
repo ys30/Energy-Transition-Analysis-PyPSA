@@ -1,0 +1,66 @@
+name: Verify actual EFS Load.bus attachment against 53 isolated source nodes
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-archived-load-bus-overlap.yml'
+      - 'src/energy_transition/efs_archived_actual_load_bus_overlap.py'
+      - 'tests/test_efs_archived_actual_load_bus_overlap.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  actual-load-attachment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install real-network and unit-test dependencies
+        run: |
+          python -m pip install -e '.[model]' netcdf4 networkx pytest
+      - name: Test physical source-bus membership vs actual Load.bus
+        run: PYTHONPATH=src python -m pytest tests/test_efs_archived_actual_load_bus_overlap.py -q
+      - name: Retrieve original 2030, 2040, 2050 source load-bearing PyPSA nets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/original-load-nets
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/original-load-nets
+          for file in real-western-base-network.nc efs-real-2030-local-hour-load-only.nc efs-real-2040-local-hour-load-only.nc efs-real-2050-local-hour-load-only.nc; do
+            test -s "/tmp/original-load-nets/$file"
+          done
+      - name: Read actual archived Load.bus values and time series
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_archived_actual_load_bus_overlap \
+            --base /tmp/original-load-nets/real-western-base-network.nc \
+            --net2030 /tmp/original-load-nets/efs-real-2030-local-hour-load-only.nc \
+            --net2040 /tmp/original-load-nets/efs-real-2040-local-hour-load-only.nc \
+            --net2050 /tmp/original-load-nets/efs-real-2050-local-hour-load-only.nc \
+            --out outputs/efs_archived_actual_load_bus_overlap.json
+      - name: Validate real NetCDF identities and no physical demand overclaim
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_archived_actual_load_bus_overlap.json').read_text())
+          assert r['source_base_bus_count']==10157
+          assert r['source_line_transformer_zero_degree_bus_count']==877
+          assert r['source_positive_pd_zero_degree_bus_count']==55
+          assert r['within_11_state_EFS_positive_pd_zero_degree_bus_count']==53
+          assert [x['year'] for x in r['archived_load_bearing_network_years']]==[2030,2040,2050]
+          assert all(x['source_Load_components']==20 for x in r['archived_load_bearing_network_years'])
+          assert r['empirical_53_bus_laf_exposure_is_real_served_demand'] is False
+          assert r['eleven_state_candidate_network_loads_attached'] is False
+          assert r['generator_POI_and_dispatch_validated'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-archived-2030-2050-actual-Load-bus-source-overlap
+          path: outputs/efs_archived_actual_load_bus_overlap.json
+          if-no-files-found: warn
