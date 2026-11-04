@@ -1,0 +1,78 @@
+name: Stage 2024 official EIA generators to Western geographic bus candidates
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-generator-bus-staging.yml'
+      - 'src/energy_transition/eia860_generator_bus_staging.py'
+      - 'tests/test_eia860_generator_bus_staging.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source integration dependencies
+        run: |
+          python -m pip install -e '.[dev]' openpyxl xlrd
+          python -m pip install 'pypsa>=0.30,<1.0' netcdf4
+      - name: Verify generator staging and physical admission guards
+        run: PYTHONPATH=src python -m pytest tests/test_eia860_generator_bus_staging.py -q
+      - name: Download existing real base network and official EIA BA-mapped generators
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western /tmp/official-eia
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/western
+          gh run download 41349585538 -R "${{ github.repository }}" \
+            -n eia860-plant-ba-2024 -D /tmp/official-eia
+          test -s /tmp/western/real-western-base-network.nc
+          test -s /tmp/official-eia/generator_ba_audit_2024.csv
+      - name: Extract official EIA 2024 facility coordinates
+        run: |
+          python -m energy_transition.eia860_plant_coordinates \
+            --year 2024 --out-dir outputs/eia860_generator_staging
+      - name: Geographically screen official plants against archived real bus topology
+        run: |
+          python -m energy_transition.eia860_plant_bus_candidates \
+            --plants outputs/eia860_generator_staging/official_eia860_plant_coordinates_2024.csv \
+            --network /tmp/western/real-western-base-network.nc \
+            --out outputs/eia860_generator_staging/official_geographic_plant_bus_candidates.csv
+      - name: Generate auditable generator-level source staging inventory
+        run: |
+          python -m energy_transition.eia860_generator_bus_staging \
+            --candidates outputs/eia860_generator_staging/official_geographic_plant_bus_candidates.csv \
+            --generators /tmp/official-eia/generator_ba_audit_2024.csv \
+            --out outputs/eia860_generator_staging/official_2024_generator_to_candidate_bus.csv
+      - name: Require complete capacity reconciliation and no electrical attachment claims
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('outputs/eia860_generator_staging/official_2024_generator_to_candidate_bus.json')
+          r=json.loads(p.read_text())
+          assert r['official_2024_operating_generator_rows']>0
+          assert r['candidate_generator_rows']>0
+          assert r['candidate_generator_plant_count']>0
+          assert abs(r['candidate_geographic_nameplate_mw'] +
+                     r['unmapped_nameplate_mw'] -
+                     r['all_operating_nameplate_mw'])<1e-4
+          assert r['electrical_connections_verified']==0
+          assert r['actual_network_generators_added']==0
+          assert r['future_2030_2040_2050_generator_fleet_verified'] is False
+          assert r['empirical_western_opf_ready'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-2024-generator-level-bus-candidate-staging
+          path: outputs/eia860_generator_staging/
+          if-no-files-found: warn
