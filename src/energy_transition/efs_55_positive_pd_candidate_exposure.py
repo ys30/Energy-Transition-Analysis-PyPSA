@@ -56,11 +56,12 @@ def screening(network,efs:pd.DataFrame):
     c["bus_id"]=c.index.astype(str)
     inverse={value:key for key,value in STATE_NAMES.items()}
     c["exported_state_code"]=c.state.map(inverse)
-    if c.exported_state_code.isna().any():raise ValueError("Missing EFS state for candidate bus")
-    c=c.reset_index(drop=True)
-    joined=c.merge(totals,left_on="exported_state_code",right_on="state",how="left",
+    uncovered=c.loc[c.exported_state_code.isna()].copy()
+    covered=c.loc[c.exported_state_code.notna()].copy().reset_index(drop=True)
+    if covered.empty:raise ValueError("No candidate source buses in 11-state EFS coverage")
+    joined=covered.merge(totals,left_on="exported_state_code",right_on="state",how="left",
                    validate="many_to_many")
-    if len(joined)!=55*3 or joined.efs_state_annual_mwh.isna().any():
+    if len(joined)!=len(covered)*3 or joined.efs_state_annual_mwh.isna().any():
         raise ValueError("Source state-year coverage failed")
     joined["hypothetical_exported_state_laf_annual_mwh"]=(
         joined.source_LAF_state*joined.efs_state_annual_mwh)
@@ -80,7 +81,11 @@ def screening(network,efs:pd.DataFrame):
         "source_positive_pd_sum_mw":float(c.source_Pd.sum()),
         "source_laf_weight_sum_over_55_exported_buses":float(c.source_LAF_state.sum()),
         "candidate_bus_year_rows":len(out),
-        "all_55_exported_states_present_in_11_EFS":True,
+        "covered_source_bus_count":len(covered),
+        "outside_eleven_state_efs_source_bus_count":len(uncovered),
+        "outside_eleven_state_exported_bus_states":sorted(uncovered.state.astype(str).unique().tolist()),
+        "outside_eleven_state_source_pd_mw":float(uncovered.source_Pd.sum()),
+        "all_55_exported_states_present_in_11_EFS":len(uncovered)==0,
         "planning_year_rows":yeartable.to_dict(orient="records"),
         "direct_physically_validated_efs_load_attached_to_55_buses":False,
         "old_dropped_full_state_denominator_recovered":False,
