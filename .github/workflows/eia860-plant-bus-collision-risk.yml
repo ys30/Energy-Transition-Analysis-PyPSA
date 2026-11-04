@@ -1,0 +1,61 @@
+name: Audit EIA-860 distant-plant synthetic candidate-bus collisions
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-plant-bus-collision-risk.yml'
+      - 'src/energy_transition/eia860_plant_bus_collision_risk.py'
+      - 'tests/test_eia860_plant_bus_collision_risk.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  collision-risk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test source-conservation and risk flags
+        run: |
+          python -m pip install pandas numpy pytest
+          PYTHONPATH=src python -m pytest tests/test_eia860_plant_bus_collision_risk.py -q
+      - name: Restore actual EIA860 plant-level POI risk triage
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/poi
+          gh run download 41773439738 -R "${{ github.repository }}" \
+            -n eia860-2024-generator-plant-poi-review-triage -D /tmp/poi
+          FILE=$(find /tmp/poi -name all_operating_plant_poi_triage.csv -type f -print -quit)
+          test -n "$FILE" && test -s "$FILE"
+          echo "EIA_PLANTS=$FILE" >> "$GITHUB_ENV"
+      - name: Group source plants by repeated distant geographic bus candidates
+        run: |
+          PYTHONPATH=src python -m energy_transition.eia860_plant_bus_collision_risk \
+            --plant-triage "$EIA_PLANTS" \
+            --out-dir outputs/eia860_collision_risk
+      - name: Enforce original source population and nonadmission
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/eia860_collision_risk/long_distance_plant_candidate_bus_collision_summary.json').read_text())
+          assert r['source_operating_plants']==3223
+          assert abs(r['source_operating_nameplate_mw']-268692)<0.01
+          assert r['long_distance_plants']==63
+          assert abs(r['long_distance_nameplate_mw']-5831.9)<0.01
+          assert r['capacity_conservation_verified']
+          assert r['electric_poi_connections_verified']==0
+          assert r['source_bus_ids_are_utility_verified'] is False
+          assert r['future_generator_mapping_admitted'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-2024-distant-plant-bus-collision-risk
+          path: outputs/eia860_collision_risk/
+          if-no-files-found: warn
