@@ -9,7 +9,7 @@ def fixtures():
     zonal=[]
     for year in (2030,2040,2050):
         for code,state in STATE_NAMES.items():
-            for hour in range(3):
+            for hour in range(1,8761):
                 source.append({"year":year,"state":code,"local_hour_id":hour,"load_mw":100+hour})
                 for zone in ("p1","p2"):
                     zonal.append({"year":year,"state":state,"local_hour_id":hour,
@@ -70,4 +70,14 @@ def test_missing_admitted_state_in_source_is_rejected():
     src,z=fixtures()
     src=src[src.state!="AZ"]
     with pytest.raises(ValueError,match="Seven admitted states missing"):
+        audit_archived_pilot(src,z)
+
+
+def test_missing_hour_ordinal_is_rejected_even_if_all_groups_same_length():
+    src,z=fixtures()
+    bad=src["year"].eq(2030) & src["state"].eq("AZ") & src["local_hour_id"].eq(1)
+    src.loc[bad,"local_hour_id"]=8761
+    badz=z["year"].eq(2030) & z["state"].eq("Arizona") & z["local_hour_id"].eq(1)
+    z.loc[badz,"local_hour_id"]=8761
+    with pytest.raises(ValueError,match="1..8760 ordinal coverage"):
         audit_archived_pilot(src,z)
