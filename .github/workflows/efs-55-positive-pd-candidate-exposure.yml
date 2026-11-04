@@ -1,0 +1,69 @@
+name: Screen 55 positive-Pd Western zero-degree buses against original EFS state load
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-55-positive-pd-candidate-exposure.yml'
+      - 'src/energy_transition/efs_55_positive_pd_candidate_exposure.py'
+      - 'tests/test_efs_55_positive_pd_candidate_exposure.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  screened-exposure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source network and pandas graph requirements
+        run: |
+          python -m pip install -e '.[model]' netcdf4 networkx pytest
+      - name: Test source, missing-hour and prohibited-admission safeguards
+        run: PYTHONPATH=src python -m pytest tests/test_efs_55_positive_pd_candidate_exposure.py -q
+      - name: Restore real frozen source network and EFS 11-state years
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western /tmp/efs
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/western
+          gh run download 41265678862 -R "${{ github.repository }}" \
+            -n pypsa-usa-efs-source-evidence -D /tmp/efs
+          NETWORK=$(find /tmp/western -name real-western-base-network.nc -type f -print -quit)
+          SOURCE=$(find /tmp/efs -name efs-core-west-2030-2040-2050-hourly.csv.gz -type f -print -quit)
+          test -n "$NETWORK" && test -s "$NETWORK"
+          test -n "$SOURCE" && test -s "$SOURCE"
+          echo "WESTERN_BASE=$NETWORK" >> "$GITHUB_ENV"
+          echo "EFS_SOURCE=$SOURCE" >> "$GITHUB_ENV"
+      - name: Produce original EFS hypothetical source-LAF exposure of 55 zero-degree buses
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_55_positive_pd_candidate_exposure \
+            --network "$WESTERN_BASE" --efs "$EFS_SOURCE" \
+            --outdir outputs/efs_55_candidate_exposure
+      - name: Check source identities and disallow unsourced empirical results
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_55_candidate_exposure/55_positive_pd_candidate_efs_state_annual_exposure.json').read_text())
+          assert r['source_archive_bus_count']==10157
+          assert r['line_transformer_zero_degree_bus_count']==877
+          assert r['positive_source_pd_zero_degree_bus_count']==55
+          assert abs(r['source_positive_pd_sum_mw']-1714.97)<1e-5
+          assert r['candidate_bus_year_rows']==165
+          assert len(r['planning_year_rows'])==3
+          assert all(x['hypothetical_exported_state_laf_annual_mwh']>=0 for x in r['planning_year_rows'])
+          assert r['direct_physically_validated_efs_load_attached_to_55_buses'] is False
+          assert r['operational_loss_of_load_demonstrated'] is False
+          assert r['full_western_opf_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-55-isolated-source-pd-buses-candidate-demand-screen
+          path: outputs/efs_55_candidate_exposure/
+          if-no-files-found: warn
