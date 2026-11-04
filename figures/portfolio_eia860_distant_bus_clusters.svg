@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 870 505" role="img" aria-label="Five highest capacity distant EIA-860 plant clusters assigned to candidate network bus IDs, 2024 historical nameplate, not physical POIs">
+<rect width="870" height="505" fill="#ffffff"/>
+<text x="40" y="46" font-family="Arial,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Long-distance plant-to-bus candidate concentration</text>
+<text x="40" y="78" font-family="Arial,sans-serif" font-size="15" fill="#475569">2024 EIA-860 historical operating nameplate by shared synthetic candidate bus</text>
+<text x="40" y="138" fill="#334155" font-size="17" font-family="Arial,sans-serif">2053003</text><rect x="160" y="114" width="465.11" height="32" rx="5" fill="#2563eb"/><text x="635.11" y="137" fill="#0f172a" font-size="16" font-family="Arial,sans-serif" font-weight="600">2,847.6 MW</text>
+<text x="40" y="203" fill="#334155" font-size="17" font-family="Arial,sans-serif">2053000</text><rect x="160" y="179" width="159.41" height="32" rx="5" fill="#60a5fa"/><text x="329.41" y="202" fill="#0f172a" font-size="16" font-family="Arial,sans-serif" font-weight="600">976.0 MW</text>
+<text x="40" y="268" fill="#334155" font-size="17" font-family="Arial,sans-serif">2077001</text><rect x="160" y="244" width="149.16" height="32" rx="5" fill="#60a5fa"/><text x="319.16" y="267" fill="#0f172a" font-size="16" font-family="Arial,sans-serif" font-weight="600">913.2 MW</text>
+<text x="40" y="333" fill="#334155" font-size="17" font-family="Arial,sans-serif">2053271</text><rect x="160" y="309" width="57.17" height="32" rx="5" fill="#60a5fa"/><text x="227.17" y="332" fill="#0f172a" font-size="16" font-family="Arial,sans-serif" font-weight="600">350.0 MW</text>
+<text x="40" y="398" fill="#334155" font-size="17" font-family="Arial,sans-serif">2053009</text><rect x="160" y="374" width="38.38" height="32" rx="5" fill="#60a5fa"/><text x="208.38" y="397" fill="#0f172a" font-size="16" font-family="Arial,sans-serif" font-weight="600">235.0 MW</text>
+<line x1="160" y1="452" x2="740" y2="452" stroke="#94a3b8"/>
+<text x="40" y="481" font-family="Arial,sans-serif" font-size="13" fill="#64748b">Source-audited geographic review only · no electrical POI independently approved · top 5 of 15 groups</text>
+</svg>
