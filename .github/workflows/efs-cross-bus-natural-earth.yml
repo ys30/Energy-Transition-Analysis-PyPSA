@@ -1,0 +1,70 @@
+name: Reproduce pinned Natural Earth EFS full-state polygon assignments
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-cross-bus-natural-earth.yml'
+      - 'src/energy_transition/efs_cross_bus_pinned_natural_earth.py'
+      - 'tests/test_efs_cross_bus_pinned_natural_earth.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  overlay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install network and GIS audit dependencies
+        run: |
+          python -m pip install -e '.[model]' netcdf4 geopandas shapely pyogrio pytest
+      - name: Validate pinned source GIS method and fail-closed inputs
+        run: |
+          PYTHONPATH=src python -m pytest tests/test_efs_cross_bus_pinned_natural_earth.py -q
+      - name: Retrieve previously archived real Western network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/pinned-ne
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/pinned-ne
+          test -s /tmp/pinned-ne/real-western-base-network.nc
+      - name: Download same Natural Earth 10m data family referenced by pinned PyPSA-USA
+        run: |
+          curl --fail --retry 3 --silent --show-error --location \
+            https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_admin_1_states_provinces_lakes.zip \
+            -o /tmp/pinned-ne/admin1.zip
+          curl --fail --retry 3 --silent --show-error --location \
+            https://raw.githubusercontent.com/PyPSA/pypsa-usa/338af9912addbaf038c6098fe27e1e6ef099d8aa/workflow/scripts/build_shapes.py \
+            -o /tmp/pinned-ne/build_shapes.py
+          test -s /tmp/pinned-ne/admin1.zip
+          test -s /tmp/pinned-ne/build_shapes.py
+          sha256sum /tmp/pinned-ne/admin1.zip
+      - name: Test actual source-normalization GIS polygon family
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_cross_bus_pinned_natural_earth \
+            --network /tmp/pinned-ne/real-western-base-network.nc \
+            --natural-earth-zip /tmp/pinned-ne/admin1.zip \
+            --upstream-build-shapes /tmp/pinned-ne/build_shapes.py \
+            --out outputs/efs-two-border-buses-natural-earth10m.json
+      - name: Prevent claims of fully recovered original full_state labels
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs-two-border-buses-natural-earth10m.json').read_text())
+          assert len(r['bus_results'])==2
+          assert r['contemporaneous_natural_earth_shape_version_verified'] is False
+          assert r['original_archived_build_full_state_labels_recovered'] is False
+          assert r['empirically_admitted_11_state_EFS'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pinned-natural-earth-source-geometry-comparison
+          path: outputs/efs-two-border-buses-natural-earth10m.json
+          if-no-files-found: warn
