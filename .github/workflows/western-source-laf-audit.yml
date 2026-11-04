@@ -14,6 +14,8 @@ name: Audit available Western network LAF source attributes
       - 'tests/test_efs_pinned_pd_laf_denominator_audit.py'
       - 'src/energy_transition/efs_null_laf_offshore_origin_audit.py'
       - 'tests/test_efs_null_laf_offshore_origin_audit.py'
+      - 'src/energy_transition/efs_two_cross_denominator_bus_geography.py'
+      - 'tests/test_efs_two_cross_denominator_bus_geography.py'
       - '.github/workflows/western-source-laf-audit.yml'
 permissions:
   contents: read
@@ -128,6 +130,19 @@ jobs:
           assert r['missing_laf_values_zero_imputed'] is False
           assert r['four_state_EFS_load_admitted'] is False
           PY
+      - name: Inventory two cross-denominator bus identities and geography
+        run: |
+          python -m energy_transition.efs_two_cross_denominator_bus_geography \
+            --network /tmp/western/real-western-base-network.nc \
+            --out outputs/western_two_cross_denominator_bus_geography.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/western_two_cross_denominator_bus_geography.json').read_text())
+          assert r['target_bus_count']==2
+          assert r['source_full_state_recovered'] is False
+          assert r['empirical_EFS_admitted'] is False
+          PY
       - name: Verify audit never equates field presence with empirically admitted loads
         run: |
           python - <<'PY'
@@ -151,4 +166,5 @@ jobs:
             outputs/western_four_state_laf_source_weight.json
             outputs/western_pinned_pd_laf_denominator.json
             outputs/western_null_laf_offshore_origin.json
+            outputs/western_two_cross_denominator_bus_geography.json
           if-no-files-found: warn
