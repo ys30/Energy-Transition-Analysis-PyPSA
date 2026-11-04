@@ -1,0 +1,61 @@
+name: Audit actual EFS representative Load buses and connected source alternatives
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-representative-load-bus-audit.yml'
+      - 'src/energy_transition/efs_actual_representative_load_bus_audit.py'
+      - 'tests/test_efs_actual_representative_load_bus_audit.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install real network audit requirements
+        run: python -m pip install -e '.[model]' netcdf4 networkx pytest
+      - name: Test first-bus source-Pd selection diagnostic
+        run: PYTHONPATH=src python -m pytest tests/test_efs_actual_representative_load_bus_audit.py -q
+      - name: Restore original saved EFS 2030 load-bearing network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs
+          test -s /tmp/efs/real-western-base-network.nc
+          test -s /tmp/efs/efs-real-2030-local-hour-load-only.nc
+      - name: Inspect actual EFS load target bus source data
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_actual_representative_load_bus_audit \
+            --base /tmp/efs/real-western-base-network.nc \
+            --load-network /tmp/efs/efs-real-2030-local-hour-load-only.nc \
+            --out-dir outputs/efs_representative_load_bus_review
+      - name: Validate published original network and no false POI claims
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_representative_load_bus_review/efs_2030_actual_representative_load_bus_summary.json').read_text())
+          assert r['archived_original_buses']==10157
+          assert r['archived_EFS_loads']==20
+          assert r['all_Load_targets_match_first_source_bus_per_zone']
+          assert r['selected_zero_line_transformer_degree_Load_count']==0
+          assert r['selected_outside_main_line_transformer_component_Load_count']==0
+          assert r['zone_representation_is_utility_certified'] is False
+          assert r['pilot_uses_source_pd_weighted_bus_allocation'] is False
+          assert r['full_11_state_efs_network_validated'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-actual-representative-load-bus-qa
+          path: outputs/efs_representative_load_bus_review/
+          if-no-files-found: warn
