@@ -1,0 +1,63 @@
+name: Triage EIA-860 generator-level Western POI review risks
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-generator-poi-triage.yml'
+      - 'src/energy_transition/eia860_generator_poi_triage.py'
+      - 'tests/test_eia860_generator_poi_triage.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run source-conservation and prohibited-POI promotion tests
+        run: |
+          python -m pip install pandas numpy pytest
+          PYTHONPATH=src python -m pytest tests/test_eia860_generator_poi_triage.py -q
+      - name: Download successfully archived official EIA-860 generator staging table
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/eia-generator-staging
+          gh run download 41772568847 -R "${{ github.repository }}" \
+            -n eia860-2024-generator-level-bus-candidate-staging -D /tmp/eia-generator-staging
+          find /tmp/eia-generator-staging -type f -maxdepth 5 -print
+          FILE=$(find /tmp/eia-generator-staging -name 'official_2024_generator_to_candidate_bus.csv' -type f -print -quit)
+          test -n "$FILE" && test -s "$FILE"
+          echo "STAGING_FILE=$FILE" >> "$GITHUB_ENV"
+      - name: Rank official operating plants by independently unverified candidate POI risks
+        run: |
+          PYTHONPATH=src python -m energy_transition.eia860_generator_poi_triage \
+            --staging "$STAGING_FILE" \
+            --out-dir outputs/eia860_generator_poi_triage
+      - name: Require official generator and MW coverage and no electrical-source promotion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('outputs/eia860_generator_poi_triage/generator_plant_poi_triage_summary.json').read_text())
+          assert d['generator_rows']==5665
+          assert d['operating_plant_count']==3223
+          assert abs(d['operating_nameplate_mw']-268692)<0.01
+          assert d['over50km_generator_rows']==88
+          assert abs(d['over50km_nameplate_mw']-5831.9)<0.01
+          assert d['plant_and_ba_capacity_reconciled'] is True
+          assert d['electrical_POIs_verified']==0
+          assert d['actual_network_generators_inserted']==0
+          assert d['future_EFS_2030_2050_generation_admitted'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-2024-generator-plant-poi-review-triage
+          path: outputs/eia860_generator_poi_triage/
+          if-no-files-found: warn
