@@ -1,0 +1,71 @@
+name: Audit Western EFS generation-source admission
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/western-supply-admission.yml'
+      - 'src/energy_transition/western_supply_admission_gate.py'
+      - 'tests/test_western_supply_admission_gate.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  supply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PyPSA and admission-test dependencies
+        run: |
+          python -m pip install -e '.[model]' netcdf4 pytest
+      - name: Run source supply admission regression tests
+        run: PYTHONPATH=src python -m pytest tests/test_western_supply_admission_gate.py -q
+      - name: Restore base Western network and archived EFS load networks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western /tmp/efs
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/western
+          gh run download 41390831322 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs
+          test -s /tmp/western/real-western-base-network.nc
+          for year in 2030 2040 2050; do
+            test -s "/tmp/efs/efs-real-${year}-local-hour-load-only.nc"
+          done
+      - name: Inventory source generator and availability fields without simulation
+        run: |
+          PYTHONPATH=src python -m energy_transition.western_supply_admission_gate \
+            --network /tmp/western/real-western-base-network.nc \
+            --out outputs/western-supply-admission-base.json
+          for year in 2030 2040 2050; do
+            PYTHONPATH=src python -m energy_transition.western_supply_admission_gate \
+              --network "/tmp/efs/efs-real-${year}-local-hour-load-only.nc" \
+              --out "outputs/western-supply-admission-efs-${year}.json"
+          done
+      - name: Confirm no unsourced 2030–2050 generation scenario is admitted
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for label in ('base','efs-2030','efs-2040','efs-2050'):
+              report=json.loads(Path(f'outputs/western-supply-admission-{label}.json').read_text())
+              assert report['generator_count']==0
+              assert report['generator_nominal_capacity_mw']==0
+              assert not report['numerical_prerequisites']['network_has_generators']
+              assert not report['source_generator_fleet_verified']
+              assert not report['source_wind_solar_hourly_profiles_verified']
+              assert not report['efs_to_supply_utc_alignment_verified']
+              assert not report['empirical_western_opf_admitted']
+              assert not report['empirical_western_opf_executed']
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: western-generation-source-admission-evidence
+          path: outputs/western-supply-admission-*.json
+          if-no-files-found: warn
