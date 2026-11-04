@@ -1,0 +1,44 @@
+name: Audit 2024 EIA top-three SPP plant evidence hierarchy
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-spp-top3-evidence.yml'
+      - 'data/eia860_top3_official_transmission_evidence.json'
+      - 'src/energy_transition/eia860_spptop3_poi_evidence_gate.py'
+      - 'tests/test_eia860_spptop3_poi_evidence_gate.py'
+permissions:
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run external evidence scope tests
+        run: |
+          python -m pip install pytest
+          PYTHONPATH=src python -m pytest tests/test_eia860_spptop3_poi_evidence_gate.py -q
+      - name: Generate evidence-level summary without admitting bus mapping
+        run: |
+          PYTHONPATH=src python -m energy_transition.eia860_spptop3_poi_evidence_gate \
+            --manifest data/eia860_top3_official_transmission_evidence.json \
+            --out outputs/eia860_spp_top3_plant_evidence_summary.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/eia860_spp_top3_plant_evidence_summary.json').read_text())
+          assert r['documented_eia_plant_count']==3
+          assert abs(r['documented_2024_eia_nameplate_mw']-1647.7)<0.001
+          assert r['synthetic_grid_bus_connections_verified']==0
+          assert r['electrically_admitted_generator_capacity_mw']==0
+          assert r['full_western_opf_admitted'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eia860-spp-three-plant-evidence-not-poi-certification
+          path: outputs/eia860_spp_top3_plant_evidence_summary.json
