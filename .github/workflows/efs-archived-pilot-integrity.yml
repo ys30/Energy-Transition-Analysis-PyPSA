@@ -6,6 +6,7 @@ name: Independently audit archived seven-state EFS pilot
     paths:
       - '.github/workflows/efs-archived-pilot-integrity.yml'
       - 'src/energy_transition/efs_archived_pilot_integrity.py'
+      - 'tests/test_efs_archived_pilot_integrity.py'
 permissions:
   contents: read
   actions: read
