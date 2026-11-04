@@ -58,6 +58,11 @@ jobs:
           from pathlib import Path
           r=json.loads(Path('outputs/efs-two-border-buses-natural-earth10m.json').read_text())
           assert len(r['bus_results'])==2
+          assert r['download_zip_sha256']=='7c41f8aa2827c6cfbd458faff584119bb3a628047f0c4b45cff5fa071cc8a11b'
+          assert {x['bus_id']:x['natural_earth_10m_polygon_matches']
+                  for x in r['bus_results']}=={
+                  '2030005':['California'],'2013019':['Oregon']}
+          assert r['all_matches_inferred_source'] is True
           assert r['contemporaneous_natural_earth_shape_version_verified'] is False
           assert r['original_archived_build_full_state_labels_recovered'] is False
           assert r['empirically_admitted_11_state_EFS'] is False
