@@ -66,6 +66,8 @@ The [verified 2030–2050 mixed-clock sensitivity study](docs/verified_eleven_st
 
 **Western generation admission gate:** The [four-network real source audit](docs/verified_western_efs_generation_source_admission.md) confirms that the original **10,157-bus Western topology** and all three load-bearing EFS 2030/2040/2050 NetCDF scenarios have **zero Generator components**, despite the EFS networks' 20 Load components each. [Source-admission CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41771905008). Existing EIA-860/EIA-923/EIA-930 pipelines provide historical generation evidence, **not** source-verified future unit-to-bus mapping, hourly availability or 2030–2050 costs. Full Western empirical dispatch remains blocked until authentic generation and time-alignment inputs are integrated.
 
+**Official generator-level source staging now available:** The [verified 2024 EIA-860 generator-to-Western-bus candidate run](docs/verified_eia860_2024_generator_bus_staging.md) produces a **5,665-generator / 3,223-plant** source inventory representing **268,692 MW of operating nameplate**, preserving each unit ID, fuel, state, BA and nearest geographic candidate bus. **88 generator rows (5,831.9 MW)** are more than 50 km from their candidate bus and require priority connection review. [Successful actual-data CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41772568847). **Zero electrical plant-to-bus connections are independently approved**, and this historical nameplate screen is not a validated 2030–2050 future fleet. No unsourced generators were inserted into PyPSA.
+
 ## Four recruiter-ready work samples
 
 | Work sample | What was implemented | Verified evidence | Status |
