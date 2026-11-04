@@ -59,3 +59,24 @@ def test_unknown_native_state_name_is_rejected_not_overcounted():
     })
     with pytest.raises(ValueError,match="Unrecognized native state label"):
         audit_laf_key_semantics(buses)
+
+
+def test_crossing_laf_mass_preserves_missing_weight_as_unknown():
+    buses=pd.DataFrame({
+        "state":["Arizona","Arizona","Oregon","Oregon","Washington"],
+        "reeds_state":["AZ","NV","OR","ID","OR"],
+        "reeds_zone":["p8","p9","p5","p6","p2"],
+        "LAF_state":[0.2,0.3,0.4,float("nan"),0.1],
+    })
+    report=audit_laf_key_semantics(buses)
+    crosses={(v["native_state"],v["reeds_state"]):v
+             for v in report["cross_state_observed_laf_mass"]}
+    assert crosses[("AZ","NV")]["observed_laf_mass"]==pytest.approx(0.3)
+    assert crosses[("OR","ID")]["missing_laf_bus_count"]==1
+    assert crosses[("OR","ID")]["observed_laf_mass"]==pytest.approx(0.0)
+    assert crosses[("OR","ID")]["original_full_state_mass_reconciled"] is False
+    origins={v["native_state"]:v for v in report["observed_laf_by_native_state"]}
+    assert origins["AZ"]["observed_crossing_laf_mass"]==pytest.approx(0.3)
+    assert origins["OR"]["missing_laf_bus_count"]==1
+    assert not origins["OR"]["is_full_state_denominator_verified"]
+    assert report["historical_demand_admitted"] is False
