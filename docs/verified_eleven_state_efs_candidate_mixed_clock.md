@@ -20,7 +20,7 @@ For each EFS state `s`, local ordinal `h` and ReEDS receiving zone `z`, the cand
 
 **Both annual sums are the same** before/after applying circular source-state-hour shifts, within floating point precision. The candidate four-state allocation conserves source-hour mass, and seven-state source-to-zone factors were independently checked for constancy and left untouched. A source-hour load in a partially covered state is not assumed to be wholly Western: previous split-state Western fractions remain below one where applicable.
 
-The source has 11 × 3 × 8,760 = **289,080 source-state-hour records**. The result report gives the actual zonal output row count, zero-weight zones omitted from output, source-to-zone checks and each planning year's peak ordinals. All three years' local-ordinal peak occurs at **5417**, and fixed-offset comparison peaks at ordinal **5424**. The shifts change peak *height* slightly as well as hour alignment, unlike the seven-state all-+7 pilot.
+The source has 11 × 3 × 8,760 = **289,080 source-state-hour records** and produces **946,080 candidate state-hour-zone allocation records**; these rows are *not* 946,080 distinct hours. Exactly **one source-state-to-zone zero-weight record** is documented but not expanded into fake zero-MW time series. The result report gives the actual zonal output row count, zero-weight zones omitted from output, source-to-zone checks and each planning year's peak ordinals. All three years' local-ordinal peak occurs at **5417**, and fixed-offset comparison peaks at ordinal **5424**. The shifts change peak *height* slightly as well as hour alignment, unlike the seven-state all-+7 pilot.
 
 ## Critical interpretation / restrictions
 
