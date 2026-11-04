@@ -38,6 +38,11 @@ def audit(buses:pd.DataFrame, pinned_source:str)->dict:
     data["_missing"]=missing
     data["_pd_pos_laf_zero"]=inconsistent_pd
     data["_pd_zero_laf_pos"]=inconsistent_laf
+    data["_ratio"]=(data["_Pd"]/data["_laf"]).where(data["_pos"])
+    # Source Pd is in hundredths on the original Breakthrough base grid.
+    # The inferred denominator is clustered at cent precision for a
+    # diagnostic grouping, not a substitute for the dropped full_state key.
+    data["_denominator_cent"]=data["_ratio"].round(2)
     states=[]
     for state,g in data.groupby("state",sort=True):
         good=g[g["_pos"]]
@@ -49,6 +54,16 @@ def audit(buses:pd.DataFrame, pinned_source:str)->dict:
         else:
             center=None;max_rel=None;spread=None
         absent=g[g["_missing"]]
+        denominator_clusters=[]
+        for denom,gg in good.groupby("_denominator_cent",sort=True):
+            denominator_clusters.append({
+                "inferred_denominator_Pd":float(denom),
+                "positive_Pd_positive_LAF_buses":int(len(gg)),
+                "observed_laf_mass":float(gg["_laf"].sum()),
+                "source_Pd_sum":float(gg["_Pd"].sum()),
+                "bus_examples":[str(b) for b in gg.index[:8]],
+                "original_full_state_label_verified":False,
+            })
         states.append({
             "native_state":str(state),
             "source_bus_count":int(len(g)),
@@ -61,6 +76,7 @@ def audit(buses:pd.DataFrame, pinned_source:str)->dict:
             "missing_LAF_with_positive_Pd":int(
                 (absent["_Pd"].gt(0)&np.isfinite(absent["_Pd"].to_numpy(dtype=float))).sum()),
             "inferred_full_state_denominator_median_Pd":center,
+            "inferred_denominator_clusters":denominator_clusters,
             "inferred_denominator_max_relative_deviation":max_rel,
             "inferred_denominator_absolute_spread":spread,
             "native_state_is_original_full_state_verified":False,
