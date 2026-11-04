@@ -10,6 +10,8 @@ name: Audit available Western network LAF source attributes
       - 'src/energy_transition/efs_laf_normalization_key_audit.py'
       - 'src/energy_transition/efs_four_state_laf_source_weight_diagnostic.py'
       - 'tests/test_efs_four_state_laf_source_weight_diagnostic.py'
+      - 'src/energy_transition/efs_pinned_pd_laf_denominator_audit.py'
+      - 'tests/test_efs_pinned_pd_laf_denominator_audit.py'
       - '.github/workflows/western-source-laf-audit.yml'
 permissions:
   contents: read
@@ -89,6 +91,27 @@ jobs:
           assert r['missing_laf_can_be_imputed'] is False
           assert r['all_four_states_empirically_admitted'] is False
           PY
+      - name: Retrieve exact pinned source LAF generation algorithm
+        run: |
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/PyPSA/pypsa-usa/338af9912addbaf038c6098fe27e1e6ef099d8aa/workflow/scripts/build_base_network.py \
+            -o /tmp/western/pinned_build_base_network.py
+          test -s /tmp/western/pinned_build_base_network.py
+      - name: Audit actual Pd-derived LAF denominators and source code
+        run: |
+          python -m energy_transition.efs_pinned_pd_laf_denominator_audit \
+            --network /tmp/western/real-western-base-network.nc \
+            --upstream-source /tmp/western/pinned_build_base_network.py \
+            --out outputs/western_pinned_pd_laf_denominator.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/western_pinned_pd_laf_denominator.json').read_text())
+          assert r['pinned_source_formula_verified']
+          assert r['original_LAF_numerator']=='Pd'
+          assert r['missing_LAF_imputed'] is False
+          assert r['western_EFS_demand_admitted'] is False
+          PY
       - name: Verify audit never equates field presence with empirically admitted loads
         run: |
           python - <<'PY'
@@ -110,4 +133,5 @@ jobs:
             outputs/western_missing_laf_bus_roles.json
             outputs/western_laf_normalization_key_audit.json
             outputs/western_four_state_laf_source_weight.json
+            outputs/western_pinned_pd_laf_denominator.json
           if-no-files-found: warn
