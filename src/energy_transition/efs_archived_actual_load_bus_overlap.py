@@ -48,11 +48,21 @@ def audit(base, networks):
         loads_on_55=net.loads.loc[load_buses.isin(source)]
         loads_on_53=net.loads.loc[load_buses.isin(in_scope)]
         if not net.loads_t.p_set.empty:
-            hourly=net.loads_t.p_set
-            if len(hourly)!=8760 or set(hourly.columns)!=set(net.loads.index):
-                raise ValueError("Expected complete 8760 Load.p_set time profiles")
-            total=float(hourly.to_numpy(dtype=float).sum())
-            affected=float(hourly[loads_on_53.index].to_numpy(dtype=float).sum()) if len(loads_on_53) else 0.
+            dynamic=net.loads_t.p_set
+            if len(dynamic)!=8760 or not set(dynamic.columns).issubset(set(net.loads.index)):
+                raise ValueError("Unexpected incomplete or spurious dynamic Load.p_set columns")
+            static_only=net.loads.index.difference(dynamic.columns)
+            if not static_only.empty and net.loads.loc[static_only,"p_set"].isna().any():
+                raise ValueError("Missing dynamic Load.p_set with no static fallback")
+            if not static_only.empty and not np.isfinite(net.loads.loc[static_only,"p_set"].to_numpy(dtype=float)).all():
+                raise ValueError("Nonfinite static Load.p_set")
+            if dynamic.isna().any().any() or not np.isfinite(dynamic.to_numpy(dtype=float)).all():
+                raise ValueError("Nonfinite dynamic Load.p_set")
+            total=float(dynamic.to_numpy(dtype=float).sum())+8760*float(net.loads.loc[static_only,"p_set"].sum())
+            active_dynamic=dynamic.columns.intersection(loads_on_53.index)
+            affected=float(dynamic[active_dynamic].to_numpy(dtype=float).sum()) if len(active_dynamic) else 0.
+            active_static=static_only.intersection(loads_on_53.index)
+            affected+=8760*float(net.loads.loc[active_static,"p_set"].sum())
         else:
             raise ValueError("Archived load-bearing source missing p_set profiles")
         if not np.isfinite(total) or total<=0:raise ValueError("Invalid source demand")
@@ -60,6 +70,8 @@ def audit(base, networks):
         records.append({
             "year":int(year),
             "source_Load_components":len(net.loads),
+            "dynamic_Load_components":len(dynamic.columns),
+            "static_only_Load_components":len(static_only),
             "distinct_Load_bus_count":int(load_buses.nunique()),
             "loads_attached_to_any_of_55_source_zero_degree_positive_pd_buses":int(len(loads_on_55)),
             "loads_attached_to_any_of_53_in_scope_source_zero_degree_positive_pd_buses":int(len(loads_on_53)),
