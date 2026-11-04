@@ -19,10 +19,13 @@ def test_zero_weight_laf_missing_remains_blocked():
     r=audit_blocked_states(sample())
     rows={x["state"]:x for x in r["blocked_state_diagnostics"]}
     assert rows["California"]["missing_laf_with_zero_load_weight"]==1
+    assert rows["California"]["Pd_zero_on_missing_laf"]==1
     assert rows["California"]["laf_numerical_gate_passed"] is False
     assert rows["Nevada"]["observed_laf_mass"]==pytest.approx(1.000522)
     assert rows["Nevada"]["laf_numerical_gate_passed"] is False
     assert rows["Oregon"]["missing_laf_with_positive_load_weight"]==1
+    assert rows["Oregon"]["Pd_positive_on_missing_laf"]==1
+    assert rows["Oregon"]["Pd_is_verified_EFS_allocation_weight"] is False
     assert rows["Washington"]["missing_laf_with_invalid_or_absent_load_weight"]==1
     assert rows["Oregon"]["native_reeds_state_difference_count"]==1
     assert r["missing_laf_can_be_imputed"] is False
@@ -33,6 +36,7 @@ def test_optional_source_weight_absence_is_visible_not_filled():
     r=audit_blocked_states(sample().drop(columns=["load_weight","Pd"]))
     assert not r["source_bus_load_weight_present"]
     assert not r["source_bus_Pd_present"]
+    assert all(not x["Pd_attribute_present"] for x in r["blocked_state_diagnostics"])
     assert all(not x["load_weight_attribute_present"] for x in r["blocked_state_diagnostics"])
 
 
