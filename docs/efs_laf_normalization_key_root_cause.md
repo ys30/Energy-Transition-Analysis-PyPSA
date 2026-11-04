@@ -17,3 +17,18 @@ The separate [Western base-network LAF findings](western_base_network_laf_gap_fi
 ## Required next source-backed step
 
 Recover the complete upstream national bus set **with original `full_state` and `load_weight` before geographic filtering and later assignment** (or independently reproduce its transformation from version-pinned raw inputs). Reconcile the full-state normalization denominator, native-state/ReEDS crosswalk, 157 nulls, actual Western footprint, and 35 NARIS zone membership. Then verify hourly regional load mass conservation against original EFS state demand. No real-demand admission or real transition outcome may be claimed from the currently successful synthetic OPF.
+
+## Verified actual source-to-ReEDS crossing mass (2026-11-03)
+
+From [real Western network CI #41743955102](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41743955102), **70 buses** have distinct normalized native state and ReEDS state. The four groups carry the following original observed `LAF_state` coefficients (not Western-wide demand shares):
+
+| Native state → ReEDS state | Buses | Observed LAF mass |
+| --- | ---: | ---: |
+| AZ → NV | 20 | 0.000000000 |
+| OR → ID | 7 | 0.000680935 |
+| OR → WA | 35 | 0.016061224 |
+| WA → OR | 8 | 0.000000000 |
+
+None of these crossing records has missing LAF, but the base network still has **157 null LAF buses** elsewhere. A zero factor in a source record is not proof of zero future EFS demand. The LAFs are normalized against upstream `full_state`, and the original national scope remains unverified. The sum of crossing observed LAF is **0.016742158**, not 1.6742% of Western demand.
+
+The new `target_reeds_state_laf_decomposition` audit separates source-native and inbound cross-state factors for each receiving ReEDS state and retains null counts. It is deliberately **not** a historical or future EFS MW transfer estimate. Native-state source demand, original full-state denominators and Western footprint must first be reconstructed.
