@@ -39,7 +39,7 @@ def test_conservation_and_explicit_zero_candidate_fallback():
     assert r["hourly_zonal_demand_preserved"]
     assert r["OPF_solved"] is False
     assert d.loc[d.Load_id.eq("L0"),"fallback_original_bus_no_positive_pd_candidate"].iloc[0]
-    assert r["hypothetical_reassigned_fraction_of_original_annual_load"]==pytest.approx(1.)
+    assert r["hypothetical_reassigned_fraction_of_original_annual_load"]==pytest.approx(189/190)
     assert r["original_annual_load_mwh"]==pytest.approx(sum(range(1,20))*8760)
 
 def test_missing_archived_hour_rejected():
