@@ -1,0 +1,71 @@
+name: Compare 11-state EFS candidate and fixed-hour coincident peaks
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-eleven-state-candidate-clock.yml'
+      - 'src/energy_transition/efs_eleven_state_candidate_clock.py'
+      - 'tests/test_efs_eleven_state_candidate_clock.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pandas and numpy for source-only comparison
+        run: |
+          python -m pip install pandas numpy pytest
+      - name: Validate synthetic boundary and state/source guards
+        run: |
+          PYTHONPATH=src python -m pytest tests/test_efs_eleven_state_candidate_clock.py -q
+      - name: Retrieve archived original 11-state EFS and seven-state zonal outputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-source /tmp/efs-seven /tmp/efs-candidate
+          gh run download 41265678862 -R "${{ github.repository }}" \
+            -n pypsa-usa-efs-source-evidence -D /tmp/efs-source
+          gh run download 41276635829 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs-seven
+          gh run download 41763391214 -R "${{ github.repository }}" \
+            -n western-existing-network-laf-evidence -D /tmp/efs-candidate
+          test -s /tmp/efs-source/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+          test -s /tmp/efs-seven/efs-real-laf-zonal-pilot.csv.gz
+          test -s /tmp/efs-candidate/outputs/western_four_state_denominator_candidate.json
+      - name: Analyze actual archived source EFS plus candidate LAF and mixed shifts
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_eleven_state_candidate_clock \
+            --source /tmp/efs-source/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --seven /tmp/efs-seven/efs-real-laf-zonal-pilot.csv.gz \
+            --four-candidate /tmp/efs-candidate/outputs/western_four_state_denominator_candidate.json \
+            --out outputs/efs-eleven-state-candidate-clock.json
+      - name: Confirm actual results remain purely candidate and numerically conservative
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('outputs/efs-eleven-state-candidate-clock.json').read_text())
+          assert report['source_state_count']==11
+          assert report['candidate_new_state_count']==4
+          assert report['unchanged_existing_state_count']==7
+          assert report['candidate_state_source_to_zone_conservation_verified']
+          assert report['source_state_hour_count']==11*3*8760
+          assert report['empirically_admitted_11_state_load'] is False
+          assert report['source_EFS_localhour_to_actual_UTC_verified'] is False
+          assert report['full_western_calibrated_OPF_solved'] is False
+          for yr in report['planning_year_results']:
+              assert abs(yr['annual_allocated_mwh']-yr['annual_allocated_compat_mwh'])<1e-4
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-eleven-state-mixed-clock-candidate-report
+          path: outputs/efs-eleven-state-candidate-clock.json
+          if-no-files-found: warn
