@@ -55,6 +55,36 @@ def audit_laf_key_semantics(buses: pd.DataFrame) -> dict:
     pairs=(frame.groupby(["normalized_native_state","normalized_reeds_state"],dropna=False)
            .size().reset_index(name="bus_count"))
     mismatches=pairs[pairs["normalized_native_state"]!=pairs["normalized_reeds_state"]]
+    # Quantify observed allocation mass for each native-to-ReEDS crossing.
+    # Never infer absent factors as zero, and never use raw mass as a
+    # fully reconciled EFS demand transfer without original full_state data.
+    mismatch_rows = frame.loc[~frame["key_match"]].copy()
+    crossing_mass = []
+    for (native, reeds), group in mismatch_rows.groupby(
+        ["normalized_native_state", "normalized_reeds_state"], sort=True
+    ):
+        good = group.loc[group["valid_laf"], "laf_numeric"]
+        crossing_mass.append({
+            "native_state": str(native),
+            "reeds_state": str(reeds),
+            "bus_count": int(len(group)),
+            "valid_laf_bus_count": int(group["valid_laf"].sum()),
+            "missing_laf_bus_count": int(group["laf_numeric"].isna().sum()),
+            "observed_laf_mass": float(good.sum()),
+            "original_full_state_mass_reconciled": False,
+        })
+    by_origin = []
+    for state, group in frame.groupby("normalized_native_state", sort=True):
+        good = group.loc[group["valid_laf"], "laf_numeric"]
+        crossing = group.loc[~group["key_match"] & group["valid_laf"], "laf_numeric"]
+        by_origin.append({
+            "native_state": str(state),
+            "source_bus_count": int(len(group)),
+            "missing_laf_bus_count": int(group["laf_numeric"].isna().sum()),
+            "observed_laf_sum": float(good.sum()),
+            "observed_crossing_laf_mass": float(crossing.sum()),
+            "is_full_state_denominator_verified": False,
+        })
     return {
         "source_bus_count":int(len(frame)),
         "raw_laf_origin_grouping":"full_state (removed from upstream exported bus attributes)",
@@ -67,6 +97,8 @@ def audit_laf_key_semantics(buses: pd.DataFrame) -> dict:
             for r in mismatches.head(25).itertuples(index=False)
         ],
         "observed_laf_by_reeds_state":by_state,
+        "cross_state_observed_laf_mass": crossing_mass,
+        "observed_laf_by_native_state": by_origin,
         "original_full_state_grouping_reconstructible_from_this_network":False,
         "renormalization_performed":False,
         "source_derived_load_weight_verified":False,
