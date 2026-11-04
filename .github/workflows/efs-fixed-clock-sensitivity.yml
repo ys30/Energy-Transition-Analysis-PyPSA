@@ -1,0 +1,58 @@
+name: Verify archived EFS fixed-offset sensitivity
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-fixed-clock-sensitivity.yml'
+      - 'src/energy_transition/efs_fixed_clock_sensitivity.py'
+      - 'tests/test_efs_fixed_clock_sensitivity.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sensitivity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install audit dependencies and unit test
+        run: |
+          python -m pip install pandas numpy pytest
+          PYTHONPATH=src python -m pytest tests/test_efs_fixed_clock_sensitivity.py -q
+      - name: Restore archived real-input seven-state EFS zonal pilot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-pilot
+          gh run download 41276635829 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs-pilot
+          test -s /tmp/efs-pilot/efs-real-laf-zonal-pilot.csv.gz
+      - name: Compare local versus pinned fixed-offset hourly alignment
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_fixed_clock_sensitivity \
+            --zonal /tmp/efs-pilot/efs-real-laf-zonal-pilot.csv.gz \
+            --out outputs/efs-fixed-clock-seven-state-sensitivity.json
+      - name: Enforce energy and non-UTC-admission assertions
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('outputs/efs-fixed-clock-seven-state-sensitivity.json').read_text())
+          assert d['state_year_zone_count']>0
+          assert d['strict_per_zone_hour_permutation']
+          assert d['no_energy_added_by_clock_transform']
+          assert d['actual_utc_alignment_verified'] is False
+          assert d['full_western_calibrated_opf_solved'] is False
+          for year in d['year_comparisons']:
+              assert abs(year['peak_difference_mw']) < 1e-5
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-fixed-clock-seven-state-sensitivity
+          path: outputs/efs-fixed-clock-seven-state-sensitivity.json
+          if-no-files-found: warn
