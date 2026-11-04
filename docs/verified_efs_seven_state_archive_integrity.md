@@ -33,3 +33,11 @@ The first workflow attempt #41751999680 failed because it incorrectly required t
 4. Resolve the four excluded states and any missing national-to-Western demand mass before generalizing projected Western-region energy outcomes.
 
 **Scope:** this is reproducible source-to-output numerical integrity, not an empirically calibrated 35-zone Western energy-transition finding.
+
+## LocalHourID strict ordinal gate (additional verification)
+
+The independent EFS pilot audit now requires each of the **21** admitted state-year source series, and each individual state-year-zone output series, to contain exactly the integer ordinals `1..8760` without gaps, duplicates or offset IDs. It also checks that a state-year's zone inventory is stable. This is stronger than verifying only that the union of all source hours has 8760 entries; a single zone's missing hour must fail.
+
+**This check is not a timezone conversion.** The [NLR EFS dataset catalog](https://data.nlr.gov/submissions/126) documents the Reference/Moderate scenario and years, but its overview alone does not establish the specific downloaded CSV's hour-begin/end convention, time-zone offset, weather-year reference calendar or DST treatment. A [related, distinct ReEDS demand-profile release](https://zenodo.org/records/18461543) describes 2012 weather-year chronology and fixed CST (UTC-06:00) for *that* ReEDS data product. The related release's time convention must not silently be transplanted to this archived EFS CSV without direct source/version verification.
+
+Until verified from the *specific EFS input* and reconciled with generation/weather profiles and model snapshot semantics, `local_hour_id` remains an ordinal axis only. Strictly passing all 8760 integers does not establish simultaneous Western-grid UTC operation.
