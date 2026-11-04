@@ -153,7 +153,6 @@ def analyze_combined_source(
             "annual_allocated_mwh":float(local.sum()),
             "annual_allocated_compat_mwh":float(compat.sum()),
             "annual_four_candidate_source_mwh":float(
-                four.loc[four.year.eq(year),"load_mw"].sum()/len(weights) if False else
                 src.loc[src.year.eq(year)&src.state.isin(CANDIDATE),"load_mw"].sum()),
         })
         if not np.isclose(local.sum(),compat.sum(),rtol=1e-12,atol=1e-5):
