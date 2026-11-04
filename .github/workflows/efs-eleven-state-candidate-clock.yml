@@ -36,15 +36,22 @@ jobs:
             -n real-western-base-network-attempt -D /tmp/efs-seven
           gh run download 41763391214 -R "${{ github.repository }}" \
             -n western-existing-network-laf-evidence -D /tmp/efs-candidate
-          test -s /tmp/efs-source/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
-          test -s /tmp/efs-seven/efs-real-laf-zonal-pilot.csv.gz
-          test -s /tmp/efs-candidate/outputs/western_four_state_denominator_candidate.json
+          find /tmp/efs-source /tmp/efs-seven /tmp/efs-candidate -type f -maxdepth 5 -print
+          SRC=$(find /tmp/efs-source -name 'efs-core-west-2030-2040-2050-hourly.csv.gz' -type f -print -quit)
+          SEVEN=$(find /tmp/efs-seven -name 'efs-real-laf-zonal-pilot.csv.gz' -type f -print -quit)
+          FOUR=$(find /tmp/efs-candidate -name 'western_four_state_denominator_candidate.json' -type f -print -quit)
+          test -n "$SRC" && test -s "$SRC"
+          test -n "$SEVEN" && test -s "$SEVEN"
+          test -n "$FOUR" && test -s "$FOUR"
+          echo "EFS_SOURCE_FILE=$SRC" >> "$GITHUB_ENV"
+          echo "EFS_SEVEN_FILE=$SEVEN" >> "$GITHUB_ENV"
+          echo "EFS_FOUR_FILE=$FOUR" >> "$GITHUB_ENV"
       - name: Analyze actual archived source EFS plus candidate LAF and mixed shifts
         run: |
           PYTHONPATH=src python -m energy_transition.efs_eleven_state_candidate_clock \
-            --source /tmp/efs-source/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
-            --seven /tmp/efs-seven/efs-real-laf-zonal-pilot.csv.gz \
-            --four-candidate /tmp/efs-candidate/outputs/western_four_state_denominator_candidate.json \
+            --source "$EFS_SOURCE_FILE" \
+            --seven "$EFS_SEVEN_FILE" \
+            --four-candidate "$EFS_FOUR_FILE" \
             --out outputs/efs-eleven-state-candidate-clock.json
       - name: Confirm actual results remain purely candidate and numerically conservative
         run: |
