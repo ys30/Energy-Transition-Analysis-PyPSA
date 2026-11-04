@@ -54,6 +54,12 @@ jobs:
           report=json.loads(Path('outputs/efs-cross-bus-census-2023-evidence.json').read_text())
           assert report['independent_state_polygon_point_overlay_performed']
           assert len(report['bus_audits'])==2
+          assert report['original_zip_sha256']=='8ded0ef036e205e246ae4b03a66873f7e1eed50285b993702ce5aca674283a2e'
+          by_id={r['bus_id']:r for r in report['bus_audits']}
+          assert {k:r['tiger_2023_polygon_matches'] for k,r in by_id.items()}=={
+              '2030005':['California'],'2013019':['Oregon']}
+          assert by_id['2030005']['boundary_proximity_under_1000m'] is True
+          assert by_id['2013019']['boundary_proximity_under_1000m'] is False
           assert report['original_pinned_full_state_polygon_recovered'] is False
           assert report['candidate_4_state_EFS_weights_empirically_admitted'] is False
           assert report['simultaneous_utc_weather_alignment_verified'] is False
