@@ -80,3 +80,21 @@ def test_crossing_laf_mass_preserves_missing_weight_as_unknown():
     assert origins["OR"]["missing_laf_bus_count"]==1
     assert not origins["OR"]["is_full_state_denominator_verified"]
     assert report["historical_demand_admitted"] is False
+
+
+def test_target_reeds_mass_decomposition_separates_native_and_inbound():
+    buses=pd.DataFrame({
+        "state":["Arizona","Nevada","Oregon","Oregon","Washington"],
+        "reeds_state":["NV","NV","OR","WA","OR"],
+        "reeds_zone":["p9","p9","p5","p2","p5"],
+        "LAF_state":[0.1,0.5,0.4,0.2,float("nan")],
+    })
+    report=audit_laf_key_semantics(buses)
+    zones={r["reeds_state"]:r for r in report["target_reeds_state_laf_decomposition"]}
+    assert zones["NV"]["native_state_matching_observed_laf"]==pytest.approx(0.5)
+    assert zones["NV"]["other_native_state_inbound_observed_laf"]==pytest.approx(0.1)
+    assert zones["NV"]["total_observed_laf"]==pytest.approx(0.6)
+    assert zones["OR"]["missing_laf_bus_count"]==1
+    assert zones["OR"]["other_native_state_inbound_observed_laf"]==pytest.approx(0.0)
+    assert zones["WA"]["other_native_state_inbound_observed_laf"]==pytest.approx(0.2)
+    assert not zones["NV"]["empirical_state_load_transfer_verified"]
