@@ -1,0 +1,65 @@
+name: EFS first-bus versus source-Pd weighted representative load sensitivity
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-pd-weighted-placement-sensitivity.yml'
+      - 'src/energy_transition/efs_pd_weighted_bus_placement_sensitivity.py'
+      - 'tests/test_efs_pd_weighted_bus_placement_sensitivity.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source network and test dependencies
+        run: python -m pip install -e '.[model]' netcdf4 networkx pytest
+      - name: Check positive-Pd source allocation and annual/hourly energy invariants
+        run: PYTHONPATH=src python -m pytest tests/test_efs_pd_weighted_bus_placement_sensitivity.py -q
+      - name: Recover actual 2030 seven-state EFS saved NetCDF and source network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-original
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs-original
+          test -s /tmp/efs-original/real-western-base-network.nc
+          test -s /tmp/efs-original/efs-real-2030-local-hour-load-only.nc
+      - name: Compare original representative bus with connected positive-Pd zone distribution
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_pd_weighted_bus_placement_sensitivity \
+            --base /tmp/efs-original/real-western-base-network.nc \
+            --load-net /tmp/efs-original/efs-real-2030-local-hour-load-only.nc \
+            --outdir outputs/efs_2030_pd_weighted_placement_sensitivity
+      - name: Require real 20-load original energy and no model admission
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_2030_pd_weighted_placement_sensitivity/efs_2030_zone_firstbus_vs_source_pd_summary.json').read_text())
+          assert r['source_original_network_buses']==10157
+          assert r['source_original_2030_loads']==20
+          assert r['original_loads_with_zero_pd_source_bus']==10
+          assert r['zones_with_pd_weighted_connected_alternative']==19
+          assert r['zones_falling_back_to_first_bus']==1
+          assert abs(r['original_annual_load_mwh']-274706987.11412096)<0.05
+          assert abs(r['original_annual_load_mwh']-r['candidate_annual_load_mwh'])<0.05
+          assert r['original_and_candidate_each_hour_demand_equal']
+          assert r['hourly_zonal_demand_preserved']
+          assert r['network_original_load_attachments_modified'] is False
+          assert r['candidate_bus_source_grid_connection_certified'] is False
+          assert r['OPF_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-pd-weighted-vs-firstbus-source-placement
+          path: outputs/efs_2030_pd_weighted_placement_sensitivity/
+          if-no-files-found: warn
