@@ -70,3 +70,13 @@ def test_missing_source_hour_is_rejected():
     src=src.drop(index=src.index[0])
     with pytest.raises(ValueError,match="Missing/noncontiguous local-hour"):
         analyze_combined_source(src,seven,report)
+
+
+def test_zero_source_weight_zone_is_preserved_as_metadata_not_synthetic_hourly_load():
+    src,seven,report=fixture()
+    report["source_to_reeds_zone_candidate_weights"].append(
+        {"source_state":"CA","reeds_zone":"p0","weight":0.0})
+    r=analyze_combined_source(src,seven,report)
+    assert r["candidate_zero_weight_zones_recorded_but_not_allocated"]==1
+    assert r["combined_zonal_state_hour_rows"]==11*3*8760
+    assert not r["empirically_admitted_11_state_load"]
