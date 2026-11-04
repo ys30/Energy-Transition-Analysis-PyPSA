@@ -1,0 +1,70 @@
+name: Audit Western candidate EIA plant bus actual archived topology
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-top3-candidate-topology.yml'
+      - 'src/energy_transition/eia860_top3_candidate_network_topology.py'
+      - 'tests/test_eia860_top3_candidate_network_topology.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  topology:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source network and graph audit dependencies
+        run: |
+          python -m pip install -e '.[model]' netcdf4 networkx pytest
+      - name: Test fail-closed source bus topology review
+        run: PYTHONPATH=src python -m pytest tests/test_eia860_top3_candidate_network_topology.py -q
+      - name: Restore real archived topology and 63 official EIA plant coordinates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western-topology /tmp/eia-named
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/western-topology
+          gh run download 41774793024 -R "${{ github.repository }}" \
+            -n eia860-2024-official-named-high-risk-plant-points -D /tmp/eia-named
+          NETWORK=$(find /tmp/western-topology -name real-western-base-network.nc -type f -print -quit)
+          NAMES=$(find /tmp/eia-named -name official_named_63plant_poi_review_queue.csv -type f -print -quit)
+          test -n "$NETWORK" && test -s "$NETWORK"
+          test -n "$NAMES" && test -s "$NAMES"
+          echo "REAL_ARCHIVED_NETWORK=$NETWORK" >> "$GITHUB_ENV"
+          echo "EIA_NAMED_PLANTS=$NAMES" >> "$GITHUB_ENV"
+      - name: Analyze three high-risk synthetic geographic bus topologies
+        run: |
+          PYTHONPATH=src python -m energy_transition.eia860_top3_candidate_network_topology \
+            --network "$REAL_ARCHIVED_NETWORK" \
+            --named-plants "$EIA_NAMED_PLANTS" \
+            --out outputs/eia860_high_risk_bus_topology.json
+      - name: Require original source geometry and zero unsupported electrical approvals
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/eia860_high_risk_bus_topology.json').read_text())
+          assert r['archived_network_bus_count']==10157
+          assert r['archived_network_line_count']==9726
+          assert r['archived_network_transformer_count']==2080
+          assert r['source_plant_cohort_count']==63
+          assert abs(r['source_plant_historical_nameplate_mw']-5831.9)<1e-5
+          assert r['source_candidate_bus_count']==15
+          assert {x['synthetic_candidate_bus_id'] for x in r['audited_top_candidate_buses']}=={'2053003','2053000','2077001'}
+          assert r['real_utility_POI_connections_verified']==0
+          assert r['topology_used_for_electrical_admission'] is False
+          assert r['future_2030_2050_generation_dispatch_admitted'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-top-three-synthetic-bus-topology-actual-network
+          path: outputs/eia860_high_risk_bus_topology.json
+          if-no-files-found: warn
