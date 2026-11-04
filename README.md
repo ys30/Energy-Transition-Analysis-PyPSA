@@ -70,6 +70,10 @@ The [verified 2030–2050 mixed-clock sensitivity study](docs/verified_eleven_st
 
 **Priority electrical-interconnection evidence queue:** A [verified generator-to-plant risk triage](docs/verified_2024_generator_plant_poi_triage.md) now identifies **63 distinct plants / 88 EIA-860 operating generator rows** whose nearest geographic source-topology buses are over **50 km** away, totaling **5,831.9 MW** of 2024 nameplate. The top 20 source plants cover **4,922.7 MW** (~84.4%) of those candidate-risk MW. [Source CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41773439738). This is an audit prioritization rather than independently confirmed electrical connectivity, generator admission or 2030–2050 dispatch modeling.
 
+**New network-crosswalk concentration finding:** [Verified cluster audit](docs/verified_2024_distant_plant_bus_collision_risk.md) shows that the **63** distant EIA source plants (5,831.9 MW historical nameplate) collapse into only **15** nearest synthetic candidate buses; **58** plants (5,118.3 MW) share a candidate bus with at least one other distant plant. The three largest candidate IDs (`2053003`, `2053000`, `2077001`) account for **4,736.8 MW** of that screened subset. [Successful CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41774150894). This is an **uncertainty finding in the GIS-to-synthetic-topology crosswalk**, not physical grid congestion or approved plant connections.
+
+![Official EIA-860 2024 historical nameplate concentrated into unverified synthetic candidate buses](figures/portfolio_eia860_distant_bus_clusters.svg)
+
 ## Four recruiter-ready work samples
 
 | Work sample | What was implemented | Verified evidence | Status |
