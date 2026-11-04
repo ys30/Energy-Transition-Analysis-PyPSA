@@ -60,7 +60,9 @@ The [8,784-hour storage gap-fill sensitivity](docs/verified_annual_storage_gap_s
 
 The [verified 2030–2050 mixed-clock sensitivity study](docs/verified_eleven_state_efs_candidate_mixed_clock.md) combines **actual archived NLR EFS demand** for 11 Western states with the **unchanged seven-state LAF pilot** and **numerically audited candidate weights** for CA/NV/OR/WA. The pinned +7/+8 hour shift changes candidate coincident peak by **+23.54 MW (2030), +31.84 MW (2040), +35.97 MW (2050)** relative to an unshifted LocalHourID comparison, while conserving total annual allocated load (**768.25, 848.88, 972.30 TWh**, respectively). [Verified workflow](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41764316720).
 
-**Scope guard:** The original `full_state` geography for two crossing source-denominator buses, actual EFS UTC/DST interpretation and Western generator/weather snapshot compatibility have **not** been independently certified. This is a reproducible **candidate temporal sensitivity**, **not** a verified Western hourly demand profile, empirical OPF, emissions forecast, or electricity-transition outcome.
+**New independent geographic corroboration:** Official U.S. Census 2023 TIGER state polygons place network node `2030005` in **California** (about 198 m from the border) and node `2013019` in **Oregon** (about 4.42 km from the border), matching their independently inferred source LAF denominators despite later network labels of Nevada and Washington. [Verified GIS evidence](docs/verified_census_border_bus_independent_overlay.md). These modern shapes **do not recover** the exact original pinned `full_state` GIS, so the four-state mapping is still a candidate.
+
+**Scope guard:** The exact original `full_state` GIS for the two crossing source-denominator buses, actual EFS UTC/DST interpretation and Western generator/weather snapshot compatibility have **not** been independently certified. This is a reproducible **candidate temporal sensitivity**, **not** a verified Western hourly demand profile, empirical OPF, emissions forecast, or electricity-transition outcome.
 
 ## Four recruiter-ready work samples
 
