@@ -68,6 +68,8 @@ The [verified 2030–2050 mixed-clock sensitivity study](docs/verified_eleven_st
 
 **Official generator-level source staging now available:** The [verified 2024 EIA-860 generator-to-Western-bus candidate run](docs/verified_eia860_2024_generator_bus_staging.md) produces a **5,665-generator / 3,223-plant** source inventory representing **268,692 MW of operating nameplate**, preserving each unit ID, fuel, state, BA and nearest geographic candidate bus. **88 generator rows (5,831.9 MW)** are more than 50 km from their candidate bus and require priority connection review. [Successful actual-data CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41772568847). **Zero electrical plant-to-bus connections are independently approved**, and this historical nameplate screen is not a validated 2030–2050 future fleet. No unsourced generators were inserted into PyPSA.
 
+**Priority electrical-interconnection evidence queue:** A [verified generator-to-plant risk triage](docs/verified_2024_generator_plant_poi_triage.md) now identifies **63 distinct plants / 88 EIA-860 operating generator rows** whose nearest geographic source-topology buses are over **50 km** away, totaling **5,831.9 MW** of 2024 nameplate. The top 20 source plants cover **4,922.7 MW** (~84.4%) of those candidate-risk MW. [Source CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41773439738). This is an audit prioritization rather than independently confirmed electrical connectivity, generator admission or 2030–2050 dispatch modeling.
+
 ## Four recruiter-ready work samples
 
 | Work sample | What was implemented | Verified evidence | Status |
