@@ -1,0 +1,60 @@
+name: Compare three source-bounded EFS zonal load-placement rules
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-three-bus-placement-rules.yml'
+      - 'src/energy_transition/efs_single_max_pd_vs_multibus.py'
+      - 'tests/test_efs_single_max_pd_vs_multibus.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install exact-source audit requirements
+        run: python -m pip install pandas numpy pytest
+      - name: Verify three-method compare and conservative source-Pd shares
+        run: PYTHONPATH=src python -m pytest tests/test_efs_single_max_pd_vs_multibus.py -q
+      - name: Download previously CI-verified actual 2030 EFS source placement table
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source
+          gh run download 41874208815 -R "${{ github.repository }}" \
+            -n efs-2030-pd-weighted-vs-firstbus-source-placement -D /tmp/source
+          FILE=$(find /tmp/source -name efs_2030_zone_firstbus_vs_source_pd_candidates.csv -type f -print -quit)
+          test -n "$FILE" && test -s "$FILE"
+          echo "VERIFIED_SOURCE_CANDIDATES=$FILE" >> "$GITHUB_ENV"
+      - name: Compare first source bus, single maximum Pd source bus, all Pd-weighted buses
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_single_max_pd_vs_multibus \
+            --firstbus-candidates "$VERIFIED_SOURCE_CANDIDATES" \
+            --outdir outputs/efs_three_bus_placement_rules
+      - name: Ensure source population matches original and all physical claims prohibited
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_three_bus_placement_rules/efs_2030_three_bus_placement_rules.json').read_text())
+          assert r['original_zone_count']==20
+          assert r['candidate_fallback_zones']==1
+          assert abs(r['original_2030_archived_annual_mwh']-274706987.11412096)<0.05
+          assert abs(r['multi_pd_weighted_reallocated_share']-.9961455890536226)<1e-8
+          assert r['original_20_zonal_hourly_load_profiles_altered'] is False
+          assert r['utility_load_delivery_points_certified'] is False
+          assert r['full_western_opf_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-three-source-bus-placement-rules
+          path: outputs/efs_three_bus_placement_rules/
+          if-no-files-found: warn
