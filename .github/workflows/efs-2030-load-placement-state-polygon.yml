@@ -1,0 +1,63 @@
+name: Independently overlay EFS candidate load buses on Natural Earth state boundaries
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-2030-load-placement-state-polygon.yml'
+      - 'src/energy_transition/efs_2030_placement_state_polygon_audit.py'
+      - 'tests/test_efs_2030_placement_state_polygon_audit.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  polygon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install original source GIS validation dependencies
+        run: python -m pip install pandas numpy geopandas shapely pyogrio pytest
+      - name: Test state polygon inclusion and scope limits
+        run: PYTHONPATH=src python -m pytest tests/test_efs_2030_placement_state_polygon_audit.py -q
+      - name: Restore verified source bus coordinates and pinned GIS family
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-polygon
+          gh run download 41875462614 -R "${{ github.repository }}" \
+            -n efs-2030-source-firstbus-maxpd-geodesic-sensitivity -D /tmp/efs-polygon
+          SOURCE=$(find /tmp/efs-polygon -name efs_2030_single_max_pd_geographic_bus_distance.csv -type f -print -quit)
+          test -n "$SOURCE" && test -s "$SOURCE"
+          echo "SOURCE_BUS_COORDINATES=$SOURCE" >> "$GITHUB_ENV"
+          curl --fail --retry 3 --silent --show-error --location \
+            https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_admin_1_states_provinces_lakes.zip \
+            -o /tmp/efs-polygon/admin1.zip
+          test -s /tmp/efs-polygon/admin1.zip
+      - name: Overlay actual 20 source zone candidate pairs on independent state polygons
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_2030_placement_state_polygon_audit \
+            --candidate-geo "$SOURCE_BUS_COORDINATES" \
+            --natural-earth-zip /tmp/efs-polygon/admin1.zip \
+            --outdir outputs/efs_2030_candidate_state_polygons
+      - name: Validate original 20 sources and provenance limits
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_2030_candidate_state_polygons/efs_2030_20zone_geographic_candidate_state_polygon.json').read_text())
+          assert r['source_original_zonal_Load_count']==20
+          assert r['natural_earth_download_zip_sha256']=='7c41f8aa2827c6cfbd458faff584119bb3a628047f0c4b45cff5fa071cc8a11b'
+          assert r['original_full_state_archived_upstream_geometry_cache_verified'] is False
+          assert r['official_utility_delivery_points_certified'] is False
+          assert r['EFS_2030_2050_physical_OPF_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-20-source-zone-state-polygon-comparison
+          path: outputs/efs_2030_candidate_state_polygons/
+          if-no-files-found: warn
