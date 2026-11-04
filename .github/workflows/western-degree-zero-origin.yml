@@ -1,0 +1,58 @@
+name: Classify Western real network degree-zero bus source origins
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/western-degree-zero-origin.yml'
+      - 'src/energy_transition/western_degree_zero_origin_audit.py'
+      - 'tests/test_western_degree_zero_origin_audit.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PyPSA and graph audit
+        run: |
+          python -m pip install -e '.[model]' netcdf4 networkx pytest
+      - name: Run source-type partition test
+        run: PYTHONPATH=src python -m pytest tests/test_western_degree_zero_origin_audit.py -q
+      - name: Restore pinned original network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/western
+          test -s /tmp/western/real-western-base-network.nc
+      - name: Analyze archived zero-degree source node taxonomy
+        run: |
+          PYTHONPATH=src python -m energy_transition.western_degree_zero_origin_audit \
+            --network /tmp/western/real-western-base-network.nc \
+            --out outputs/western_degree_zero_origin.json
+      - name: Fail closed if taxonomy does not reproduce source network
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/western_degree_zero_origin.json').read_text())
+          assert r['original_network_bus_count']==10157
+          assert r['line_transformer_zero_degree_bus_count']==877
+          assert r['missing_laf_source_offshore_count_in_entire_network']==157
+          assert r['zero_degree_link_touched_count']==0
+          assert r['zero_degree_buses_are_real_grid_outages'] is False
+          assert r['full_western_electric_dispatch_verified'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: western-real-network-zero-degree-source-taxonomy
+          path: outputs/western_degree_zero_origin.json
+          if-no-files-found: warn
