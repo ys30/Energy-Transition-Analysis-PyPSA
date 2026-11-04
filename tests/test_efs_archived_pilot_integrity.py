@@ -37,7 +37,7 @@ def test_duplicate_source_hour_rejected():
 def test_zone_hour_omission_rejected():
     src,z=fixtures()
     z=z.drop(index=z.index[0])
-    with pytest.raises(ValueError,match="Incomplete zone"):
+    with pytest.raises(ValueError,match="zone ordinal coverage"):
         audit_archived_pilot(src,z)
 
 
