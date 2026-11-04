@@ -36,10 +36,10 @@ def audit_natural_earth(points:pd.DataFrame, ne, *, archive_sha256:str, source_c
         raise ValueError("Missing two exact original network bus coordinates")
     if not {"name","iso_a2"}.issubset(ne.columns) or ne.crs is None:
         raise ValueError("Unexpected Natural Earth layer schema/CRS")
-    subset=ne.loc[ne.iso_a2.eq("US") & ne.name.isin(
+    subset=ne.loc[ne.iso_a2.eq("US") & ne["name"].isin(
         {"California","Nevada","Oregon","Washington"}
     )].to_crs("EPSG:4326")
-    if set(subset.name)!={"California","Nevada","Oregon","Washington"}:
+    if set(subset["name"])!={"California","Nevada","Oregon","Washington"}:
         raise ValueError("Natural Earth four-state coverage is incomplete")
     result=[]
     for _,row in points.iterrows():
@@ -53,7 +53,7 @@ def audit_natural_earth(points:pd.DataFrame, ne, *, archive_sha256:str, source_c
         x=float(row.x);y=float(row.y)
         if not np.isfinite([x,y]).all():raise ValueError("Missing source point coordinates")
         pt=Point(x,y)
-        matches=sorted(str(g.name) for _,g in subset.iterrows() if g.geometry.covers(pt))
+        matches=sorted(str(g["name"]) for _,g in subset.iterrows() if g.geometry.covers(pt))
         result.append({
             "bus_id":bid,
             "coordinates":[x,y],
