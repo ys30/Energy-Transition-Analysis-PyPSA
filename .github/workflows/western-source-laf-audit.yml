@@ -68,6 +68,8 @@ jobs:
           print(json.dumps({k:v for k,v in report.items()
                 if k not in ('observed_laf_by_reeds_state','state_reeds_state_mismatch_examples')},indent=2))
           print(json.dumps(report['state_reeds_state_mismatch_examples'],indent=2))
+          print(json.dumps(report['cross_state_observed_laf_mass'],indent=2))
+          print(json.dumps(report['observed_laf_by_native_state'],indent=2))
           assert report['historical_demand_admitted'] is False
           assert report['renormalization_performed'] is False
           PY
