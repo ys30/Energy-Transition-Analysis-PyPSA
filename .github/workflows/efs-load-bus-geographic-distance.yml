@@ -1,0 +1,66 @@
+name: Audit 2030 EFS source bus placement coordinate displacement
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-load-bus-geographic-distance.yml'
+      - 'src/energy_transition/efs_2030_load_bus_geographic_distance.py'
+      - 'tests/test_efs_2030_load_bus_geographic_distance.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  geographic-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install original PyPSA network read and geographic QA requirements
+        run: python -m pip install -e '.[model]' netcdf4 pytest
+      - name: Test coordinate distance logic and source-identity fail-closed checks
+        run: PYTHONPATH=src python -m pytest tests/test_efs_2030_load_bus_geographic_distance.py -q
+      - name: Recover pinned source network and three-method original EFS placement artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western /tmp/placement
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/western
+          gh run download 41874891129 -R "${{ github.repository }}" \
+            -n efs-2030-three-source-bus-placement-rules -D /tmp/placement
+          BASE=$(find /tmp/western -name real-western-base-network.nc -type f -print -quit)
+          PLACEMENT=$(find /tmp/placement -name efs_2030_three_bus_placement_rules.csv -type f -print -quit)
+          test -n "$BASE" && test -s "$BASE"
+          test -n "$PLACEMENT" && test -s "$PLACEMENT"
+          echo "SOURCE_WESTERN_NETWORK=$BASE" >> "$GITHUB_ENV"
+          echo "SOURCE_PLACEMENT=$PLACEMENT" >> "$GITHUB_ENV"
+      - name: Calculate original-versus-max-Pd synthetic bus coordinate displacement
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_2030_load_bus_geographic_distance \
+            --base "$SOURCE_WESTERN_NETWORK" --placement "$SOURCE_PLACEMENT" \
+            --outdir outputs/efs_geographic_bus_placement
+      - name: Enforce 20 original zones and prevent physical geography overstatement
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('outputs/efs_geographic_bus_placement/efs_2030_single_max_pd_geographic_bus_summary.json').read_text())
+          assert d['original_source_zone_count']==20
+          assert abs(d['original_source_annual_load_mwh']-274706987.11412096)<0.05
+          assert d['zones_changing_single_max_pd_bus_id']==19
+          assert d['nonzero_load_zones_changing_bus_id']==19
+          assert d['single_max_pd_geodesic_distance_km_load_weighted_mean']>=0
+          assert d['real_grid_branch_path_lengths_measured'] is False
+          assert d['utility_points_of_delivery_certified'] is False
+          assert d['future_Western_OPF_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-source-firstbus-maxpd-geodesic-sensitivity
+          path: outputs/efs_geographic_bus_placement/
+          if-no-files-found: warn
