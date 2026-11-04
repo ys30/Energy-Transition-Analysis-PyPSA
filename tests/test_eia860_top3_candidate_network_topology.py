@@ -28,7 +28,7 @@ def test_real_source_network_incidences_without_poi_approval():
     assert d["2053003"]["archived_line_count"]==1
     assert d["2053003"]["archived_transformer_count"]==1
     assert d["2077001"]["distinct_topological_neighbors"]==0
-    assert r["topology_connected_component_count"]==2
+    assert r["line_transformer_graph_connected_component_count"]==2
     assert r["real_utility_POI_connections_verified"]==0
     assert r["future_2030_2050_generation_dispatch_admitted"] is False
 
