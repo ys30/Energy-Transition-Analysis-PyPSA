@@ -27,8 +27,12 @@ def audit_archived_pilot(source: pd.DataFrame, zonal: pd.DataFrame, *, tolerance
     src["state"]=src["state"].replace(STATE_NAMES)
     if set(src.year)!=YEARS or set(out.year)!=YEARS:
         raise ValueError("Must contain exactly EFS planning years 2030, 2040, 2050")
-    if set(src.state)!=set(STATE_NAMES.values()) or set(out.state)!=set(STATE_NAMES.values()):
-        raise ValueError("Exact seven-state pilot scope mismatch")
+    admitted=set(STATE_NAMES.values())
+    source_states=set(src.state)
+    excluded=sorted(source_states-admitted)
+    if not admitted.issubset(source_states) or set(out.state)!=admitted:
+        raise ValueError("Seven admitted states missing from source or zonal archive")
+    src=src[src.state.isin(admitted)].copy()
     for frame,col in [(src,"load_mw"),(out,"allocated_mw")]:
         values=pd.to_numeric(frame[col],errors="raise")
         if not np.isfinite(values.to_numpy(dtype=float)).all() or (values<0).any():
@@ -80,6 +84,8 @@ def audit_archived_pilot(source: pd.DataFrame, zonal: pd.DataFrame, *, tolerance
         "zonal_state_hour_zone_rows":int(len(out)),
         "planning_years":sorted(YEARS),
         "scope_state_count":len(STATE_NAMES),
+        "source_states_excluded_from_pilot":excluded,
+        "source_state_count_before_admission_filter":len(source_states),
         "state_year_results":report,
         "duplicate_keys_rejected":True,
         "zone_hour_coverage_verified":True,
