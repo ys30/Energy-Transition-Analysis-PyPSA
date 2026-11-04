@@ -1,0 +1,61 @@
+name: Audit EFS 2030 original bus distance-threshold exposure
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-2030-load-bus-distance-thresholds.yml'
+      - 'src/energy_transition/efs_2030_load_bus_distance_thresholds.py'
+      - 'tests/test_efs_2030_load_bus_distance_thresholds.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  threshold-screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install minimal source statistical requirements
+        run: python -m pip install pandas numpy pytest
+      - name: Unit-test source threshold and original EFS conservation
+        run: PYTHONPATH=src python -m pytest tests/test_efs_2030_load_bus_distance_thresholds.py -q
+      - name: Restore previously CI-verified 20-zone geographic bus coordinates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-distance
+          gh run download 41875462614 -R "${{ github.repository }}" \
+            -n efs-2030-source-firstbus-maxpd-geodesic-sensitivity -D /tmp/efs-distance
+          FILE=$(find /tmp/efs-distance -name efs_2030_single_max_pd_geographic_bus_distance.csv -type f -print -quit)
+          test -n "$FILE" && test -s "$FILE"
+          echo "SOURCE_DISTANCE_ARCHIVE=$FILE" >> "$GITHUB_ENV"
+      - name: Rank source EFS zones by model placement distances
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_2030_load_bus_distance_thresholds \
+            --distance-archive "$SOURCE_DISTANCE_ARCHIVE" \
+            --outdir outputs/efs_2030_distance_thresholds
+      - name: Preserve original 2030 EFS demand and false-POI prevention
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_2030_distance_thresholds/efs_2030_bus_distance_threshold_exposure.json').read_text())
+          assert r['original_source_load_zone_count']==20
+          assert r['positive_source_load_zone_count']==19
+          assert abs(r['original_source_annual_load_mwh']-274706987.114121)<.05
+          assert abs(r['median_source_candidate_geodesic_km']-153.8317584750863)<.001
+          assert abs(r['source_load_weighted_mean_geodesic_km']-233.03926955018764)<.001
+          assert r['real_transmission_path_measured'] is False
+          assert r['official_zone_polygon_placement_certified'] is False
+          assert r['full_western_opf_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-source-load-placement-distance-thresholds
+          path: outputs/efs_2030_distance_thresholds/
+          if-no-files-found: warn
