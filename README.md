@@ -56,6 +56,12 @@ The [8,784-hour storage gap-fill sensitivity](docs/verified_annual_storage_gap_s
 
 **Most recent verified integration:** [NARIS Western 35-zone/24-hour synthetic OPF](docs/verified_naris35_24h_synthetic_load_opf.md) · [full-network CI success](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41718188340) · [main test CI success](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41718188226). The experiment uses source-published *directional planning Link capacities*; demand, supply and cost are hypothetical. **Not a calibrated WECC or historical Western dispatch estimate.**
 
+## 11-state EFS candidate load-synchronization experiment (source-backed, not calibrated)
+
+The [verified 2030–2050 mixed-clock sensitivity study](docs/verified_eleven_state_efs_candidate_mixed_clock.md) combines **actual archived NLR EFS demand** for 11 Western states with the **unchanged seven-state LAF pilot** and **numerically audited candidate weights** for CA/NV/OR/WA. The pinned +7/+8 hour shift changes candidate coincident peak by **+23.54 MW (2030), +31.84 MW (2040), +35.97 MW (2050)** relative to an unshifted LocalHourID comparison, while conserving total annual allocated load (**768.25, 848.88, 972.30 TWh**, respectively). [Verified workflow](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41764316720).
+
+**Scope guard:** The original `full_state` geography for two crossing source-denominator buses, actual EFS UTC/DST interpretation and Western generator/weather snapshot compatibility have **not** been independently certified. This is a reproducible **candidate temporal sensitivity**, **not** a verified Western hourly demand profile, empirical OPF, emissions forecast, or electricity-transition outcome.
+
 ## Four recruiter-ready work samples
 
 | Work sample | What was implemented | Verified evidence | Status |
