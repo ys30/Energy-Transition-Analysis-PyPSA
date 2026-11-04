@@ -1,0 +1,61 @@
+name: Joint voltage Pd and source-origin audit of 877 Western zero-degree buses
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/western-zero-degree-joint-source.yml'
+      - 'src/energy_transition/western_zero_degree_joint_source_audit.py'
+      - 'tests/test_western_zero_degree_joint_source_audit.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source-network audit requirements
+        run: |
+          python -m pip install -e '.[model]' netcdf4 networkx pytest
+      - name: Verify joint source partition tests
+        run: PYTHONPATH=src python -m pytest tests/test_western_zero_degree_joint_source_audit.py -q
+      - name: Recover pinned archived Western topology
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/western
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/western
+          test -s /tmp/western/real-western-base-network.nc
+      - name: Generate real source joint table and 55-bus audit list
+        run: |
+          PYTHONPATH=src python -m energy_transition.western_zero_degree_joint_source_audit \
+            --network /tmp/western/real-western-base-network.nc \
+            --outdir outputs/western_zero_degree_joint_source
+      - name: Enforce exact source cohorts and cautious engineering claims
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('outputs/western_zero_degree_joint_source/western_degree_zero_voltage_pd_source_summary.json').read_text())
+          assert d['source_bus_total']==10157
+          assert d['line_transformer_zero_degree_count']==877
+          assert d['offshore_source_zero_degree_nodes']==157
+          assert d['nonoffshore_source_zero_degree_nodes']==720
+          assert d['zero_degree_positive_pd_count']==55
+          assert abs(d['zero_degree_positive_source_pd_mw']-1714.97)<1e-6
+          assert d['source_type_generator_terminal_verified'] is False
+          assert d['bus_pruning_authorized'] is False
+          assert d['real_grid_loss_of_load_verified'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: western-877-node-joint-voltage-pd-source-evidence
+          path: outputs/western_zero_degree_joint_source/
+          if-no-files-found: warn
