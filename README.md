@@ -76,6 +76,8 @@ The [verified 2030–2050 mixed-clock sensitivity study](docs/verified_eleven_st
 
 **Official plant identities and transmission-document evidence:** The [verified named-plant review](docs/verified_2024_named_plant_poi_and_sagamore_external_evidence.md) reconciles **all 63** geographically distant 2024 EIA-860 plants to their official facility names and original source coordinates. A published SPP agreement identifies **522-MW Sagamore Wind** as connecting to **Crossroads 345-kV substation**, while the model's nearby geographic candidate bus remains **unverified**. [Successful EIA identity CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41774793024). No synthetic network bus has been promoted to an independently approved POI.
 
+**Source-to-grid evidence hierarchy (three priority EIA plants):** A [new CI-verified SPP evidence ledger](docs/verified_top3_spp_eia_poi_evidence_hierarchy.md) distinguishes **Sagamore Wind** (522 MW; named **Crossroads 345-kV substation**), **Hobbs Generating Station** (681.5 MW; SPS **230-kV service receipt point**) and **Cunningham** (444.2 MW; 13.8/20-kV **unit-side receipt voltage records**). These claims are from different SPP document types and **do not establish any connection** to their shared geographic candidate synthetic bus `2053003`. [Evidence gate CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/41775561325). All three EIA source identifiers and historical nameplates are preserved; zero generator-to-synthetic-bus POIs are certified.
+
 ## Four recruiter-ready work samples
 
 | Work sample | What was implemented | Verified evidence | Status |
