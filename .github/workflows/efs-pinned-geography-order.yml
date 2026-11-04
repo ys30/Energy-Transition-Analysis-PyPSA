@@ -1,0 +1,54 @@
+name: Audit pinned EFS geography processing order
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-pinned-geography-order.yml'
+      - 'src/energy_transition/efs_pinned_geography_order_audit.py'
+      - 'tests/test_efs_pinned_geography_order_audit.py'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run regression tests
+        run: |
+          python -m pip install pytest
+          PYTHONPATH=src python -m pytest tests/test_efs_pinned_geography_order_audit.py -q
+      - name: Download pinned upstream scripts
+        run: |
+          mkdir -p /tmp/efs-geo
+          curl --fail --location --silent --show-error \
+            https://raw.githubusercontent.com/PyPSA/pypsa-usa/338af9912addbaf038c6098fe27e1e6ef099d8aa/workflow/scripts/build_base_network.py \
+            -o /tmp/efs-geo/build_base_network.py
+          curl --fail --location --silent --show-error \
+            https://raw.githubusercontent.com/PyPSA/pypsa-usa/338af9912addbaf038c6098fe27e1e6ef099d8aa/workflow/scripts/build_shapes.py \
+            -o /tmp/efs-geo/build_shapes.py
+      - name: Assert distinct source and ReEDS geographic transformations
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_pinned_geography_order_audit \
+            --base /tmp/efs-geo/build_base_network.py \
+            --shapes /tmp/efs-geo/build_shapes.py \
+            --out outputs/efs-pinned-geography-order.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('outputs/efs-pinned-geography-order.json').read_text())
+          assert d["full_state_normalization_uses_Pd"]
+          assert not d["full_state_and_exported_state_same_semantics"]
+          assert not d["original_full_state_bus_labels_recovered"]
+          assert not d["independent_efs_geographic_admission"]
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-pinned-geography-processing-order
+          path: outputs/efs-pinned-geography-order.json
+          if-no-files-found: warn
