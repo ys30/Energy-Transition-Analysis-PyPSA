@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "source_scope": "2024 EIA-860 named operating plants; official SPP public transmission documents",
+  "records": [
+    {
+      "eia_plant_id": "63578",
+      "eia_plant_name": "Sagamore Wind",
+      "eia_nameplate_mw": 522.0,
+      "synthetic_candidate_bus": "2053003",
+      "source_document": "SPP Shared Network Upgrade Facilities Construction Agreement ER26-290 Appendix A 1.1",
+      "source_url": "https://spp.org/Documents/75146/20251029_3978R1_Tip%20Top%20%26%20SPS%20%26%20PSCoOK%20Shared%20Network%20Upgrade%20FCA_ER26-290.pdf",
+      "external_facility_evidence": "Sagamore Wind Farm 522 MW to Southwestern Public Service Crossroads 345 kV substation",
+      "evidence_type": "named_project_and_interconnection_substation",
+      "external_voltage_kv": 345.0,
+      "exact_eia_id_to_interconnection_request_verified": false,
+      "synthetic_bus_electrical_connection_verified": false,
+      "underlying_eia_2024_nameplate_is_future_capacity": false,
+      "unresolved": "Recover EIA generator or plant linkage to SPP GEN-2016-123-124-125; derive utility-certified original synthetic-bus translation"
+    },
+    {
+      "eia_plant_id": "56458",
+      "eia_plant_name": "Hobbs Generating Station",
+      "eia_nameplate_mw": 681.5,
+      "synthetic_candidate_bus": "2053003",
+      "source_document": "SPP/SPS 2025 Network Integration Transmission Service Agreement, Appendix 2, receipt points",
+      "source_url": "https://www.spp.org/documents/74457/20270731_1910r28%20sps%20nitsa%20noa_er25-3059.pdf",
+      "external_facility_evidence": "Receipt point row names Hobbs Generating Station and 230 kV",
+      "evidence_type": "named_network_receipt_point_not_verified_generator_poi",
+      "external_voltage_kv": 230.0,
+      "exact_eia_id_to_interconnection_request_verified": false,
+      "synthetic_bus_electrical_connection_verified": false,
+      "underlying_eia_2024_nameplate_is_future_capacity": false,
+      "unresolved": "SPP file receipt point is not a generator-to-substation wiring diagram; no demonstrated match to synthetic bus 2053003"
+    },
+    {
+      "eia_plant_id": "2454",
+      "eia_plant_name": "Cunningham",
+      "eia_nameplate_mw": 444.2,
+      "synthetic_candidate_bus": "2053003",
+      "source_document": "SPP/SPS 2025 Network Integration Transmission Service Agreement, Appendix 2, receipt points",
+      "source_url": "https://www.spp.org/documents/74457/20270731_1910r28%20sps%20nitsa%20noa_er25-3059.pdf",
+      "external_facility_evidence": "Receipt-point rows Cunningham units 1, 3, 4: 13.8 kV; Cunningham unit 2: 20 kV",
+      "evidence_type": "named_unit_receipt_voltage_not_high_voltage_poi",
+      "external_voltage_kv": null,
+      "observed_unit_voltages_kv": [13.8, 20.0],
+      "exact_eia_id_to_interconnection_request_verified": false,
+      "synthetic_bus_electrical_connection_verified": false,
+      "underlying_eia_2024_nameplate_is_future_capacity": false,
+      "unresolved": "Document lists machine/receipt voltage, not identified high-voltage POI; need generator step-up and network station diagram"
+    }
+  ],
+  "verified_synthetic_bus_connections": 0,
+  "physical_2030_2050_western_opf_admitted": false
+}
