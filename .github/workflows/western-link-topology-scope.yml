@@ -1,0 +1,63 @@
+name: Compare archived Western line-transformer versus Link-inclusive connectivity
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/western-link-topology-scope.yml'
+      - 'src/energy_transition/western_link_topology_scope_audit.py'
+      - 'tests/test_western_link_topology_scope_audit.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install network graph audit requirements
+        run: |
+          python -m pip install -e '.[model]' netcdf4 networkx pytest
+      - name: Validate bounded topology semantics
+        run: PYTHONPATH=src python -m pytest tests/test_western_link_topology_scope_audit.py -q
+      - name: Retrieve immutable CI-archived Western topology
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/real-western
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/real-western
+          test -s /tmp/real-western/real-western-base-network.nc
+      - name: Audit all archived Links and compare component sensitivity
+        run: |
+          PYTHONPATH=src python -m energy_transition.western_link_topology_scope_audit \
+            --network /tmp/real-western/real-western-base-network.nc \
+            --out outputs/western_link_topology_scope.json
+      - name: Assert original network identity and non-admission
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("outputs/western_link_topology_scope.json").read_text())
+          assert r["source_bus_count"]==10157
+          assert r["source_line_count"]==9726
+          assert r["source_transformer_count"]==2080
+          assert r["source_link_count"]==6
+          assert len(r["source_links"])==6
+          assert r["line_transformer_component_count"]==879
+          assert r["line_transformer_degree_zero_bus_count"]==877
+          assert r["undirected_all_branch_types_component_count"]<=879
+          assert r["undirected_all_branch_types_degree_zero_bus_count"]<=877
+          assert r["full_electrical_network_islanding_certified"] is False
+          assert r["empirical_2030_2050_generation_dispatch_admitted"] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: western-real-network-six-link-topology-sensitivity
+          path: outputs/western_link_topology_scope.json
+          if-no-files-found: warn
