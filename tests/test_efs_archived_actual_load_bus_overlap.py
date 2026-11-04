@@ -16,7 +16,7 @@ class Net:
         self.lines=pd.DataFrame({"bus0":["877"],"bus1":["878"]})
         self.transformers=pd.DataFrame(columns=["bus0","bus1"])
         self.generators=pd.DataFrame(columns=["bus"])
-        self.loads=pd.DataFrame({"bus":[selected_bus]},index=["EFS_test"])
+        self.loads=pd.DataFrame({"bus":[selected_bus],"p_set":[0.]},index=["EFS_test"])
         self.snapshots=pd.RangeIndex(8760)
         self.loads_t=SimpleNamespace(p_set=pd.DataFrame({"EFS_test":[10.]*8760}))
 
