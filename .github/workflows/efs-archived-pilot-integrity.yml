@@ -1,0 +1,65 @@
+name: Independently audit archived seven-state EFS pilot
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-archived-pilot-integrity.yml'
+      - 'src/energy_transition/efs_archived_pilot_integrity.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  archive-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install data audit dependencies
+        run: python -m pip install pandas numpy pytest
+      - name: Run regression tests for archived input audit
+        run: PYTHONPATH=src python -m pytest tests/test_efs_archived_pilot_integrity.py -q
+      - name: Download original verified EFS hourly source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-src
+          gh run download 41265678862 -R "${{ github.repository }}" \
+            -n pypsa-usa-efs-source-evidence -D /tmp/efs-src
+          test -s /tmp/efs-src/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+      - name: Download source-network-derived seven-state zonal pilot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-pilot
+          gh run download 41276635829 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs-pilot
+          test -s /tmp/efs-pilot/efs-real-laf-zonal-pilot.csv.gz
+      - name: Validate all state and local-hour records from stored real inputs
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_archived_pilot_integrity \
+            --source /tmp/efs-src/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --zonal /tmp/efs-pilot/efs-real-laf-zonal-pilot.csv.gz \
+            --report outputs/efs-archived-pilot-independent-integrity.json
+      - name: Confirm archival check does not grant empirical admission
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('outputs/efs-archived-pilot-independent-integrity.json')
+          d=json.loads(p.read_text())
+          assert d["scope_state_count"]==7
+          assert len(d["state_year_results"])==21
+          assert d["utc_alignment_verified"] is False
+          assert d["full_western_demand_coverage_verified"] is False
+          assert d["actual_western_opf_solved"] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-seven-state-archive-integrity
+          path: outputs/efs-archived-pilot-independent-integrity.json
+          if-no-files-found: warn
