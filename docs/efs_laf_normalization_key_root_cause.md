@@ -1,5 +1,8 @@
 # Why Western source `LAF_state` does not sum to one by `reeds_state`
 
+> **Pinned-version correction (2026-11-03):** This project's built Western network uses PyPSA-USA commit `338af9912addbaf038c6098fe27e1e6ef099d8aa`, where `workflow/scripts/build_base_network.py` computes `LAF_state = Pd / groupby(full_state).sum(Pd)`. Later upstream `master` implementations with selectable `load_weight`/population policy are **not** the algorithm used for this archived network. `Pd` is the pinned numerator; `full_state` was dropped from the exported bus inventory. All 157 missing-LAF buses have zero observed `Pd`, but this alone does not independently validate zero future demand or source geography. See pinned denominator audit workflow for further diagnostics.
+
+
 ## Upstream code finding (2026-11-03)
 
 In PyPSA-USA [`workflow/scripts/build_base_network.py`](https://github.com/PyPSA/pypsa-usa/blob/master/workflow/scripts/build_base_network.py), `load_weight` is chosen from census population or legacy nominal demand `Pd`; the original `LAF_state` is calculated as `load_weight / sum(load_weight by full_state)` **before** `full_state` is dropped. The network may subsequently be filtered to Western buses, and `reeds_state` is assigned from ReEDS zone membership and county fixes. Neither `reeds_state` nor native `state` in the output necessarily equals the original `full_state` grouping.
