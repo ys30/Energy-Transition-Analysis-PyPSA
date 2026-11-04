@@ -16,7 +16,7 @@ The real archived node `2053003` is located at **(-105.246, 33.706)**, nominal *
 
 ## Important graph interpretation
 
-The audit deliberately constructs a NetworkX graph using **Line + Transformer** `bus0/bus1` edges only. This graph has **879 connected components**, of which **877 nodes have degree 0**; the three candidate nodes all belong to a larger line-transformer graph component of **9,275 buses**. This is **not a complete PyPSA electrical graph**: the imported NetCDF also contains `Link` components, which the calculation excludes. Consequently, neither 879 components nor the 877 degree-zero buses are evidence of real Western-grid islanding, service outages, or absence of connections through other device types. Further classification of Links and island endpoints is needed before any full electrical-contingency claims.
+The current archived NetCDF additionally contains **6 Link components**, excluded from this connectivity metric. The audit deliberately constructs a NetworkX graph using **Line + Transformer** `bus0/bus1` edges only. This graph has **879 connected components**, of which **877 nodes have degree 0**; the three candidate nodes all belong to a larger line-transformer graph component of **9,275 buses**. This is **not a complete PyPSA electrical graph**: the imported NetCDF also contains `Link` components, which the calculation excludes. Consequently, neither 879 components nor the 877 degree-zero buses are evidence of real Western-grid islanding, service outages, or absence of connections through other device types. Further classification of Links and island endpoints is needed before any full electrical-contingency claims.
 
 ## Why the outcome matters
 
