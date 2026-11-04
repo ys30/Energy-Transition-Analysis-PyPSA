@@ -1,0 +1,58 @@
+name: Inspect pinned PyPSA-USA EFS clock semantics
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-pinned-upstream-clock.yml'
+      - 'src/energy_transition/efs_pinned_upstream_clock_audit.py'
+      - 'tests/test_efs_pinned_upstream_clock_audit.py'
+permissions:
+  contents: read
+jobs:
+  inspect-clock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install and run clock contract tests
+        run: |
+          python -m pip install pytest
+          PYTHONPATH=src python -m pytest tests/test_efs_pinned_upstream_clock_audit.py -q
+      - name: Retrieve exact pinned upstream implementation
+        run: |
+          mkdir -p /tmp/pypsa-clock
+          curl --fail --location --silent --show-error \
+            'https://raw.githubusercontent.com/PyPSA/pypsa-usa/338af9912addbaf038c6098fe27e1e6ef099d8aa/workflow/scripts/build_demand.py' \
+            -o /tmp/pypsa-clock/build_demand.py
+          curl --fail --location --silent --show-error \
+            'https://raw.githubusercontent.com/PyPSA/pypsa-usa/338af9912addbaf038c6098fe27e1e6ef099d8aa/workflow/scripts/constants.py' \
+            -o /tmp/pypsa-clock/constants.py
+          test -s /tmp/pypsa-clock/build_demand.py
+          test -s /tmp/pypsa-clock/constants.py
+      - name: Inspect fixed offsets, 8760 wrap and calendar without claiming UTC certification
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_pinned_upstream_clock_audit \
+            --demand-source /tmp/pypsa-clock/build_demand.py \
+            --constants-source /tmp/pypsa-clock/constants.py \
+            --out outputs/efs-pinned-clock-evidence.json
+      - name: Enforce no unsupported UTC promotion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result=json.loads(Path('outputs/efs-pinned-clock-evidence.json').read_text())
+          assert result['upstream_implementation_reconstructed']
+          assert result['fixed_offset_ignores_daylight_saving']
+          assert result['original_efs_local_hour_timezone_verified'] is False
+          assert result['empirical_utc_alignment_admitted'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-pinned-clock-evidence
+          path: outputs/efs-pinned-clock-evidence.json
+          if-no-files-found: error
