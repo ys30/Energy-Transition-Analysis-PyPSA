@@ -1,0 +1,67 @@
+name: Audit EFS Arizona p28 exported-state boundary and original bus coordinates
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-arizona-p28-border-distance.yml'
+      - 'src/energy_transition/efs_arizona_p28_border_distance_review.py'
+      - 'tests/test_efs_arizona_p28_border_distance_review.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  border-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source GIS overlay dependencies
+        run: python -m pip install pandas numpy geopandas shapely pyogrio pyproj pytest
+      - name: Test Arizona and neighboring-state polygon/source distinction
+        run: PYTHONPATH=src python -m pytest tests/test_efs_arizona_p28_border_distance_review.py -q
+      - name: Restore accepted original 2030 EFS candidate coordinates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/p28
+          gh run download 41875462614 -R "${{ github.repository }}" \
+            -n efs-2030-source-firstbus-maxpd-geodesic-sensitivity -D /tmp/p28
+          FILE=$(find /tmp/p28 -name efs_2030_single_max_pd_geographic_bus_distance.csv -type f -print -quit)
+          test -n "$FILE" && test -s "$FILE"
+          echo "ORIGINAL_EFS_GEO=$FILE" >> "$GITHUB_ENV"
+          curl --fail --retry 3 --silent --show-error --location \
+            https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_admin_1_states_provinces_lakes.zip \
+            -o /tmp/p28/admin1.zip
+          test -s /tmp/p28/admin1.zip
+      - name: Investigate original bus 2040000 independent all-US-state polygon and border distance
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_arizona_p28_border_distance_review \
+            --original-candidate-pairs "$ORIGINAL_EFS_GEO" \
+            --natural-earth-zip /tmp/p28/admin1.zip \
+            --out outputs/efs_2030_arizona_p28_border_distance.json
+      - name: Do not assert unsupported physical source connection
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_2030_arizona_p28_border_distance.json').read_text())
+          assert r['source_zone_id']=='EFS_2030_p28_Arizona'
+          assert r['source_first_bus_id']=='2040000'
+          assert r['source_alternative_bus_id']=='2040003'
+          assert len(r['actual_source_geographic_review'])==2
+          assert abs(r['actual_source_geographic_review'][0]['original_zone_EFS_load_mwh']-71277837.59426476)<0.05
+          assert r['natural_earth_download_zip_sha256']=='7c41f8aa2827c6cfbd458faff584119bb3a628047f0c4b45cff5fa071cc8a11b'
+          assert r['original_full_state_cached_shapefile_version_verified'] is False
+          assert r['candidate_load_reassignment_admitted'] is False
+          assert r['grid_dispatch_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-arizona-p28-original-bus-border-distance-review
+          path: outputs/efs_2030_arizona_p28_border_distance.json
+          if-no-files-found: warn
