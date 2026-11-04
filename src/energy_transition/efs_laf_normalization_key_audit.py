@@ -73,6 +73,20 @@ def audit_laf_key_semantics(buses: pd.DataFrame) -> dict:
             "observed_laf_mass": float(good.sum()),
             "original_full_state_mass_reconciled": False,
         })
+    # Explain target ReEDS totals as native-state mass plus inbound crossing.
+    # This is an accounting decomposition of observed bus coefficients only.
+    target_mass = []
+    for dest, group in frame.groupby("normalized_reeds_state", sort=True):
+        local = group.loc[group["key_match"] & group["valid_laf"], "laf_numeric"]
+        inbound = group.loc[~group["key_match"] & group["valid_laf"], "laf_numeric"]
+        target_mass.append({
+            "reeds_state": str(dest),
+            "native_state_matching_observed_laf": float(local.sum()),
+            "other_native_state_inbound_observed_laf": float(inbound.sum()),
+            "total_observed_laf": float(local.sum() + inbound.sum()),
+            "missing_laf_bus_count": int(group["laf_numeric"].isna().sum()),
+            "empirical_state_load_transfer_verified": False,
+        })
     by_origin = []
     for state, group in frame.groupby("normalized_native_state", sort=True):
         good = group.loc[group["valid_laf"], "laf_numeric"]
@@ -99,6 +113,7 @@ def audit_laf_key_semantics(buses: pd.DataFrame) -> dict:
         "observed_laf_by_reeds_state":by_state,
         "cross_state_observed_laf_mass": crossing_mass,
         "observed_laf_by_native_state": by_origin,
+        "target_reeds_state_laf_decomposition": target_mass,
         "original_full_state_grouping_reconstructible_from_this_network":False,
         "renormalization_performed":False,
         "source_derived_load_weight_verified":False,
