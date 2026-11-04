@@ -48,6 +48,17 @@ def audit_archived_pilot(source: pd.DataFrame, zonal: pd.DataFrame, *, tolerance
     hourly=src.groupby(["year","state"]).local_hour_id.nunique()
     if hourly.nunique()!=1:
         raise ValueError("Inconsistent LocalHourID counts across state/year groups")
+    # Ordinal completeness is strictly testable even while timestamp semantics
+    # remain unknown. No 2030/2040/2050 calendar, timezone or DST is inferred.
+    expected_hours=np.arange(1,8761,dtype=np.int64)
+    for (year,state),group in src.groupby(["year","state"],sort=True):
+        hours=pd.to_numeric(group["local_hour_id"],errors="raise").to_numpy()
+        if not np.array_equal(np.sort(hours),expected_hours):
+            raise ValueError(f"Missing or invalid 1..8760 ordinal coverage for {year}/{state}")
+    for (year,state,zone),group in out.groupby(["year","state","reeds_zone"],sort=True):
+        hours=pd.to_numeric(group["local_hour_id"],errors="raise").to_numpy()
+        if not np.array_equal(np.sort(hours),expected_hours):
+            raise ValueError(f"Missing or invalid 1..8760 zone ordinal coverage for {year}/{state}/{zone}")
     zone_inventory=out.groupby(["year","state"])["reeds_zone"].apply(lambda x:tuple(sorted(x.unique())))
     for state,g in zone_inventory.groupby(level="state"):
         if len(set(g.tolist()))!=1:
@@ -90,6 +101,10 @@ def audit_archived_pilot(source: pd.DataFrame, zonal: pd.DataFrame, *, tolerance
         "duplicate_keys_rejected":True,
         "zone_hour_coverage_verified":True,
         "constant_factor_hourly_arithmetic_verified":True,
+        "strict_1_to_8760_ordinals_verified_per_state_year_zone":True,
+        "hour_end_or_hour_begin_convention_verified":False,
+        "weather_year_calendar_verified":False,
+        "dst_handling_verified":False,
         "utc_alignment_verified":False,
         "source_laf_provenance_verified":False,
         "full_western_demand_coverage_verified":False,
