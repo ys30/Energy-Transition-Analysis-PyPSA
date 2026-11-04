@@ -40,7 +40,7 @@ def audit_pinned_efs_clock(demand_source: str, constants_source: str) -> dict:
     # These anchored tokens represent semantics of the pinned revision. A
     # future upstream change must be independently reviewed, not guessed.
     expected=[
-        "df.UtcHourID = df.LocalHourID + df.utc_shift",
+        "df["UtcHourID"] = df.LocalHourID + df.utc_shift",
         "x if x < 8761 else x - 8760",
         "df.UtcHourID - 1",
         'pd.to_datetime(2018, format="%Y")',
