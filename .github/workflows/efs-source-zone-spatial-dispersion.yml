@@ -1,0 +1,67 @@
+name: Audit source-labelled EFS 20-zone original bus spatial dispersion
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-source-zone-spatial-dispersion.yml'
+      - 'src/energy_transition/efs_source_zone_bus_spatial_dispersion.py'
+      - 'tests/test_efs_source_zone_bus_spatial_dispersion.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  spatial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source PyPSA network dependencies
+        run: python -m pip install -e '.[model]' netcdf4 pytest
+      - name: Check source coordinate and strict zone ownership cases
+        run: PYTHONPATH=src python -m pytest tests/test_efs_source_zone_bus_spatial_dispersion.py -q
+      - name: Fetch original archived network and CI-verified three-rule EFS zone choices
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source-net /tmp/source-choices
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/source-net
+          gh run download 41874891129 -R "${{ github.repository }}" \
+            -n efs-2030-three-source-bus-placement-rules -D /tmp/source-choices
+          NET=$(find /tmp/source-net -name real-western-base-network.nc -type f -print -quit)
+          CHOICES=$(find /tmp/source-choices -name efs_2030_three_bus_placement_rules.csv -type f -print -quit)
+          test -n "$NET" && test -s "$NET"
+          test -n "$CHOICES" && test -s "$CHOICES"
+          echo "SOURCE_NET=$NET" >> "$GITHUB_ENV"
+          echo "SOURCE_CHOICES=$CHOICES" >> "$GITHUB_ENV"
+      - name: Compare complete source label-zone geography with representative bus locations
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_source_zone_bus_spatial_dispersion \
+            --base-network "$SOURCE_NET" \
+            --three-method-table "$SOURCE_CHOICES" \
+            --output-dir outputs/efs_source_zone_spatial_dispersion
+      - name: Check source count and disallow invented ReEDS polygon or physical dispatch claims
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("outputs/efs_source_zone_spatial_dispersion/efs_2030_source_zone_bus_coordinate_dispersion.json").read_text())
+          assert r['archived_source_load_zones']==20
+          assert abs(r['archived_source_annual_load_mwh']-274706987.114121)<0.05
+          assert r['all_pairs_share_same_exported_state_and_reeds_zone_labels'] is True
+          assert abs(r['source_candidate_pair_distance_km_median']-153.8317584750863)<0.01
+          assert abs(r['source_candidate_pair_distance_km_max']-505.65478515505356)<0.01
+          assert r['independent_reeds_zone_polygon_available'] is False
+          assert r['actual_electricity_delivery_points_verified'] is False
+          assert r['full_western_OPF_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-source-labelled-zone-bus-spatial-dispersion
+          path: outputs/efs_source_zone_spatial_dispersion/
+          if-no-files-found: warn
