@@ -1,0 +1,59 @@
+name: Build publication-grade evidence-labeled figures from 540 EFS LP results
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-cyclic-publication-figures.yml'
+      - 'src/energy_transition/efs_cyclic_paper_figures.py'
+      - 'tests/test_efs_cyclic_paper_figures.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  figures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install provenance figure runtime
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7' 'pytest>=8'
+      - name: Validate 27-scenario source and figure generation
+        run: PYTHONPATH=src python -m pytest -q tests/test_efs_cyclic_paper_figures.py
+      - name: Retrieve source-verified 540-LP all-zone aggregate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-lp
+          gh run download 42107237659 -R "${{ github.repository }}" \
+            -n efs-cyclic-full-year-all-20-zones-validated -D /tmp/efs-lp
+          test -s /tmp/efs-lp/all_20zone_cyclic_8760h_summary.csv
+          test -s /tmp/efs-lp/all_20zone_cyclic_8760h_results.csv
+      - name: Generate evidence-labeled figures and machine-verifiable manifest
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_cyclic_paper_figures \
+            --summary /tmp/efs-lp/all_20zone_cyclic_8760h_summary.csv \
+            --out-dir outputs/efs_cyclic_paper_figures
+          python - <<'PY'
+          from pathlib import Path
+          import json,pandas as pd,numpy as np
+          root=Path('outputs/efs_cyclic_paper_figures')
+          m=json.loads((root/'figure_manifest.json').read_text())
+          assert m['status']=='ARTIFACT_DERIVED_540_LP_FIGURES_GENERATED'
+          assert m['source_scenario_rows']==27
+          assert len(list(root.glob('*.svg')))==3
+          assert len(list(root.glob('*.png')))==3
+          assert m['real_Western_OPF_admitted'] is False
+          src=pd.read_csv('/tmp/efs-lp/all_20zone_cyclic_8760h_summary.csv')
+          a=src[(src.planning_year==2030)&(src.synthetic_supply_shape=='ordinal24_wave_A')].sort_values('battery_duration_h')
+          assert np.allclose(a.unused_renewable_mwh/1e6,[25.893434,9.466029,2.626240],atol=0.000002)
+          print('PAPER_FIGURES_SOURCE_PROVENANCE_PASS: 3 figures; exact 2030 source outcome values match original CI')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: efs-540-lp-evidence-labeled-publication-figures
+          path: outputs/efs_cyclic_paper_figures/
+          if-no-files-found: error
