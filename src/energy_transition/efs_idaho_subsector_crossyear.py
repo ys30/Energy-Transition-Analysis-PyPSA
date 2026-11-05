@@ -62,10 +62,17 @@ def frozen_shift_transfer(sector_year,original_hourly,reeds_hourly,year):
     holdout=ids>=4380
     baseline_errors=np.abs(baseline[holdout]-target[holdout])
     frozen_errors=np.abs(frozen[holdout]-target[holdout])
+    train=~holdout
+    baseline_training_error=np.abs(baseline[train]-target[train])
+    frozen_training_error=np.abs(frozen[train]-target[train])
     # Also show all common interior hours. No train re-selection in 2040/2050.
     return {
         "planning_year":int(year),
         "heldout_hours":int(holdout.sum()),
+        "firsthalf_hours":int(train.sum()),
+        "baseline_firsthalf_mae_mw":float(baseline_training_error.mean()),
+        "fixed_2030_transport_plus1_firsthalf_mae_mw":float(frozen_training_error.mean()),
+        "firsthalf_improvement_mw":float(baseline_training_error.mean()-frozen_training_error.mean()),
         "baseline_heldout_mae_mw":float(baseline_errors.mean()),
         "fixed_2030_transport_plus1_heldout_mae_mw":float(frozen_errors.mean()),
         "heldout_improvement_mw":float(baseline_errors.mean()-frozen_errors.mean()),
