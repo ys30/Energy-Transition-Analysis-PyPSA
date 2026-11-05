@@ -1,0 +1,60 @@
+name: EFS EIA930 source-clock join admission gate
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-eia930-source-join-gate.yml'
+      - 'src/energy_transition/efs_eia930_cross_source_join_gate.py'
+      - 'tests/test_efs_eia930_cross_source_join_gate.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-join-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install original-source evidence runtime
+        run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3' 'pytest>=8'
+      - name: Test source coverage and fail-closed join gate
+        run: PYTHONPATH=src python -m pytest -q tests/test_efs_eia930_cross_source_join_gate.py
+      - name: Retrieve verified archived future EFS and observed EIA930 source inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs /tmp/eia930
+          gh run download 41281576025 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/efs
+          gh run download 41003777337 -R "${{ github.repository }}" -n eia930-hourly-solar-wind-2024 -D /tmp/eia930
+          test -s /tmp/efs/efs-real-laf-zonal-pilot.csv.gz
+          test -s /tmp/eia930/seasonal_observed_renewables.csv
+      - name: Audit original source pairs and forbid unverified hourly synchronization
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_eia930_cross_source_join_gate \
+            --efs-zonal /tmp/efs/efs-real-laf-zonal-pilot.csv.gz \
+            --eia930-seasonal /tmp/eia930/seasonal_observed_renewables.csv \
+            --out outputs/efs_eia930_cross_source_join_refusal.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/efs_eia930_cross_source_join_refusal.json').read_text())
+          assert r['status']=='FAIL_CLOSED_CROSS_SOURCE_JOIN_NOT_ADMITTED'
+          assert r['verified_efs_zones']==20
+          assert r['verified_efs_hours_per_zone_per_year']==8760
+          assert r['verified_eia930_complete_seasonal_panels']==16
+          assert r['verified_eia930_hours_per_panel']==168
+          assert r['joined_hourly_output_rows']==0
+          assert r['weather_synchronized_power_dispatch_admitted'] is False
+          assert len(r['refusal_reasons'])==6
+          assert all(len(s)==64 for s in r['source_sha256'].values())
+          print('PASS: 2024 historical signed BA net generation cannot be synchronized by ordinal with EFS 2030/2040/2050')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: efs-eia930-original-source-join-admission-evidence
+          path: outputs/efs_eia930_cross_source_join_refusal.json
+          if-no-files-found: error
