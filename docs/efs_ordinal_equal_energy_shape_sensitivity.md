@@ -25,7 +25,25 @@ This extends the [successful constant-50%-availability 8,760-hour EFS pilot](efs
 
 The [27-case workflow](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/efs-ordinal-supply-shapes.yml) checks input keys and all 8,760 hours; zero missing/nonfinite/negative demand; strict supply-demand and renewable-availability balance; invariant annual available renewable MWh across all three shape treatments within each year/capacity cell; and absence of any real-OPF/UTC admission. Regression tests additionally inject a missing, duplicated, and negative source record.
 
-Outputs: `efs_supply_shape_equal_energy_27_scenarios.csv`, `efs_supply_shape_assumption_summary.csv`, and `efs_supply_shape_assumptions.json` (including input SHA256). **Treat empirical numerical values as preliminary until the GitHub workflow has passed and logged all cases.**
+Outputs: `efs_supply_shape_equal_energy_27_scenarios.csv`, `efs_supply_shape_assumption_summary.csv`, and `efs_supply_shape_assumptions.json` (including input SHA256). **Source-run result:** [Actions run #42099467157](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42099467157) **PASSED** with 27 scenario records and all conservation/equal-annual-energy assertions. This is a verified calculation using source-backed demand and explicitly synthetic supply, *not* a validated renewable-production outcome.
+
+## Validated numerical findings (90% hypothetical renewable nameplate / zone peak)
+
+| Year | Assumed hourly shape | Modeled renewable share | Unused hypothetical renewable energy | Toy variable cost |
+|---|---|---:|---:|---:|
+| 2030 | flat 50% | 72.998% | 2.200 TWh | $7.679 billion |
+| 2030 | ordinal24_wave_A | 64.373% | 25.893 TWh | $9.693 billion |
+| 2030 | ordinal24_wave_B | 68.061% | 15.763 TWh | $8.831 billion |
+| 2040 | flat 50% | 73.003% | 2.460 TWh | $8.575 billion |
+| 2040 | ordinal24_wave_A | 64.374% | 28.934 TWh | $10.826 billion |
+| 2040 | ordinal24_wave_B | 68.064% | 17.614 TWh | $9.864 billion |
+| 2050 | flat 50% | 73.009% | 2.817 TWh | $9.804 billion |
+| 2050 | ordinal24_wave_A | 64.377% | 33.104 TWh | $12.379 billion |
+| 2050 | ordinal24_wave_B | 68.067% | 20.154 TWh | $11.278 billion |
+
+For **2030** at identical hypothetical zone-level nameplate and **identical annual renewable available energy**, switching flat availability to `ordinal24_wave_A` decreases modeled renewable energy share by about **8.63 percentage points** and increases the hypothetical unused amount by **23.693 TWh**, under this deliberately disconnected-zone design. This is a sensitivity of the **assumptions**, not a prediction of actual system curtailment or costs.
+
+
 
 ## Interpretation and next research
 
