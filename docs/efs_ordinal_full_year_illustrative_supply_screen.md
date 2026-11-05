@@ -29,7 +29,7 @@ The implementation enforces exactly 8,760 unique source ordinal hours for every 
 - Input artifact: `efs-real-laf-zonal-pilot.csv.gz`, original workflow run `41281576025`, artifact `real-western-base-network-attempt`.
 - Output artifact: `efs-seven-state-8760h-illustrative-ordinal-supply-screen`, with `efs_ordinal_supply_full_year_scenarios.csv` and `efs_ordinal_supply_full_year_metadata.json`.
 
-**Verification status:** workflow submitted; report numerical outputs as verified only after this real archived-source workflow succeeds. The assumptions are deliberately static, so ordinal sensitivity does **not** support annual wind variability, evening peak, extreme event, curtailment on the real grid, 2030–2050 emissions reductions or actual Western price predictions.
+**Verification status:** [original archived-source full-year scenario CI #42091518065](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42091518065) **passed** for three planning years × three illustrative supply ratios. This confirms code and accounting against the staged seven-state source; it does not validate physical supply assumptions. The assumptions are deliberately static, so ordinal sensitivity does **not** support annual wind variability, evening peak, extreme event, curtailment on the real grid, 2030–2050 emissions reductions or actual Western price predictions.
 
 ## Higher-value follow-on analyses
 
