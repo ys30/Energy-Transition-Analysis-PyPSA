@@ -30,19 +30,12 @@ jobs:
           curl -fLsS --retry 3 --connect-timeout 30 --max-time 700 \
             https://data.nlr.gov/system/files/126/EFSLoadProfile_Reference_Moderate.zip \
             -o /tmp/efs/EFSLoadProfile_Reference_Moderate.zip
-          python - <<'PY'
-          import zipfile
-          from pathlib import Path
-          a=Path('/tmp/efs/EFSLoadProfile_Reference_Moderate.zip')
-          with zipfile.ZipFile(a) as z:
-              options=[m for m in z.namelist() if m.endswith('EFSLoadProfile_Reference_Moderate.csv')]
-              assert len(options)==1,options
-              with z.open(options[0]) as src, open('/tmp/efs/EFSLoadProfile_Reference_Moderate.csv','wb') as dst:
-                  import shutil
-                  shutil.copyfileobj(src,dst)
-          assert Path('/tmp/efs/EFSLoadProfile_Reference_Moderate.csv').stat().st_size>1000000
-          print('ORIGINAL_EFS_SOURCE_CSV_EXTRACTED_FROM_AUTHENTIC_NLR_ARCHIVE')
-          PY
+          # EFS original archive uses Deflate64, unsupported by Python zipfile.
+          # Follow the pinned PyPSA-USA upstream EFS extractor (system unzip).
+          unzip -oq /tmp/efs/EFSLoadProfile_Reference_Moderate.zip -d /tmp/efs
+          test -s /tmp/efs/EFSLoadProfile_Reference_Moderate.csv
+          test "$(stat -c%s /tmp/efs/EFSLoadProfile_Reference_Moderate.csv)" -gt 1000000
+          echo ORIGINAL_EFS_SOURCE_CSV_EXTRACTED_WITH_UPSTREAM_COMPATIBLE_UNZIP
       - name: Recover previous independent original state-hour and publisher HDF5 sources
         env:
           GH_TOKEN: ${{ github.token }}
