@@ -1,0 +1,66 @@
+name: Audit Idaho EFS2020 ReEDS2022 residual seasonal structure
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-idaho-residual-diagnostics.yml'
+      - 'src/energy_transition/efs_idaho_source_residual_diagnostics.py'
+      - 'tests/test_efs_idaho_source_residual_diagnostics.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  observed-source-residual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source diagnostics dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
+      - name: Validate nonwrapping source residual grouping
+        run: PYTHONPATH=src python -m pytest -q tests/test_efs_idaho_source_residual_diagnostics.py
+      - name: Recover original EFS2020 source-hour archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs /tmp/reeds outputs
+          gh run download 41262154939 -R "${{ github.repository }}" -n pypsa-usa-efs-source-evidence -D /tmp/efs
+          test -s /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+      - name: Independently download 2022 HDF5 with publisher MD5
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Compute Idaho monthly and hour residuals versus AZ and CA sources
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_idaho_source_residual_diagnostics \
+            --efs-hourly /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --reeds-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --out-dir outputs/idaho_residual_analysis
+          python - <<'PY'
+          import pandas as pd,json
+          from pathlib import Path
+          d=Path('outputs/idaho_residual_analysis')
+          a=pd.read_csv(d/'source_state_year_residual_overview.csv')
+          g=pd.read_csv(d/'source_month_hour_residual_groups.csv')
+          m=json.loads((d/'source_residual_diagnostic_provenance.json').read_text())
+          assert len(a)==9 and len(g)==9*(12+24)
+          assert set(a.state)=={'ID','CA','AZ'}
+          assert (a.groupby('state').size()==3).all()
+          assert (a[a.state=='AZ'].hours_above_1mw==0).all()
+          assert (a[a.state=='CA'].hours_above_1mw==0).all()
+          assert (a[a.state=='ID'].hours_above_1mw>7000).all()
+          assert m['original_EFS2020_physical_clock_verified'] is False
+          assert m['resource_join_or_real_OPF_admitted'] is False
+          print('IDAHO_RESIDUAL_SOURCE_GATE_PASS: 9 original state-year pairs; 324 month/hour groups; no fabricated UTC.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: efs-idaho-source-residual-month-hour-2030-2050
+          path: outputs/idaho_residual_analysis/
+          if-no-files-found: error
