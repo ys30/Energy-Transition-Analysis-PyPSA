@@ -32,15 +32,16 @@ def test_wrong_original_state_data_is_rejected():
         one_year(sector,state,np.roll(state,2),2030)
 
 def test_bad_hour_and_missing_sector_detection(tmp_path):
-    d,_=hourly_fixture()
+    base,_=hourly_fixture()
+    d=pd.concat([base.assign(Year=year) for year in (2030,2040,2050)],ignore_index=True)
     d["State"]="ID"
     d["Subsector"]="base"
     d["Electrification"]="Reference"
     d["TechnologyAdvancement"]="Moderate"
     d.to_csv(tmp_path/"raw.csv",index=False)
     source,meta=aggregate_idaho_sectors(tmp_path/"raw.csv",chunksize=4000)
-    assert meta["grouped_sector_hour_rows"]==17520
-    assert len(source)==17520
+    assert meta["grouped_sector_hour_rows"]==52560
+    assert len(source)==52560
     wrong=d.iloc[:-1]
     wrong.to_csv(tmp_path/"missing.csv",index=False)
     with pytest.raises(ValueError,match="Incomplete"):
