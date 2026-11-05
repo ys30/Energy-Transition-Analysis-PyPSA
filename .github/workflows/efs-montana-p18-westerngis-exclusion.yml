@@ -1,0 +1,59 @@
+name: Verify pinned Western ReEDS p35 p19 exclusion consistency with Montana p18 final county
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-montana-p18-westerngis-exclusion.yml'
+      - 'src/energy_transition/efs_montana_p18_western_reeds_exclusion_gate.py'
+      - 'tests/test_efs_montana_p18_western_reeds_exclusion_gate.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pinned-rule:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run exact source exclusion gate tests without GIS data reconstruction
+        run: PYTHONPATH=src python -m pytest tests/test_efs_montana_p18_western_reeds_exclusion_gate.py -q
+      - name: Restore independently verified original source county composition
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/montana
+          gh run download 41960831161 -R "${{ github.repository }}" \
+            -n efs-original-county-majority-reeds-zone-source-comparison -D /tmp/montana
+          test -s /tmp/montana/efs_2030_reeds_county_majority_source_review.json
+          curl --fail --retry 3 --silent --show-error --location \
+            https://raw.githubusercontent.com/PyPSA/pypsa-usa/338af9912addbaf038c6098fe27e1e6ef099d8aa/workflow/scripts/build_shapes.py \
+            -o /tmp/montana/build_shapes.py
+          test -s /tmp/montana/build_shapes.py
+      - name: Parse and verify Western exclusions against original Montana p30071 source county bins
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_montana_p18_western_reeds_exclusion_gate \
+            --pinned-build-shapes /tmp/montana/build_shapes.py \
+            --source-county-report /tmp/montana/efs_2030_reeds_county_majority_source_review.json \
+            --out outputs/montana_p18_p35_p19_exclusion_consistency.json
+      - name: Gate county explanation to source consistency only
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("outputs/montana_p18_p35_p19_exclusion_consistency.json").read_text())
+          assert r["raw_county_only_surviving_zone_is_p18"]
+          assert r["pinned_county_majority_rule_is_consistent_with_observed_final_zone"]
+          assert r["posttrim_geometry_and_nearest_fill_reproduced"] is False
+          assert r["utility_load_serving_polygon_certified"] is False
+          assert r["physical_2030_2050_OPF_validated"] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-montana-p18-source-western-exclusion-rule-consistency
+          path: outputs/montana_p18_p35_p19_exclusion_consistency.json
+          if-no-files-found: warn
