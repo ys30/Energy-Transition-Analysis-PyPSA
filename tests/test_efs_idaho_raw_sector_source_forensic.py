@@ -21,7 +21,9 @@ def test_sector_source_recovers_state_hour_and_holdout():
     assert r["exact_state_reconciliation"]
     assert r["source_original_state_mwh"]==pytest.approx(r["source_sector_sum_mwh"])
     assert r["baseline_nonwrap_full_mae_mw"]==pytest.approx(0)
-    assert r["exhaustive_sector_shift_candidates"]==8
+    assert r["exhaustive_sector_shift_candidates"]==9
+    assert r["training_selected_baseline_no_shifts"]
+    assert r["best_candidate_in_sample_better_or_equal_baseline"]
     assert r["baseline_interior_test_mae_mw"]==pytest.approx(0)
     assert not r["source_sector_shifts_have_physical_timezone_credibility"]
 
