@@ -51,4 +51,14 @@ The original source includes other smaller and some zero-MWh subsectors; the ful
 
 The **same previously selected** 2030 source-index perturbation shows lower mismatch on the *later halves* of all three years, without tuning a new parameter in 2040 or 2050. This contrasts with the previous experiment's **per-year first-half selection**, which preferred the all-unshifted reference in 2040 and 2050. That implies the candidate's relative usefulness varies by evaluation window. It **does not** prove a stable EFS physical time zone rule, because both source releases' data processing and the original EFS2020 publisher clock are still not independently linked. Substantial residual remains even after the perturbation, and the original subsector labels are not an electrical or geographical mapping.
 
-A supplementary CI version adds first-half performance of this same fixed rule for a direct train/test window comparison. Treat those additional first-half numeric claims as pending that separate verified run.
+### First-half versus later-half sign reversal (verified)
+
+[Independent rerun #42131969905](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42131969905) and [full main CI #42131969928](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42131969928) **both passed** after an unrelated pandas test fixture was corrected from a read-only NumPy view. The same previously selected Transportation +1 hour rule is now scored on **all 4,379 first-half and 4,377 held-out interior reference hours** per year:
+
+| Year | First-half original MAE (MW) | First-half fixed-rule MAE (MW) | First-half improvement (MW) | Held-out original MAE (MW) | Held-out fixed-rule MAE (MW) | Held-out improvement (MW) |
+|---|---:|---:|---:|---:|---:|---:|
+| 2030 | 16.720487 | 16.647585 | +0.072903 | 17.795943 | 15.585717 | +2.210226 |
+| 2040 | 18.692429 | 19.449288 | **−0.756859** | 19.902631 | 17.889956 | **+2.012675** |
+| 2050 | 21.398003 | 22.386465 | **−0.988462** | 22.785865 | 20.558538 | **+2.227327** |
+
+Thus **2040 and 2050 show a sign reversal**: the frozen 2030 candidate worsens the first-half numerical fit but improves the later-half fit. This explains why a same-year training-based selection in 2040/2050 preferred the unchanged baseline, even though a locked candidate evaluated on their latter halves outperformed that baseline. **Do not infer a specific DST, physical time zone, generator coincidence, or forecasting mechanism from this pattern.** It is a robust result for these cross-release source-hour index comparisons; more geographically resolved and authoritative original processing metadata are needed for causal explanation.
