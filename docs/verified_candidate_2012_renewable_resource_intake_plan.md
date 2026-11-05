@@ -26,7 +26,7 @@ The new source-validator `src/energy_transition/renewable_2012_resource_intake.p
 - SHA-256 of submitted source CSV and metadata when actual provider files are available.
 - The output always records `generator_capacity_factor_computed=false`, `original_EFS_LocalHourID_utc_mapping_verified=false`, `EFS_load_resource_join_admitted=false` and `physical_Western_OPF_admitted=false`.
 
-**Synthetic tests alone do not constitute empirical resource data retrieval**. CI currently validates the parsing and fail-closed methodology, not actual WIND Toolkit/NSRDB production CSV coverage.
+**CI verified:** [resource intake validation #42117188587](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42117188587) passed all **six synthetic-fixture regression tests**, including the 2012 nonleap source UTC sequence, resource values and rejection of missing, duplicate, shifted and unsupported source time metadata. **Synthetic tests alone do not constitute empirical resource data retrieval:** no actual WIND Toolkit or NSRDB site CSV was downloaded or used in the original EFS demand model.
 
 ## Production admission checklist and scientific critical path
 
