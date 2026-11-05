@@ -19,6 +19,8 @@ The same archived-source CI confirms the **2040 leap-year label issue** (the syn
 
 A [passing independent EIA-860/Southwest Power Pool evidence grading CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42073377310) audits three 2024 source plants totaling **1,647.7 MW** of historical nameplate against the geographically assigned **synthetic** source-model bus `2053003` (115 kV). Official named evidence identifies Sagamore Wind's Crossroads 345-kV substation context and a Hobbs 230-kV receipt-point context; Cunningham documentation is unit-side voltage, **not** a comparable high-voltage POI. Neither a nominal-voltage discrepancy nor a nearby geographic bus independently authenticates a plant-to-network electrical tie. **Approved generator injections remain 0 MW**, and full Western physical OPF remains blocked. [Methods and limits](docs/eia860_source_voltage_vs_synthetic_bus_2024.md).
 
+**Source-NetCDF topology confirmation:** [Real archived-network CI #42079066900](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42079066900) independently re-imports the source synthetic Western NetCDF and confirms geographically chosen candidate bus `2053003` is **115 kV**, with **two incident Lines** to `2053019` and `2053021`, and **zero incident Transformers**. This is **not** a utility POI match, a complete physical connectivity audit, or an approved generator injection. The [detailed audit](docs/eia860_archived_synthetic_candidate_structural_validation.md) retains Line/Transformer/Link distinctions and blocks physical dispatch claims.
+
 ## Project A → B integration status (audited)
 
 [**A contribution, repository boundaries, and revised B milestone progress**](docs/A_TO_B_CONTRIBUTION_AND_PROGRESS_AUDIT.md)
