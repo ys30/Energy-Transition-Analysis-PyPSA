@@ -46,3 +46,17 @@ def test_nonfinite_load_fails_closed():
 def test_misaligned_ordinal_input_rejected():
     with pytest.raises(ValueError,match="Incomplete"):
         evaluate_zones(example().iloc[:-1],2030,48,1)
+
+def test_full_zone_partition_exact_once():
+    a=example(48)
+    b=a.copy()
+    b["reeds_zone"]="p2"
+    b["allocated_mw"]=b["allocated_mw"]*.3
+    both=pd.concat([a,b],ignore_index=True)
+    first,meta1=evaluate_zones(both,2030,48,max_zones=1,zone_offset=0)
+    second,meta2=evaluate_zones(both,2030,48,max_zones=1,zone_offset=1)
+    assert len(first)==len(second)==9
+    assert meta1["source_total_zone_count"]==meta2["source_total_zone_count"]==2
+    assert {first[0]["reeds_zone"],second[0]["reeds_zone"]}=={"p1","p2"}
+    with pytest.raises(ValueError,match="batch is empty"):
+        evaluate_zones(both,2030,48,max_zones=1,zone_offset=2)
