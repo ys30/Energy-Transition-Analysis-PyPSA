@@ -1,0 +1,62 @@
+name: Audit actual EFS 2030-2050 stored snapshot calendar semantics
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-actual-snapshot-semantics.yml'
+      - 'src/energy_transition/efs_actual_archived_snapshot_semantics.py'
+      - 'tests/test_efs_actual_archived_snapshot_semantics.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-clock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PyPSA and test runtime
+        run: python -m pip install -e '.[model]' netcdf4 pytest
+      - name: Verify leap-year model-hour semantics tests
+        run: PYTHONPATH=src python -m pytest tests/test_efs_actual_archived_snapshot_semantics.py -q
+      - name: Restore original three-year seven-state EFS Load-only network
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-model
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs-model
+          for year in 2030 2040 2050; do
+            test -s "/tmp/efs-model/efs-real-${year}-local-hour-load-only.nc"
+          done
+      - name: Audit real stored EFS snapshots and dynamic-vs-static series
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_actual_archived_snapshot_semantics \
+            --net2030 /tmp/efs-model/efs-real-2030-local-hour-load-only.nc \
+            --net2040 /tmp/efs-model/efs-real-2040-local-hour-load-only.nc \
+            --net2050 /tmp/efs-model/efs-real-2050-local-hour-load-only.nc \
+            --out outputs/efs_actual_archived_snapshot_semantics.json
+      - name: Require original archived source populations without asserting UTC
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("outputs/efs_actual_archived_snapshot_semantics.json").read_text())
+          assert r["archive_year_count"]==3
+          assert {d["model_year"] for d in r["archive_years"]}=={2030,2040,2050}
+          assert all(d["stored_snapshot_count"]==8760 for d in r["archive_years"])
+          assert all(d["source_dynamic_Load_count"]==19 for d in r["archive_years"])
+          assert all(d["source_static_only_Load_count"]==1 for d in r["archive_years"])
+          assert r["independent_source_EFS_clock_DST_convention_verified"] is False
+          assert r["joint_synchronous_2030_2050_OPF_admitted"] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-2050-original-load-network-clock-semantics
+          path: outputs/efs_actual_archived_snapshot_semantics.json
+          if-no-files-found: warn
