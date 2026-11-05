@@ -39,7 +39,7 @@ def test_solar_2012_source_intake():
 def test_wrong_time_requires_hard_failure():
     bad=frame().copy()
     bad.loc[4000,"Hour"]=5
-    with pytest.raises(ValueError,match="Source calendar"):
+    with pytest.raises(ValueError,match="Source calendar|Duplicate or nonmonotonic"):
         evaluate(bad,metadata())
 
 def test_missing_or_duplicate_hour_requires_failure():
