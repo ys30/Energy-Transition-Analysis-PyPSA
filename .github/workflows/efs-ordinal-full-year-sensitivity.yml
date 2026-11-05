@@ -48,6 +48,12 @@ jobs:
           assert ((df.real_efs_pilot_demand_mwh-df.illustrative_renewable_dispatch_mwh-df.illustrative_firm_dispatch_mwh).abs()<0.01).all()
           assert m['physical_western_opf_admitted'] is False
           assert m['utc_weather_alignment_verified'] is False
+          for row in df.sort_values(['planning_year','renewable_nameplate_to_local_zone_peak_ratio']).itertuples(index=False):
+              print(f'SCENARIO_RESULT year={row.planning_year} renewable_peak_ratio={row.renewable_nameplate_to_local_zone_peak_ratio:.1f} '
+                    f'zones={row.zonal_systems} demand_TWh={row.real_efs_pilot_demand_mwh/1e6:.6f} '
+                    f'renewable_share={row.illustrative_renewable_energy_share:.6f} '
+                    f'curtailed_GWh={row.illustrative_renewable_curtailment_mwh/1000:.6f} '
+                    f'variable_cost_billion_usd={row.illustrative_variable_cost_usd/1e9:.6f}')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
