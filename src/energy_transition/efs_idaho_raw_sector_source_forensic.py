@@ -75,7 +75,6 @@ def one_year(sector_source, original_hourly, published,year):
     test=~train
     candidates=[]
     for shifts in itertools.product(SHIFT,repeat=len(sectors)):
-        if all(k==0 for k in shifts):continue
         pred=sum(matrices[k][i] for i,k in enumerate(shifts))
         tr=float(np.mean(np.abs(pred[train]-y[train])))
         te=float(np.mean(np.abs(pred[test]-y[test])))
@@ -95,9 +94,11 @@ def one_year(sector_source, original_hourly, published,year):
         "baseline_interior_train_mae_mw":float(no_shift[train].mean()),
         "baseline_interior_test_mae_mw":float(no_shift[test].mean()),
         "training_selected_sector_shifts":"|".join(str(k) for k in best[2]),
+        "training_selected_baseline_no_shifts":bool(all(k==0 for k in best[2])),
         "training_selected_sector_shift_train_mae_mw":best[0],
         "training_selected_sector_shift_test_mae_mw":best[1],
         "heldout_mae_reduction_vs_unshifted_sectors_mw":float(no_shift[test].mean()-best[1]),
+        "best_candidate_in_sample_better_or_equal_baseline":bool(best[0]<=float(no_shift[train].mean())+1e-8),
         "exhaustive_sector_shift_candidates":len(candidates),
         "source_sector_shifts_have_physical_timezone_credibility":False,
         "upstream_EFS2020_sector_timezone_definition_certified":False,
