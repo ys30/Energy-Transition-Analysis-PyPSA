@@ -48,3 +48,22 @@ def test_nonfinite_source_fails_closed():
 def test_missing_source_hour_fails_closed():
     with pytest.raises(ValueError,match="8760"):
         compare_arrays(reference()[:-1],reference())
+
+def test_integer_mw_publisher_rounding_recognized_after_fixed_shift():
+    source=reference()+0.137
+    publisher=np.roll(np.round(source),2)
+    r=compare_arrays(source,publisher)
+    assert not r["direct_ordinal_all_8760_match"]
+    assert r["best_offset_hours"]==-2
+    assert r["best_offset_all_8760_rounding_equivalent"]
+    assert r["best_offset_hours_within_half_MW_rounding"]==8760
+    assert r["best_offset_max_abs_error_mw"]<=0.500001
+
+
+def test_large_residual_still_distinguished_from_half_mw_rounding():
+    source=reference()+0.137
+    publisher=np.roll(np.round(source),3)
+    publisher[400]+=35
+    r=compare_arrays(source,publisher)
+    assert not r["best_offset_all_8760_rounding_equivalent"]
+    assert r["best_offset_hours_above_1_MW_error"]>=1
