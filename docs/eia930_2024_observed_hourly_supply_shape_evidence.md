@@ -27,7 +27,20 @@ The new script computes for each of 16 observed panels:
 - Official archive CI: [EIA-930 2024 signed shape boundary](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/eia930-observed-shapes-boundary.yml).
 - Output: `observed_2024_eia930_four_week_ba_fuel_shapes.csv` and `observed_2024_eia930_shape_provenance.json`, including original input SHA-256 and explicit no-EFS-future-hour-join admission flags.
 
-**Scientific use if CI passes:** a measured historical net-generation-shape descriptive supplement and a provenance/feasibility bridge to resource modeling, not a direct renewable input for the 540 future-year LP cases.
+**Verified CI result:** [Actions run #42111171369](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42111171369) **passed** on the original 2024 EIA-930 hourly archived source, including all 16 panels, continuity tests, signed-energy accounting and source SHA-256. The values below are **reported historical signed net generation** (not resource availability or future predictions).
+
+### Example verified source-week results
+
+| Observed 2024 UTC week | BA | Fuel | Signed net generation (GWh) | Negative hourly net records | Mean absolute hourly change (MWh per consecutive hour) |
+|---|---|---|---:|---:|---:|
+| Winter | CISO | Solar | 542.511 | 94 | 931.46 |
+| Summer | CISO | Solar | 1,063.098 | 46 | 1,271.27 |
+| Winter | BPAT | Wind | 204.830 | 2 | 86.96 |
+| Summer | BPAT | Wind | 103.634 | 0 | 77.86 |
+| Autumn | BPAT | Solar | 4.024 | 38 | 7.12 |
+| Summer | CISO | Wind | 385.142 | 0 | 241.63 |
+
+All 16 audited panels have **168 consecutive hours**; the raw records in the same historical BA×fuel source are not assumed to cover the entire year without gaps. Signed solar net generation has numerous negative records in the audited weeks; clipping them to zero would alter total energy, reported shape and ramp interpretation. The 2024 weekly EIA-930 generation figures should **never** be plotted as 2030–2050 modeled renewable availability without weather-year and plant-capacity source certification.
 
 ## Next external-data gate
 
