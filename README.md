@@ -21,6 +21,10 @@ A [passing independent EIA-860/Southwest Power Pool evidence grading CI](https:/
 
 **Source-NetCDF topology confirmation:** [Real archived-network CI #42079066900](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42079066900) independently re-imports the source synthetic Western NetCDF and confirms geographically chosen candidate bus `2053003` is **115 kV**, with **two incident Lines** to `2053019` and `2053021`, and **zero incident Transformers**. This is **not** a utility POI match, a complete physical connectivity audit, or an approved generator injection. The [detailed audit](docs/eia860_archived_synthetic_candidate_structural_validation.md) retains Line/Transformer/Link distinctions and blocks physical dispatch claims.
 
+## Full-8,760-hour EFS source-demand illustrative supply sensitivity
+
+A [successful seven-state source-data workflow #42091677548](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42091677548) processed **20 independently modeled load zones** for each of 2030, 2040 and 2050, with 8,760 original EFS LocalHourID ordinals in each year. Verified seven-state zonal demand is **274.707, 306.839 and 350.871 TWh**, respectively. Three hypothetical renewable nameplate-to-zone-peak ratios (30%, 60%, 90%) and a **constant assumed 50% availability** give **illustrative** renewable energy shares of about **24.6%, 49.2%, 73.0%**, respectively. At the 90% nameplate ratio, the **modeled** unused available renewable energy is **2.200, 2.460 and 2.817 TWh**, respectively. These figures use a fixed 120%-of-peak hypothetical firm plant and assumed marginal costs of $5/$90 per MWh; **they are not empirical renewable profiles, actual curtailment, investment outcomes, or a network-constrained PyPSA OPF**. No interzonal transmission, weather synchronization or real plant POI is admitted. [Methods, assumptions and data limitations](docs/efs_ordinal_full_year_illustrative_supply_screen.md).
+
 ## Project A → B integration status (audited)
 
 [**A contribution, repository boundaries, and revised B milestone progress**](docs/A_TO_B_CONTRIBUTION_AND_PROGRESS_AUDIT.md)
