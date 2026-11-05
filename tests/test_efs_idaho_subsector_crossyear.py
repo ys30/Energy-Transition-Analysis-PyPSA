@@ -36,6 +36,8 @@ def test_frozen_shift_is_not_refit_in_target_year():
     hdf5=np.roll(original,2)
     a=frozen_shift_transfer(sec,original,hdf5,2040)
     assert a["baseline_heldout_mae_mw"]==pytest.approx(0)
+    assert a["baseline_firsthalf_mae_mw"]==pytest.approx(0)
+    assert a["firsthalf_hours"]+a["heldout_hours"]==8756
     assert a["heldout_improvement_mw"]<=1e-9
     assert not a["fit_selection_repeated_on_this_year"]
     assert not a["candidate_shift_physical_timezone_verified"]
