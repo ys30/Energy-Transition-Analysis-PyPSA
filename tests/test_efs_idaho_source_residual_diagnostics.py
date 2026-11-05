@@ -40,3 +40,9 @@ def test_wrong_array_length_and_nan_rejected():
 def test_only_explicit_control_states():
     with pytest.raises(ValueError,match="Unsupported"):
         profile_metrics(series(),series(),"WA",2030,source_clock())
+
+def test_official_hdf5_bytestring_timestamp_supported():
+    b=series()
+    clock=[s.encode("utf-8") for s in source_clock()]
+    result,_=profile_metrics(np.roll(b,-2),b,"ID",2030,clock)
+    assert result["mae_mw"]==pytest.approx(0)
