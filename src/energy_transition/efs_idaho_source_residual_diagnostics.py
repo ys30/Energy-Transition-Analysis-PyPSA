@@ -31,7 +31,8 @@ def profile_metrics(original,reference,state,year,reference_datetime):
     i=np.arange(max(0,shift),min(N,N+shift))
     j=i-shift
     assert len(i)==N-abs(shift)
-    source_time=pd.DatetimeIndex(pd.to_datetime(reference_datetime,utc=True))
+    raw_stamps=[v.decode('utf-8') if isinstance(v,bytes) else str(v) for v in reference_datetime]
+    source_time=pd.DatetimeIndex(pd.to_datetime(raw_stamps,utc=True))
     if len(source_time)!=N:raise ValueError("Missing published HDF5 chronology")
     residual=a[i]-b[j]
     abs_error=np.abs(residual)
