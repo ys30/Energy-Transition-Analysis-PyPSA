@@ -1,0 +1,72 @@
+name: EFS source-backed equal-energy synthetic supply shape sensitivity
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-ordinal-supply-shapes.yml'
+      - 'src/energy_transition/efs_ordinal_supply_shape_sensitivity.py'
+      - 'tests/test_efs_ordinal_supply_shape_sensitivity.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  three-year-shapes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install numerical dependencies
+        run: python -m pip install numpy pandas pytest
+      - name: Validate equal-energy profiles and fail-closed hour gate
+        run: PYTHONPATH=src python -m pytest tests/test_efs_ordinal_supply_shape_sensitivity.py -q
+      - name: Retrieve original verified 7-state zonal EFS hourly artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs
+          gh run download 41281576025 -R "${{ github.repository }}" -n real-western-base-network-attempt -D /tmp/efs
+          test -s /tmp/efs/efs-real-laf-zonal-pilot.csv.gz
+      - name: Compare flat and periodic hypothetical profiles over 8,760 source ordinals
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_ordinal_supply_shape_sensitivity \
+            --zonal /tmp/efs/efs-real-laf-zonal-pilot.csv.gz \
+            --out-csv outputs/efs_supply_shape_equal_energy_27_scenarios.csv \
+            --out-shapes outputs/efs_supply_shape_assumption_summary.csv \
+            --out-json outputs/efs_supply_shape_assumptions.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+          df=pd.read_csv('outputs/efs_supply_shape_equal_energy_27_scenarios.csv')
+          meta=json.loads(Path('outputs/efs_supply_shape_assumptions.json').read_text())
+          assert len(df)==27
+          assert set(df.planning_year)=={2030,2040,2050}
+          assert (df.zonal_systems==20).all()
+          assert (df.ordinal_hours_per_zone==8760).all()
+          for (year,ratio),group in df.groupby(['planning_year','renewable_peak_ratio']):
+              assert len(group)==3
+              assert np.allclose(group.available_renewable_mwh,group.available_renewable_mwh.iloc[0],rtol=1e-11,atol=.01)
+              assert np.allclose(group.delivered_renewable_mwh+group.assumed_firm_generation_mwh,group.source_demand_mwh,rtol=1e-11,atol=.01)
+              for row in group.itertuples():
+                  print(f'SHAPE_RESULT year={year} ratio={ratio:.1f} shape={row.synthetic_supply_shape} '
+                        f'load_TWh={row.source_demand_mwh/1e6:.6f} '
+                        f'renewable_share={row.illustrative_renewable_share:.6f} '
+                        f'unused_GWh={row.model_unused_renewable_mwh/1000:.6f} '
+                        f'cost_billion_usd={row.illustrative_variable_cost_usd/1e9:.6f}')
+          assert meta['physical_Western_OPF_admitted'] is False
+          assert meta['source_LocalHourID_is_physical_UTC_verified'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-seven-state-27-equal-energy-synthetic-supply-scenarios
+          path: |
+            outputs/efs_supply_shape_equal_energy_27_scenarios.csv
+            outputs/efs_supply_shape_assumption_summary.csv
+            outputs/efs_supply_shape_assumptions.json
+          if-no-files-found: warn
