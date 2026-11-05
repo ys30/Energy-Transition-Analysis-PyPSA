@@ -1,0 +1,56 @@
+name: Independent official ReEDS 2022 EFS reference HDF5 source inspection
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/reeds2022-reference-hdf5-source.yml'
+      - 'src/energy_transition/reeds2022_reference_hdf5_provenance.py'
+permissions:
+  contents: read
+jobs:
+  source-hdf5:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install publisher data parser
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10'
+      - name: Obtain original official 2022 ReEDS source HDF5, verify published MD5
+        run: |
+          mkdir -p inputs outputs
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o inputs/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  inputs/demand_EFS_REFERENCE.h5' | md5sum --check --status
+          test "$(stat -c%s inputs/demand_EFS_REFERENCE.h5)" -gt 40000000
+      - name: Inspect native datetime datasets and 11-state projected MWh on 3 model years
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_reference_hdf5_provenance \
+            --h5 inputs/demand_EFS_REFERENCE.h5 \
+            --out-csv outputs/reeds2022_reference_2030_2040_2050_state_summary.csv \
+            --out-json outputs/reeds2022_reference_source_time_metadata.json
+          python - <<'PY'
+          import json,pandas as pd
+          from pathlib import Path
+          a=pd.read_csv('outputs/reeds2022_reference_2030_2040_2050_state_summary.csv')
+          m=json.loads(Path('outputs/reeds2022_reference_source_time_metadata.json').read_text())
+          assert len(a)==33
+          assert (a.source_8760_hours==8760).all()
+          assert set(a.model_year)=={2030,2040,2050}
+          assert m['verified_actual_md5']==m['original_publisher_md5']
+          assert m['legacy_EFS_2020_same_dataset_assertion'] is False
+          assert m['legacy_EFS_2020_UTC_clock_certified'] is False
+          assert m['synchronized_future_wind_solar_join_admitted'] is False
+          print('OFFICIAL_REEDS2022_SOURCE_PROVENANCE_PASS: real official HDF5 checksum and 33 state-year demand profiles')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reeds2022-independent-reference-hdf5-provenance
+          path: |
+            outputs/reeds2022_reference_2030_2040_2050_state_summary.csv
+            outputs/reeds2022_reference_source_time_metadata.json
+          if-no-files-found: error
