@@ -1,0 +1,145 @@
+name: EFS cyclic 8760h all 20 zones and 3 years
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-cyclic-storage-all-zones.yml'
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'tests/test_efs_cyclic_storage_lp.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  zone-batch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2030, 2040, 2050]
+        offset: [0, 5, 10, 15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install sparse LP runtime and test gates
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest tests/test_efs_cyclic_storage_lp.py -q
+      - name: Restore verified original EFS seven-state 8760h zonal data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs
+          test -s /tmp/efs/efs-real-laf-zonal-pilot.csv.gz
+      - name: Solve 5 zones x 9 scenarios, cyclic HiGHS 8760h
+        run: |
+          mkdir -p outputs
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.efs_cyclic_storage_lp \
+            --zonal /tmp/efs/efs-real-laf-zonal-pilot.csv.gz \
+            --year ${{ matrix.year }} --hours 8760 --max-zones 5 --zone-offset ${{ matrix.offset }} \
+            --out-csv outputs/cyclic_${{ matrix.year }}_${{ matrix.offset }}.csv \
+            --out-json outputs/cyclic_${{ matrix.year }}_${{ matrix.offset }}.json
+          python - <<'PY'
+          import json,numpy as np,pandas as pd
+          from pathlib import Path
+          y=${{ matrix.year }};offset=${{ matrix.offset }}
+          a=pd.read_csv(f'outputs/cyclic_{y}_{offset}.csv')
+          m=json.loads(Path(f'outputs/cyclic_{y}_{offset}.json').read_text())
+          assert len(a)==45
+          assert a[["state","reeds_zone"]].drop_duplicates().shape[0]==5
+          assert (a.source_hours==8760).all()
+          assert (a.solver_status=='optimal').all()
+          assert (a.max_equality_residual_mwh<1e-5).all()
+          assert (a.storage_terminal_soc_mwh.abs()<1e-5).all()
+          assert np.allclose(a.renewable_direct_mwh+a.storage_discharge_to_load_mwh+a.firm_generation_mwh,a.demand_mwh,atol=.01)
+          assert np.allclose(a.renewable_direct_mwh+a.storage_charge_input_mwh+a.unused_renewable_mwh,a.renewable_available_mwh,atol=.01)
+          assert m['source_total_zone_count']==20 and m['zone_offset']==offset
+          assert m['real_Western_network_OPF_admitted'] is False
+          print(f'BATCH_VERIFIED year={y} offset={offset} LPs={len(a)} zones={a.reeds_zone.nunique()}')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: efs-cyclic-full-year-${{ matrix.year }}-${{ matrix.offset }}
+          path: |
+            outputs/cyclic_${{ matrix.year }}_${{ matrix.offset }}.csv
+            outputs/cyclic_${{ matrix.year }}_${{ matrix.offset }}.json
+          if-no-files-found: error
+  combine-and-validate:
+    needs: zone-batch
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pandas and numpy
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3'
+      - name: Download all original 12 batch artifacts and independently verified 27 no-storage cases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/batches /tmp/previous
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" -p 'efs-cyclic-full-year-*' -D /tmp/batches
+          gh run download 42099467157 -R "${{ github.repository }}" \
+            -n efs-seven-state-27-equal-energy-synthetic-supply-scenarios -D /tmp/previous
+          test -s /tmp/previous/efs_supply_shape_equal_energy_27_scenarios.csv
+      - name: Check every zone appears once, every LP optimal and 8760h no-storage matches independent source-backed study
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+          files=sorted(Path('/tmp/batches').rglob('cyclic_*.csv'))
+          assert len(files)==12,f'Expected 12 batch CSVs, got {len(files)}'
+          all_cases=pd.concat([pd.read_csv(f) for f in files],ignore_index=True)
+          keys=['planning_year','state','reeds_zone','synthetic_supply_shape','battery_duration_h']
+          assert len(all_cases)==540
+          assert not all_cases.duplicated(keys).any()
+          assert set(all_cases.planning_year)=={2030,2040,2050}
+          assert set(all_cases.battery_duration_h)=={0,4,8}
+          assert (all_cases.source_hours==8760).all()
+          assert (all_cases.solver_status=='optimal').all()
+          assert (all_cases.max_equality_residual_mwh<1e-5).all()
+          assert (all_cases.storage_terminal_soc_mwh.abs()<1e-5).all()
+          assert (all_cases.groupby('planning_year')[['state','reeds_zone']].apply(lambda d:len(d.drop_duplicates()))==20).all()
+          assert np.allclose(all_cases.renewable_direct_mwh+all_cases.storage_discharge_to_load_mwh+all_cases.firm_generation_mwh,all_cases.demand_mwh,atol=.01)
+          previous=pd.read_csv('/tmp/previous/efs_supply_shape_equal_energy_27_scenarios.csv')
+          zero=all_cases.loc[all_cases.battery_duration_h==0]
+          for (year,shape),group in zero.groupby(['planning_year','synthetic_supply_shape']):
+              old=previous.loc[(previous.planning_year==year)&(previous.synthetic_supply_shape==shape)&(np.isclose(previous.renewable_peak_ratio,.9))]
+              assert len(old)==1
+              assert np.isclose(group.demand_mwh.sum(),old.source_demand_mwh.iloc[0],rtol=1e-10,atol=.1)
+              assert np.isclose(group.unused_renewable_mwh.sum(),old.model_unused_renewable_mwh.iloc[0],rtol=1e-10,atol=.1)
+              assert np.isclose(group.firm_generation_mwh.sum(),old.assumed_firm_generation_mwh.iloc[0],rtol=1e-10,atol=.1)
+          all_cases.to_csv('outputs/all_20zone_cyclic_8760h_results.csv',index=False)
+          summary=(all_cases.groupby(['planning_year','synthetic_supply_shape','battery_duration_h'],as_index=False)
+                        [['demand_mwh','renewable_available_mwh','renewable_direct_mwh','storage_charge_input_mwh',
+                          'storage_discharge_to_load_mwh','firm_generation_mwh','unused_renewable_mwh',
+                          'objective_illustrative_variable_usd','greedy_terminal_soc_mwh']].sum())
+          assert len(summary)==27
+          summary.to_csv('outputs/all_20zone_cyclic_8760h_summary.csv',index=False)
+          print('FULL_YEAR_ALL_ZONE_GATE_SUCCESS: 20 zones/year, 540 optimal cyclic LPs, baseline agrees with independent 27-case prior run')
+          for r in summary.itertuples(index=False):
+              print(f'ALL_ZONE_CYCLIC year={r.planning_year} shape={r.synthetic_supply_shape} '
+                    f'duration={r.battery_duration_h} unused_TWh={r.unused_renewable_mwh/1e6:.6f} '
+                    f'firm_TWh={r.firm_generation_mwh/1e6:.6f} '
+                    f'discharge_TWh={r.storage_discharge_to_load_mwh/1e6:.6f} '
+                    f'cost_BUSD={r.objective_illustrative_variable_usd/1e9:.6f} '
+                    f'greedy_end_SOC_GWh={r.greedy_terminal_soc_mwh/1000:.6f}')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: efs-cyclic-full-year-all-20-zones-validated
+          path: |
+            outputs/all_20zone_cyclic_8760h_results.csv
+            outputs/all_20zone_cyclic_8760h_summary.csv
+          if-no-files-found: error
