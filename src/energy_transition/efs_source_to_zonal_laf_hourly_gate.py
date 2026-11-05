@@ -34,6 +34,7 @@ def audit(source: pd.DataFrame, zonal: pd.DataFrame, buses: pd.DataFrame,
     else:
         expected_states = set(expected_states)
     src = src[src.state.isin(expected_states)]
+    b = b[b.state.isin(expected_states)]
     if set(src.state) != expected_states or set(z.state) != expected_states:
         raise ValueError("Source or zonal state population mismatch")
     if set(src.year) != set(years) or set(z.year) != set(years):
