@@ -28,3 +28,10 @@ def test_does_not_accept_reordered_source_index():
     data[0]["stored_naive_snapshot"] = "2030-01-02 00:00:00"
     with pytest.raises(ValueError, match="mismatch"):
         analyze(data)
+
+
+def test_reject_duplicate_archive_sequence_ordinal():
+    data = records()
+    data.append(dict(data[0]))
+    with pytest.raises(ValueError, match="duplicate archive sequence ordinal"):
+        analyze(data)
