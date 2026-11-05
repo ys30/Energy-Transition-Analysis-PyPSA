@@ -25,7 +25,7 @@ Compare against each **archived** `allocated_mw(y,s,z,h)` using `rtol=1e-9`, `at
 ## Validation status
 
 - Previously **passed**: original staged zonal rows to Load-only NetCDF, all load-hours, [CI 42055638619](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42055638619).
-- New source-state → zone-hour reconstruction: **new CI submitted; must check run result before claiming empirical pass**. [Workflow](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/efs-actual-snapshot-semantics.yml).
+- New source-state → zone-hour reconstruction: **passed against the original archived EFS state-hour and original bus-LAF data** in [Actions run 42068612494](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42068612494). This establishes arithmetic reproducibility, not independently certified time or geographic semantics.
 
 If passed, the overall numerical chain **state EFS hourly aggregation → modeled original-bus LAF zones → staged zonal series → Load-only archived NetCDF** is verified for seven states and three planning years. This is a reproducibility/ingestion finding, **not** a calibrated 2030–2050 Western OPF or source time synchronization proof.
 
