@@ -1,0 +1,84 @@
+name: Idaho original EFS sector hourly source forensic and holdout
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-idaho-raw-sector-forensic.yml'
+      - 'src/energy_transition/efs_idaho_raw_sector_source_forensic.py'
+      - 'tests/test_efs_idaho_raw_sector_source_forensic.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  original-idaho-sector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install numerical EFS source forensic runtime
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
+      - name: Test raw source accounting and holdout diagnostics
+        run: PYTHONPATH=src python -m pytest -q tests/test_efs_idaho_raw_sector_source_forensic.py
+      - name: Retrieve authentic original EFS scenario archive and extract original CSV
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/efs /tmp/reeds outputs
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 700 \
+            https://data.nlr.gov/system/files/126/EFSLoadProfile_Reference_Moderate.zip \
+            -o /tmp/efs/EFSLoadProfile_Reference_Moderate.zip
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          a=Path('/tmp/efs/EFSLoadProfile_Reference_Moderate.zip')
+          with zipfile.ZipFile(a) as z:
+              options=[m for m in z.namelist() if m.endswith('EFSLoadProfile_Reference_Moderate.csv')]
+              assert len(options)==1,options
+              with z.open(options[0]) as src, open('/tmp/efs/EFSLoadProfile_Reference_Moderate.csv','wb') as dst:
+                  import shutil
+                  shutil.copyfileobj(src,dst)
+          assert Path('/tmp/efs/EFSLoadProfile_Reference_Moderate.csv').stat().st_size>1000000
+          print('ORIGINAL_EFS_SOURCE_CSV_EXTRACTED_FROM_AUTHENTIC_NLR_ARCHIVE')
+          PY
+      - name: Recover previous independent original state-hour and publisher HDF5 sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41262154939 -R "${{ github.repository }}" \
+            -n pypsa-usa-efs-source-evidence -D /tmp/efs
+          test -s /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Reconcile original Idaho sector MWh and test shift hypotheses on held-out hours
+        run: |
+          OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONPATH=src \
+            python -m energy_transition.efs_idaho_raw_sector_source_forensic \
+            --original-efs /tmp/efs/EFSLoadProfile_Reference_Moderate.csv \
+            --archived-hourly /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --reeds-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --out-dir outputs/idaho_raw_source_sector
+          python - <<'PY'
+          import pandas as pd,json
+          from pathlib import Path
+          root=Path('outputs/idaho_raw_source_sector')
+          d=pd.read_csv(root/'idaho_raw_sector_shift_holdout.csv')
+          m=json.loads((root/'idaho_source_sector_provenance.json').read_text())
+          assert len(d)==3 and set(d.year)=={2030,2040,2050}
+          assert d.exact_state_reconciliation.all()
+          assert (d.exhaustive_sector_shift_candidates>=2).all()
+          assert not d.source_sector_shifts_have_physical_timezone_credibility.any()
+          assert not m['source_clock_corrected_or_synchronized']
+          assert not m['future_wind_solar_join_admitted']
+          print('ORIGINAL_IDAHO_SECTOR_SOURCE_RECONCILIATION_PASS; Fitted shifts are not physical timezone evidence.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: idaho-original-efs-source-sector-holdout-forensics
+          path: outputs/idaho_raw_source_sector/
+          if-no-files-found: warn
