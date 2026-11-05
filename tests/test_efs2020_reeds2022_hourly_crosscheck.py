@@ -67,3 +67,11 @@ def test_large_residual_still_distinguished_from_half_mw_rounding():
     r=compare_arrays(source,publisher)
     assert not r["best_offset_all_8760_rounding_equivalent"]
     assert r["best_offset_hours_above_1_MW_error"]>=1
+
+def test_exploratory_mixture_of_two_shifted_sequences_is_identifiable_numerically():
+    independent=reference()
+    a=0.4*np.roll(independent,-2)+0.6*np.roll(independent,-3)
+    r=compare_arrays(a,independent)
+    assert r["exploratory_two_shift_minus2_weight"]==pytest.approx(0.4,abs=1e-9)
+    assert r["exploratory_two_shift_mix_mae_mw"]<1e-8
+    assert r["exploratory_two_shift_mix_is_physical_timezone_attribution"] is False
