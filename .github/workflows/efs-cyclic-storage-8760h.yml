@@ -1,0 +1,75 @@
+name: EFS full-year 8760h cyclic SOC HiGHS feasibility
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-cyclic-storage-8760h.yml'
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'tests/test_efs_cyclic_storage_lp.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  full-year-cyclic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2030, 2040, 2050]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned full-year linear-program runtime
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+      - name: Recheck LP source-hour and boundary correctness
+        run: PYTHONPATH=src python -m pytest tests/test_efs_cyclic_storage_lp.py -q
+      - name: Retrieve existing verified source EFS zone-hour archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs
+          test -s /tmp/efs/efs-real-laf-zonal-pilot.csv.gz
+      - name: Optimize nine full-year cyclic scenarios for highest-load zone
+        run: |
+          mkdir -p outputs
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.efs_cyclic_storage_lp \
+            --zonal /tmp/efs/efs-real-laf-zonal-pilot.csv.gz \
+            --year ${{ matrix.year }} --hours 8760 --max-zones 1 \
+            --out-csv outputs/efs_8760h_cyclic_lp_${{ matrix.year }}.csv \
+            --out-json outputs/efs_8760h_cyclic_lp_${{ matrix.year }}.json
+          python - <<'PY'
+          import json,numpy as np,pandas as pd
+          from pathlib import Path
+          year=${{ matrix.year }}
+          rows=pd.read_csv(f'outputs/efs_8760h_cyclic_lp_{year}.csv')
+          m=json.loads(Path(f'outputs/efs_8760h_cyclic_lp_{year}.json').read_text())
+          assert len(rows)==9 and rows.reeds_zone.nunique()==1
+          assert (rows.source_hours==8760).all()
+          assert (rows.solver_status=='optimal').all()
+          assert (rows.max_equality_residual_mwh<1e-5).all()
+          assert (rows.storage_terminal_soc_mwh.abs()<1e-5).all()
+          assert np.allclose(rows.renewable_direct_mwh+rows.storage_discharge_to_load_mwh+rows.firm_generation_mwh,rows.demand_mwh,atol=.01)
+          assert np.allclose(rows.renewable_direct_mwh+rows.storage_charge_input_mwh+rows.unused_renewable_mwh,rows.renewable_available_mwh,atol=.01)
+          assert m['physical_UTC_verified'] is False
+          assert m['real_Western_network_OPF_admitted'] is False
+          for row in rows.itertuples(index=False):
+              print(f'FULL_YEAR_CYCLIC year={year} zone={row.reeds_zone} shape={row.synthetic_supply_shape} duration={row.battery_duration_h} '
+                    f'firm_GWh={row.firm_generation_mwh/1000:.6f} unused_GWh={row.unused_renewable_mwh/1000:.6f} '
+                    f'discharge_GWh={row.storage_discharge_to_load_mwh/1000:.6f} '
+                    f'cost_MUSD={row.objective_illustrative_variable_usd/1e6:.6f} '
+                    f'greedy_SOC_MWh={row.greedy_terminal_soc_mwh:.6f} '
+                    f'comparable={row.cyclic_lp_vs_greedy_cost_directly_comparable}')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-cyclic-8760h-source-zonal-${{ matrix.year }}
+          path: outputs/efs_8760h_cyclic_lp_${{ matrix.year }}.*
+          if-no-files-found: warn
