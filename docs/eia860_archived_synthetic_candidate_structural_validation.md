@@ -29,6 +29,6 @@ Total historical capacity reviewed: **1,647.7 MW**. Current approved electrical 
 
 ## Acceptance and next source acquisition
 
-The [source topology workflow](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/eia860-archived-candidate-structural-gate.yml) must **succeed** before calling the archived-NetCDF comparison source-verified. A successful run authorizes only the synthetic structural findings, not real plant POI approval.
+The [archived NetCDF source topology audit #42079066900](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42079066900) **passed**. Its success authorizes only the synthetic structural findings, not real plant POI approval.
 
 The decisive missing item is a source-compatible **real electrical network** or independently sourced facility-to-network bus/substation crosswalk with utility evidence, exact network vintage, line/transformer details, and per-generator capacity/availability. If unavailable, a defensible fallback is a deliberately coarse zonal *planning* model with clearly labeled assumptions, not an invented real Western AC power-flow model.
