@@ -8,6 +8,9 @@ name: Audit 2024 EIA top-three SPP plant evidence hierarchy
       - 'data/eia860_top3_official_transmission_evidence.json'
       - 'src/energy_transition/eia860_spptop3_poi_evidence_gate.py'
       - 'tests/test_eia860_spptop3_poi_evidence_gate.py'
+      - 'src/energy_transition/eia860_synthetic_candidate_voltage_discriminator.py'
+      - 'tests/test_eia860_synthetic_candidate_voltage_discriminator.py'
+      - 'docs/western_source_network_provenance.json'
 permissions:
   contents: read
 jobs:
@@ -22,7 +25,7 @@ jobs:
       - name: Run external evidence scope tests
         run: |
           python -m pip install pytest
-          PYTHONPATH=src python -m pytest tests/test_eia860_spptop3_poi_evidence_gate.py -q
+          PYTHONPATH=src python -m pytest tests/test_eia860_spptop3_poi_evidence_gate.py tests/test_eia860_synthetic_candidate_voltage_discriminator.py -q
       - name: Generate evidence-level summary without admitting bus mapping
         run: |
           PYTHONPATH=src python -m energy_transition.eia860_spptop3_poi_evidence_gate \
@@ -38,7 +41,25 @@ jobs:
           assert r['electrically_admitted_generator_capacity_mw']==0
           assert r['full_western_opf_admitted'] is False
           PY
+      - name: Grade official high-voltage source evidence vs original synthetic candidate
+        run: |
+          PYTHONPATH=src python -m energy_transition.eia860_synthetic_candidate_voltage_discriminator \
+            --evidence data/eia860_top3_official_transmission_evidence.json \
+            --network-metadata docs/western_source_network_provenance.json \
+            --out outputs/eia860_synthetic_candidate_voltage_discriminator.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/eia860_synthetic_candidate_voltage_discriminator.json').read_text())
+          assert r['documented_plant_count']==3
+          assert r['named_high_voltage_comparisons_with_mismatch']==2
+          assert r['unit_voltage_noncomparable_count']==1
+          assert r['verified_utility_POI_to_synthetic_bus_connections']==0
+          assert r['real_western_OPF_admitted'] is False
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: eia860-spp-three-plant-evidence-not-poi-certification
-          path: outputs/eia860_spp_top3_plant_evidence_summary.json
+          path: |
+            outputs/eia860_spp_top3_plant_evidence_summary.json
+            outputs/eia860_synthetic_candidate_voltage_discriminator.json
