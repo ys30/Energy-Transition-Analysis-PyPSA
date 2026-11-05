@@ -27,4 +27,23 @@ New [hourly cross-release verification workflow](https://github.com/ys30/Energy-
 - **Even a perfect numerical match does not by itself prove that the original EFS 2020 author meant its `LocalHourID` as physically UTC, CST, a particular year, or hour-ending**; that convention still needs a source-specific authoritative document or direct publisher evidence.
 - Neither matching source values nor matching 2022 HDF5 timestamps admits EFS zoning to generator buses, weather-derived wind/solar potential, geographical transfers, or real Western network OPF. The existing 2020 EFS→LAF 20-zone pipeline and 540 mathematical storage LP results remain unmodified.
 
-**Status:** source workflow submitted; numerical conclusions require the actual CI output.
+**Status: REAL-SOURCE HOURLY COMPARISON PASSED.** [Original full-hour Actions run #42119225537](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42119225537) compared all 289,080 pairs. [Follow-up numerical residual run #42119633401](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42119633401) added half-MW proximity, max residual and source-shift diagnostics. The **CI jobs succeeded**, but this does **not** mean the two releases have identical unshifted hourly chronology.
+
+## Verified numerical source-hour findings
+
+Both official source files deliver the **same rounded annual totals** (11 Western states: 774.400/855.707/980.023 TWh in 2030/2040/2050). However, **0 of 33** complete state-year hourly series match directly with 0.01 MW precision at the same unshifted native source ordinal.
+
+A 25-shift numerical screen (integer shifts −12…+12 hours, applied to the **published ReEDS HDF5 hourly vector**) finds:
+
+| Original 2020 EFS state | Best source-index shift (2022 ReEDS sequence) | After-shift mean absolute error (MW) | Above 1 MW residual hours |
+|---|---:|---:|---:|
+| AZ, CO, MT, NM, UT, WY | −2 h in all three years | approximately 0.25 | **0 per state-year** |
+| CA, NV, OR, WA | −3 h in all three years | approximately 0.25 | **0 per state-year** |
+| ID | −2 h in all three years | **17.266 / 19.306 / 22.102** in 2030 / 2040 / 2050 | **8,369 / 8,410 / 8,443** |
+
+**Thus 30/33 complete state-year sequences are within 1 MW at every one of their 8,760 source hour keys after applying the individually best candidate shift.** No state-year has all 8,760 values within **0.01 MW**, and even non-Idaho states have a few values slightly over 0.5 MW (largest displayed 2050 CA error approximately 0.618 MW). Therefore this finding must be described as **sub-MW near-equivalence after shift**, not strict bitwise identity or proven pure rounding. Differences in published integer precision and/or upstream aggregation are possible explanations, not demonstrated causes.
+
+**Idaho requires separate scrutiny:** its residuals after −2 h shifting are systematic (most hours exceed 1 MW), with extreme hourly deviations up to roughly **299 MW** by 2050, despite matching rounded annual demand totals. Its geographic split across physical time zones makes mixed-source chronology a *plausible hypothesis*, not a verified attribution. An explicitly exploratory **two-shift least-squares mix** is being evaluated for both −2/−3 source shifts; its fitted weights must never be claimed as actual Idaho demand allocation or source timezone membership.
+
+**Clock admission remains blocked.** These observed differences strongly suggest that the candidate `LocalHourID`→ReEDS2022 datetime relationship is not identity by default, and candidate −2/−3 transformations require independent metadata checks. In particular, the HDF5's 2012 CST timestamps do **not** automatically certify that the original 2020 `LocalHourID` convention is physical UTC/CST, nor authenticate a weather-year synchronous wind/solar future-year dispatch. No replacement of EFS load, resampling, actual wind/solar resource join or network OPF has been performed.
+
