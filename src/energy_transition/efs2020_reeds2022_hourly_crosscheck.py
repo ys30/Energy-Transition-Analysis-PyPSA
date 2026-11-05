@@ -40,6 +40,10 @@ def compare_arrays(original, independent, *, abs_tolerance_mw=0.01):
             "maximum_absolute_error_mw":float(diff.max()),
             "all_8760_hour_values_equal_within_tolerance":bool((diff<=abs_tolerance_mw).all()),
             "matching_hours_within_tolerance":int((diff<=abs_tolerance_mw).sum()),
+            "hours_within_half_MW_rounding":int((diff<=0.500001).sum()),
+            "worst_error_hour_ordinal":int(np.argmax(diff)+1),
+            "hours_above_1_MW_error":int((diff>1.0).sum()),
+            "p99_absolute_error_mw":float(np.quantile(diff,0.99)),
         })
     zero=next(v for v in comparisons if v["offset_hours"]==0)
     best=min(comparisons,key=lambda x:(x["mae_mw"],abs(x["offset_hours"]),x["offset_hours"]))
@@ -52,9 +56,16 @@ def compare_arrays(original, independent, *, abs_tolerance_mw=0.01):
         "direct_ordinal_mae_mw":zero["mae_mw"],
         "direct_ordinal_max_abs_error_mw":zero["maximum_absolute_error_mw"],
         "direct_ordinal_matching_hours":zero["matching_hours_within_tolerance"],
+        "direct_hours_within_half_MW_rounding":zero["hours_within_half_MW_rounding"],
         "direct_ordinal_all_8760_match":zero["all_8760_hour_values_equal_within_tolerance"],
         "best_offset_hours":best["offset_hours"],
         "best_offset_mae_mw":best["mae_mw"],
+        "best_offset_max_abs_error_mw":best["maximum_absolute_error_mw"],
+        "best_offset_p99_abs_error_mw":best["p99_absolute_error_mw"],
+        "best_offset_hours_within_half_MW_rounding":best["hours_within_half_MW_rounding"],
+        "best_offset_hours_above_1_MW_error":best["hours_above_1_MW_error"],
+        "best_offset_worst_hour_ordinal":best["worst_error_hour_ordinal"],
+        "best_offset_all_8760_rounding_equivalent":bool(best["hours_within_half_MW_rounding"]==HOURS),
         "best_offset_all_8760_match":best["all_8760_hour_values_equal_within_tolerance"],
         "all_exact_matching_offsets_in_tested_range":valid,
         "shift_uniquely_identified":len(valid)==1,
@@ -105,6 +116,7 @@ def compare_files(efs_csv, reeds_h5):
         "hour_pairs_per_state_year":HOURS,
         "total_direct_hour_pairs_compared":33*HOURS,
         "state_year_pairs_direct_all_hour_match":int(results.direct_ordinal_all_8760_match.sum()),
+        "state_year_pairs_best_shift_rounding_equivalent":int(results.best_offset_all_8760_rounding_equivalent.sum()),
         "all_33_pairs_directly_match_under_0_01MW":all_direct,
         "all_33_pairs_have_exact_match_for_some_tested_shift":all_any_shift,
         "all_33_direct_hour_values_accepted_as_2020_EFS_UTC":False,
@@ -131,6 +143,6 @@ def main():
     a.out_json.write_text(json.dumps(metadata,indent=2)+"\n")
     print(json.dumps({k:v for k,v in metadata.items() if k!="source_2022_clock_samples"},indent=2))
     for x in result.itertuples(index=False):
-        print(f"EFS_2020_2022_HOURLY year={x.planning_year} state={x.state} annual_diff_MWh={x.annual_difference_mwh:.6f} direct_MAE_MW={x.direct_ordinal_mae_mw:.6f} direct_equal={x.direct_ordinal_all_8760_match} best_shift_h={x.best_offset_hours} best_MAE_MW={x.best_offset_mae_mw:.6f} best_equal={x.best_offset_all_8760_match}")
+        print(f"EFS_2020_2022_HOURLY year={x.planning_year} state={x.state} annual_diff_MWh={x.annual_difference_mwh:.6f} direct_MAE_MW={x.direct_ordinal_mae_mw:.6f} direct_equal={x.direct_ordinal_all_8760_match} best_shift_h={x.best_offset_hours} best_MAE_MW={x.best_offset_mae_mw:.6f} best_equal={x.best_offset_all_8760_match} rounded_hours={x.best_offset_hours_within_half_MW_rounding}/8760 max_abs_error_MW={x.best_offset_max_abs_error_mw:.6f} above_1MW={x.best_offset_hours_above_1_MW_error}")
 if __name__=="__main__":
     main()
