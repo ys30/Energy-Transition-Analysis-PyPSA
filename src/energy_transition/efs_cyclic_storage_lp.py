@@ -64,12 +64,12 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
             "objective_illustrative_variable_usd":float(sol.fun),
             "max_equality_residual_mwh":resid,"cyclic_SOC_0_to_0_verified":True}
 
-def evaluate_zones(source,year,hours=168,max_zones=2):
+def evaluate_zones(source,year,hours=168,max_zones=2,zone_offset=0):
     keys=["year","state","reeds_zone","local_hour_id","allocated_mw"]
     if not set(keys).issubset(source.columns):raise ValueError("Missing EFS source columns")
     if source[keys].isna().any().any() or source.duplicated(keys[:-1]).any():
         raise ValueError("Invalid or duplicate EFS inputs")
-    if hours<=0 or max_zones<=0 or hours%24:raise ValueError("Require positive whole 24-ordinal cycles")
+    if hours<=0 or max_zones<=0 or zone_offset<0 or hours%24:raise ValueError("Require positive whole 24-ordinal cycles and nonnegative zone offset")
     scoped=source.loc[(source.year==year)&source.local_hour_id.between(1,hours)]
     if scoped.empty:raise ValueError("Missing year source")
     groups=[]
@@ -81,7 +81,9 @@ def evaluate_zones(source,year,hours=168,max_zones=2):
         if not np.isfinite(d).all() or (d<0).any():raise ValueError("Invalid original source demand")
         groups.append((float(d.sum()),str(state),str(zone),d))
     groups.sort(key=lambda row:(-row[0],row[1],row[2]))
-    groups=groups[:max_zones]
+    source_zone_count=len(groups)
+    groups=groups[zone_offset:zone_offset+max_zones]
+    if not groups:raise ValueError('Selected source zone batch is empty')
     rows=[]
     for _,state,zone,load in groups:
         for shape in SHAPES:
@@ -104,7 +106,8 @@ def evaluate_zones(source,year,hours=168,max_zones=2):
                              "cyclic_lp_cost_minus_greedy_usd":float(opt["objective_illustrative_variable_usd"]-greedy_cost) if comparable else None})
     metadata={"status":"CYCLIC_HIGHS_ILLUSTRATIVE_ORDINAL_PILOT","planning_year":year,
               "source_ordinal_hours_per_zone":hours,
-              "zone_selection":"top EFS demand MWh in scoped ordinal hours",
+              "zone_selection":"source demand MWh descending with deterministic state/zone ties",
+              "zone_offset":zone_offset,"source_total_zone_count":source_zone_count,
               "zones_tested":[{"state":s,"reeds_zone":z} for _,s,z,_ in groups],
               "hypothetical_renewable_shapes":list(SHAPES),"battery_durations_h":list(DURATIONS),
               "battery_initial_and_terminal_soc_mwh":0.,
@@ -119,10 +122,11 @@ def main():
     p.add_argument("--year",type=int,required=True,choices=(2030,2040,2050))
     p.add_argument("--hours",type=int,default=168)
     p.add_argument("--max-zones",type=int,default=2)
+    p.add_argument("--zone-offset",type=int,default=0)
     p.add_argument("--out-csv",type=Path,required=True)
     p.add_argument("--out-json",type=Path,required=True)
     a=p.parse_args()
-    rows,meta=evaluate_zones(pd.read_csv(a.zonal,compression="infer"),a.year,a.hours,a.max_zones)
+    rows,meta=evaluate_zones(pd.read_csv(a.zonal,compression="infer"),a.year,a.hours,a.max_zones,a.zone_offset)
     for path in (a.out_csv,a.out_json):path.parent.mkdir(parents=True,exist_ok=True)
     pd.DataFrame(rows).to_csv(a.out_csv,index=False)
     a.out_json.write_text(json.dumps(meta,indent=2)+"\n")
