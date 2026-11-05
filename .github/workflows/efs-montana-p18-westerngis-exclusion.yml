@@ -19,6 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install independent source parser test dependency
+        run: python -m pip install pytest
       - name: Run exact source exclusion gate tests without GIS data reconstruction
         run: PYTHONPATH=src python -m pytest tests/test_efs_montana_p18_western_reeds_exclusion_gate.py -q
       - name: Restore independently verified original source county composition
