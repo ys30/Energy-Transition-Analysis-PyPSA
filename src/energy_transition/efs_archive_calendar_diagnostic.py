@@ -23,7 +23,10 @@ def analyze(rows):
             raise ValueError("Unexpected scenario year")
         if not (1 <= ordinal <= 8760):
             raise ValueError("Invalid ordinal")
-        years.setdefault(year, {})[ordinal] = r
+        year_rows = years.setdefault(year, {})
+        if ordinal in year_rows:
+            raise ValueError(f"{year}: duplicate archive sequence ordinal {ordinal}")
+        year_rows[ordinal] = r
     if set(years) != {2030, 2040, 2050}:
         raise ValueError("Missing model year")
     results = []
