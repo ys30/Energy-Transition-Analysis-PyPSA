@@ -1,0 +1,61 @@
+name: Audit real archived synthetic bus vs EIA-860 POI evidence
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia860-archived-candidate-structural-gate.yml'
+      - 'src/energy_transition/eia860_archived_candidate_structural_gate.py'
+      - 'tests/test_eia860_archived_candidate_structural_gate.py'
+      - 'src/energy_transition/eia860_spptop3_poi_evidence_gate.py'
+      - 'data/eia860_top3_official_transmission_evidence.json'
+      - 'docs/western_source_network_provenance.json'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-topology:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned research runtime
+        run: python -m pip install -e '.[model]' pytest netcdf4
+      - name: Run evidence-only unit tests
+        run: PYTHONPATH=src python -m pytest tests/test_eia860_archived_candidate_structural_gate.py tests/test_eia860_spptop3_poi_evidence_gate.py -q
+      - name: Restore original 2024-source synthetic Western topology
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source-network
+          gh run download 41531397166 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/source-network
+          test -s /tmp/source-network/real-western-base-network.nc
+      - name: Inspect real archived original network without approving generator injection
+        run: |
+          PYTHONPATH=src python -m energy_transition.eia860_archived_candidate_structural_gate \
+            --network /tmp/source-network/real-western-base-network.nc \
+            --ledger data/eia860_top3_official_transmission_evidence.json \
+            --provenance docs/western_source_network_provenance.json \
+            --out outputs/eia860_archived_candidate_structural_gate.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/eia860_archived_candidate_structural_gate.json').read_text())
+          assert r['candidate_nominal_voltage_kv'] == 115.
+          assert r['incident_lines'] == 2
+          assert r['incident_transformers'] == 0
+          assert r['line_neighbor_ids'] == ['2053019','2053021']
+          assert r['independently_verified_electrical_poi_count'] == 0
+          assert r['admitted_real_generator_mw'] == 0
+          assert r['full_western_opf_admitted'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eia860-real-archive-synthetic-bus-structural-evidence
+          path: outputs/eia860_archived_candidate_structural_gate.json
+          if-no-files-found: warn
