@@ -1,0 +1,63 @@
+name: EIA930 observed 2024 signed renewable hourly shape boundary
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eia930-observed-shapes-boundary.yml'
+      - 'src/energy_transition/eia930_observed_shape_boundary.py'
+      - 'tests/test_eia930_observed_shape_boundary.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  observed-shape-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install minimal data audit runtime
+        run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3' 'pytest>=8'
+      - name: Test observed BA fuel-hour signed and coverage gates
+        run: PYTHONPATH=src python -m pytest tests/test_eia930_observed_shape_boundary.py -q
+      - name: Retrieve original accepted 2024 EIA930 observed renewable artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/observed
+          gh run download 41003777337 -R "${{ github.repository }}" \
+            -n eia930-hourly-solar-wind-2024 -D /tmp/observed
+          test -s /tmp/observed/seasonal_observed_renewables.csv
+      - name: Audit all 16 signed observed seasonal panels separately from EFS
+        run: |
+          PYTHONPATH=src python -m energy_transition.eia930_observed_shape_boundary \
+            --seasonal /tmp/observed/seasonal_observed_renewables.csv \
+            --out-dir outputs/eia930_observed_shapes
+          python - <<'PY'
+          import json, pandas as pd, numpy as np
+          from pathlib import Path
+          root=Path('outputs/eia930_observed_shapes')
+          d=pd.read_csv(root/'observed_2024_eia930_four_week_ba_fuel_shapes.csv')
+          m=json.loads((root/'observed_2024_eia930_shape_provenance.json').read_text())
+          assert len(d)==16 and d.n_observed_hours.eq(168).all()
+          assert (d.negative_hours>0).any()
+          assert np.allclose(d.signed_reported_generation_mwh,
+                             d.positive_component_mwh+d.negative_component_mwh,atol=0.000001)
+          assert not m['efs_2030_2050_hour_alignment_admitted']
+          assert not m['renewable_capacity_factor_valid']
+          assert m['source_csv_sha256']
+          for r in d.itertuples(index=False):
+              print(f'OBSERVED_SHAPE_RESULT season={r.season} BA={r.ba_code} fuel={r.fueltype} '
+                    f'signed_GWh={r.signed_reported_generation_mwh/1000:.4f} '
+                    f'negative_hours={r.negative_hours} '
+                    f'peak_MWh_per_hour={r.signed_net_peak_positive_hour_mwh:.2f} '
+                    f'mean_abs_ramp_MWh={r.mean_abs_one_hour_reported_net_ramp_mwh:.2f}')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eia930-observed-2024-4week-signed-shape-evidence
+          path: outputs/eia930_observed_shapes/
+          if-no-files-found: error
