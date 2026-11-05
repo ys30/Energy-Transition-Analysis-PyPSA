@@ -1,0 +1,65 @@
+name: EFS2020 ReEDS2022 source shift nonwrapping robust lag
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs2020-reeds2022-nonwrap-lag.yml'
+      - 'src/energy_transition/efs2020_reeds2022_nonwrapping_lag.py'
+      - 'tests/test_efs2020_reeds2022_nonwrapping_lag.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-lag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source analysis dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
+      - name: Test nonwrapping comparisons, year-end exclusion and mixed profiles
+        run: PYTHONPATH=src python -m pytest -q tests/test_efs2020_reeds2022_nonwrapping_lag.py
+      - name: Recover archived original EFS2020 state-hour source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs /tmp/reeds outputs
+          gh run download 41262154939 -R "${{ github.repository }}" -n pypsa-usa-efs-source-evidence -D /tmp/efs
+          test -s /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+      - name: Download independent publisher HDF5 and check MD5
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Independently audit 33 state-year series with nonwrapping shifts
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs2020_reeds2022_nonwrapping_lag \
+            --efs-hourly /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --reeds-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --out-csv outputs/efs_2020_2022_nonwrap_33_pairs.csv \
+            --out-json outputs/efs_2020_2022_nonwrap_metadata.json
+          python - <<'PY'
+          import json
+          import pandas as pd
+          from pathlib import Path
+          df=pd.read_csv('outputs/efs_2020_2022_nonwrap_33_pairs.csv')
+          meta=json.loads(Path('outputs/efs_2020_2022_nonwrap_metadata.json').read_text())
+          assert len(df)==33
+          assert df[['year','state']].drop_duplicates().shape[0]==33
+          assert set(df.year)=={2030,2040,2050}
+          assert (df.best_nonwrap_compared_hours+df.best_nonwrap_excluded_boundary_hours==8760).all()
+          assert (df.runnerup_mae_margin_mw>=0).all()
+          assert meta['unverified_2020_to_2012_clock_join_allowed'] is False
+          assert meta['real_western_powerflow_admitted'] is False
+          print('NONWRAP_33_SOURCE_PAIR_GATE_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: efs2020-reeds2022-nonwrapping-shift-33-pairs
+          path: outputs/efs_2020_2022_nonwrap_*
+          if-no-files-found: error
