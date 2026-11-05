@@ -9,6 +9,12 @@ A reproducible modeling and data-validation pipeline for western U.S. electricit
 
 > **Scientific status:** The 2024 CISO and BPAT pilots are **independent, gas-only engineering screening models**, not calibrated historical simulations or a coupled WECC network. Synthetic scenario figures and transmission test fixtures must not be interpreted as empirical energy-transition forecasts.
 
+## Latest source-hour and archive equivalence gate (November 2026)
+
+The [source-to-archive full-hour validation](docs/verified_efs_source_to_archive_hourly_equivalence.md) now passes against original archived 2030/2040/2050 seven-state EFS zonal CSV and Load-only PyPSA NetCDF from Actions run 41281576025. The [source-data CI run 42055638619](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42055638619) compares **each zonal Load MW value at every one of its 8,760 archived hours**, rather than relying only on an annual checksum. It validates the project's staged `local_hour_id` order against archived Load values; it does **not** establish a physical UTC chronology.
+
+The same archived-source CI confirms the **2040 leap-year label issue** (the synthetic 8,760-hour 2040 calendar includes Feb 29 and excludes Dec 31), with **7,344 different month/day/hour labels** compared with the pinned nonleap 2018 ordinal template. No original source files were altered, and no simultaneous generation/weather/Western-grid OPF has been admitted. Original EFS timezone/DST conventions and network electrical/calibration evidence remain unresolved.
+
 ## Project A → B integration status (audited)
 
 [**A contribution, repository boundaries, and revised B milestone progress**](docs/A_TO_B_CONTRIBUTION_AND_PROGRESS_AUDIT.md)
