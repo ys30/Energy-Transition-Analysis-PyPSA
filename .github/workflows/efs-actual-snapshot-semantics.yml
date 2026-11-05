@@ -7,6 +7,8 @@ name: Audit actual EFS 2030-2050 stored snapshot calendar semantics
       - '.github/workflows/efs-actual-snapshot-semantics.yml'
       - 'src/energy_transition/efs_actual_archived_snapshot_semantics.py'
       - 'tests/test_efs_actual_archived_snapshot_semantics.py'
+      - 'src/energy_transition/efs_archive_sequence_manifest.py'
+      - 'tests/test_efs_archive_sequence_manifest.py'
 permissions:
   contents: read
   actions: read
@@ -22,7 +24,7 @@ jobs:
       - name: Install PyPSA and test runtime
         run: python -m pip install -e '.[model]' netcdf4 pytest
       - name: Verify leap-year model-hour semantics tests
-        run: PYTHONPATH=src python -m pytest tests/test_efs_actual_archived_snapshot_semantics.py -q
+        run: PYTHONPATH=src python -m pytest tests/test_efs_actual_archived_snapshot_semantics.py tests/test_efs_archive_sequence_manifest.py -q
       - name: Restore original three-year seven-state EFS Load-only network
         env:
           GH_TOKEN: ${{ github.token }}
@@ -54,9 +56,18 @@ jobs:
           assert r["independent_source_EFS_clock_DST_convention_verified"] is False
           assert r["joint_synchronous_2030_2050_OPF_admitted"] is False
           PY
+      - name: Create archival sequence-only clock manifest (not UTC)
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_archive_sequence_manifest \
+            --audit-json outputs/efs_actual_archived_snapshot_semantics.json \
+            --out-csv outputs/efs_archive_sequence_manifest.csv \
+            --out-json outputs/efs_archive_sequence_manifest_summary.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: efs-2030-2050-original-load-network-clock-semantics
-          path: outputs/efs_actual_archived_snapshot_semantics.json
+          path: |
+            outputs/efs_actual_archived_snapshot_semantics.json
+            outputs/efs_archive_sequence_manifest.csv
+            outputs/efs_archive_sequence_manifest_summary.json
           if-no-files-found: warn
