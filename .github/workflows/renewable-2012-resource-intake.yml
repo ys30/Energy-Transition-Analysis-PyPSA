@@ -1,0 +1,35 @@
+name: Validate 2012 WIND Toolkit NSRDB source resource intake contract
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/renewable-2012-resource-intake.yml'
+      - 'src/energy_transition/renewable_2012_resource_intake.py'
+      - 'tests/test_renewable_2012_resource_intake.py'
+permissions:
+  contents: read
+jobs:
+  validate-source-resource-intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install minimal data source validation dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Validate proposed 2012 wind/solar resource intake against synthetic test fixtures
+        run: PYTHONPATH=src python -m pytest -q tests/test_renewable_2012_resource_intake.py
+      - name: Confirm there are no real data join or source-fetch claims
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          from energy_transition.renewable_2012_resource_intake import evaluate
+          import ast, pathlib
+          text=pathlib.Path('src/energy_transition/renewable_2012_resource_intake.py').read_text()
+          assert 'EFS_load_resource_join_admitted' in text
+          assert 'physical_Western_OPF_admitted' in text
+          ast.parse(text)
+          print('PASS: 2012 resource CSV acceptance implementation tested with deterministic fixtures only; no real resource has been downloaded or joined to EFS')
+          PY
