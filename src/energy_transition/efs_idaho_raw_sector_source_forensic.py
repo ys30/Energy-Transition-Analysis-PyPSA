@@ -8,7 +8,6 @@ import argparse, hashlib, itertools, json
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import h5py
 
 from .reeds2022_reference_hdf5_provenance import CHECKSUM, verify_publisher_2012_clock
 
@@ -105,6 +104,7 @@ def one_year(sector_source, original_hourly, published,year):
     }
 
 def audit(original_csv,archived_state_csv,reeds_h5):
+    import h5py  # optional HDF5 reader only for real-source audit
     with reeds_h5.open("rb") as fd:
         digest=hashlib.file_digest(fd,"md5").hexdigest()
     if digest!=CHECKSUM:raise ValueError("Official ReEDS2022 HDF5 MD5 mismatch")
