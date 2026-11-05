@@ -32,6 +32,6 @@ def test_missing_hour_refused():
 
 def test_shifted_hour_refused_even_if_8760():
     d=data()
-    d[200]="2012-01-09 09:00:00-06:00"
+    d[200]="2012-12-31 00:00:00-06:00"
     with pytest.raises(ValueError,match="chronology mismatch"):
         verify_publisher_2012_clock(d)
