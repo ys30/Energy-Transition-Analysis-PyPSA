@@ -1,0 +1,80 @@
+name: Idaho EFS original subsector and frozen cross-year clock hypothesis
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-idaho-subsector-crossyear.yml'
+      - 'src/energy_transition/efs_idaho_subsector_crossyear.py'
+      - 'tests/test_efs_idaho_subsector_crossyear.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  original-subsector-and-transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source-audit runtime and test
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
+          PYTHONPATH=src python -m pytest tests/test_efs_idaho_subsector_crossyear.py -q
+      - name: Download and system-unzip authentic Deflate64 NLR EFS original CSV
+        run: |
+          mkdir -p /tmp/idaho-source /tmp/reeds-source outputs
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 700 \
+            https://data.nlr.gov/system/files/126/EFSLoadProfile_Reference_Moderate.zip \
+            -o /tmp/idaho-source/EFSLoadProfile_Reference_Moderate.zip
+          unzip -oq /tmp/idaho-source/EFSLoadProfile_Reference_Moderate.zip -d /tmp/idaho-source
+          test -s /tmp/idaho-source/EFSLoadProfile_Reference_Moderate.csv
+          echo '75b6cf99cc04a2b98bd69f7874809a396f256d57ae7f10d36f3e945fb0235eea  /tmp/idaho-source/EFSLoadProfile_Reference_Moderate.csv' | sha256sum --check
+      - name: Retrieve independent 2020 EFS state-hour archive and publisher 2022 ReEDS HDF5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41262154939 -R "${{ github.repository }}" \
+            -n pypsa-usa-efs-source-evidence -D /tmp/idaho-source
+          test -s /tmp/idaho-source/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds-source/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds-source/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Audit original subsectors and transfer fixed 2030 shift to later years without refitting
+        run: |
+          OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONPATH=src \
+            python -m energy_transition.efs_idaho_subsector_crossyear \
+            --original-efs /tmp/idaho-source/EFSLoadProfile_Reference_Moderate.csv \
+            --state-hour /tmp/idaho-source/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --reeds-h5 /tmp/reeds-source/demand_EFS_REFERENCE.h5 \
+            --out-dir outputs/idaho_subsector_crossyear
+          python - <<'PY'
+          import json,numpy as np,pandas as pd
+          from pathlib import Path
+          root=Path('outputs/idaho_subsector_crossyear')
+          subs=pd.read_csv(root/'idaho_source_subsector_annual_energy.csv')
+          transfer=pd.read_csv(root/'idaho_frozen_2030_transport_shift_crossyear.csv')
+          m=json.loads((root/'idaho_subsector_source_provenance.json').read_text())
+          assert set(transfer.planning_year)=={2030,2040,2050} and len(transfer)==3
+          assert set(subs.Year)=={2030,2040,2050}
+          assert np.allclose(subs.groupby('Year').original_year_load_share.sum(),1.,rtol=1e-10)
+          assert m['source_rows_selected']==367920
+          assert m['subsector_energy_reconciled_2030_2040_2050']
+          assert (transfer.fit_selection_repeated_on_this_year==False).all()
+          assert m['subsector_geographic_timezone_identified'] is False
+          assert m['cross_source_future_wind_solar_join_allowed'] is False
+          print('IDAHO_SUBSECTOR_SOURCE_AND_FROZEN_CROSSYEAR_GATE_PASS')
+          for r in transfer.itertuples(index=False):
+              print(f'FROZEN_SHIFT year={r.planning_year} reference_MAE={r.baseline_heldout_mae_mw:.6f} '
+                    f'fixed2030_MAE={r.fixed_2030_transport_plus1_heldout_mae_mw:.6f} '
+                    f'heldout_improvement_MW={r.heldout_improvement_mw:.6f}')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: idaho-efs-original-subsector-frozen-crossyear-evidence
+          path: outputs/idaho_subsector_crossyear/
+          if-no-files-found: warn
