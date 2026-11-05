@@ -37,7 +37,26 @@ Across the three durations for a given year and supply shape, real EFS demand an
 - GitHub Action: [EFS ordinal synthetic renewable and battery duration sensitivity](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/efs-ordinal-storage-sensitivity.yml)
 - Artifacts: `efs_storage_27_synthetic_scenarios.csv` and `efs_storage_27_synthetic_scenarios_metadata.json`
 
-**Status:** Code committed and source-backed CI triggered; do not treat numerical storage outputs as confirmed until its specific run passes and output logs are reviewed.
+**Verified numerical execution:** [Actions run #42100384015](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42100384015) **PASSED**, including source-hour validation, mass/SOC energy balance, all 27 scenario-year runs and artifact upload. These are verified *illustrative calculations*, not validated real-world generation/storage values.
+
+## Verified example outcomes: synthetic supply wave A at 90% zone-peak renewable nameplate
+
+| Planning year | Hypothetical storage | Model unused renewable, TWh | Hypothetical firm generation, TWh | Battery discharge to load, TWh | Terminal stored energy, GWh |
+|---|---|---:|---:|---:|---:|
+| 2030 | None | 25.893 | 97.871 | 0 | 0 |
+| 2030 | 4 h | 9.445 | 83.086 | 14.785 | 19.983 |
+| 2030 | 8 h | 2.605 | 76.930 | 20.940 | 19.983 |
+| 2040 | None | 28.934 | 109.313 | 0 | 0 |
+| 2040 | 4 h | 10.559 | 92.796 | 16.517 | 22.322 |
+| 2040 | 8 h | 2.914 | 85.916 | 23.397 | 22.322 |
+| 2050 | None | 33.104 | 124.992 | 0 | 0 |
+| 2050 | 4 h | 12.088 | 106.102 | 18.891 | 25.529 |
+| 2050 | 8 h | 3.338 | 98.227 | 26.766 | 25.529 |
+
+For the 2030 wave A assumptions, 8-hour battery duration cuts modeled unused hypothetical supply by **23.288 TWh** compared with no battery, while reducing illustrative firm generation by **20.940 TWh**. Their difference is explained by modeled storage conversion losses and positive terminal energy: **a reduction in unused energy is not equivalent to delivered renewable supply**.
+
+**Boundary effect:** the 2030 wave A storage cases terminate with approximately **19.983 GWh** of combined stored energy (2040: 22.322 GWh; 2050: 25.529 GWh). This is **not counted as supply to load or discarded** and means that a stationary cyclic-storage interpretation would require a separate terminal SOC constraint or additional adjustment. The greedy dispatch is not a cost-optimized battery policy.
+
 
 ## Interpretation and future admission
 
