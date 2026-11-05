@@ -15,7 +15,17 @@ The publisher states the demand product is **gross end-use load in MWh/h, hour-e
 - Artifacts: `reeds2022_reference_2030_2040_2050_state_summary.csv`, `reeds2022_reference_source_time_metadata.json`. The HDF5 datetime first/last records are saved for independent chronology scrutiny.
 - No synthetic data are substituted for the publisher's HDF5. The workflow fails on missing source file, wrong checksum, missing years/Western-state series or invalid numeric units.
 
-**Admission status:** source validation pending a successful actual workflow run. Even if the separate HDF5 source is verified, the existing original EFS2020 weather-hour alignment, generator-to-bus POIs, future wind/solar resource capacity factors and Western OPF remain *blocked*.
+**Actual publisher-file source validation passed:** [CI #42117508479](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42117508479) downloaded and MD5-verified the **official 43.2-MB HDF5**, read all 33 state-year profiles and native datetime arrays. For 2030, 2040 and 2050 the HDF5's datetime strings start **2012-01-01 00:00:00-06:00**, end **2012-12-30 23:00:00-06:00**, and contain **8,760 unique time keys** per model year. The source HDF5 is separate from EFS2020. A subsequent stricter follow-up CI also tests **the exact 2012 CST sequence, Feb 29 inclusion and Dec 31 exclusion**, rather than accepting merely 8,760 unique rows. Even with source validation, original EFS2020 weather-hour alignment, generator-to-bus POIs, future wind/solar resource capacity factors and Western OPF remain *blocked*.
+
+## Independent native HDF5 evidence (actual official 2022 source)
+
+| Example state/model year | Signed/source annual state demand | Native hourly source peak |
+|---|---:|---:|
+| California, 2030 | 284.614329 TWh | 56,878 MW |
+| Arizona, 2030 | 89.415913 TWh | 19,405 MW |
+| Colorado, 2030 | 64.966091 TWh | 11,454 MW |
+
+These numbers are *independent 2022 ReEDS release model results* and **must not be merged with or advertised as numerically equivalent to the 2020 EFS Reference/Moderate dataset**. The native time index carries a real fixed `-06:00` offset; the authoritative publisher's hour-ending claim is metadata, not a license to introduce an undocumented one-hour relabeling of the original source.
 
 ## Next empirical research step
 
