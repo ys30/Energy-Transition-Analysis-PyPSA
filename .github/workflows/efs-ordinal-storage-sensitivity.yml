@@ -1,0 +1,71 @@
+name: EFS ordinal synthetic renewable and battery duration sensitivity
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-ordinal-storage-sensitivity.yml'
+      - 'src/energy_transition/efs_ordinal_storage_sensitivity.py'
+      - 'tests/test_efs_ordinal_storage_sensitivity.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  storage-screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install numerical and test dependencies
+        run: python -m pip install numpy pandas pytest
+      - name: Test battery mass and source-hour gates
+        run: PYTHONPATH=src python -m pytest tests/test_efs_ordinal_storage_sensitivity.py -q
+      - name: Restore verified original EFS zonal demand (not UTC)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs
+          test -s /tmp/efs/efs-real-laf-zonal-pilot.csv.gz
+      - name: Compute 27 full-8760-hour supply shape by battery duration scenarios
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_ordinal_storage_sensitivity \
+            --zonal /tmp/efs/efs-real-laf-zonal-pilot.csv.gz \
+            --out-csv outputs/efs_storage_27_synthetic_scenarios.csv \
+            --out-json outputs/efs_storage_27_synthetic_scenarios_metadata.json
+          python - <<'PY'
+          import pandas as pd, json, numpy as np
+          from pathlib import Path
+          a=pd.read_csv('outputs/efs_storage_27_synthetic_scenarios.csv')
+          m=json.loads(Path('outputs/efs_storage_27_synthetic_scenarios_metadata.json').read_text())
+          assert len(a)==27
+          assert set(a.planning_year)=={2030,2040,2050}
+          assert set(a.battery_duration_hours)=={0,4,8}
+          assert set(a.synthetic_supply_shape)=={'flat_50pct','ordinal24_wave_A','ordinal24_wave_B'}
+          assert (a.zone_count==20).all() and (a.ordinal_hours_per_zone==8760).all()
+          assert np.allclose(a.renewable_direct_mwh+a.storage_discharge_to_load_mwh+a.firm_generation_mwh,a.demand_mwh,rtol=1e-11,atol=.01)
+          assert np.allclose(a.renewable_direct_mwh+a.storage_charge_mwh+a.unused_renewable_mwh,a.available_renewable_mwh,rtol=1e-11,atol=.01)
+          assert np.allclose(a.storage_charge_mwh*np.sqrt(.9)-a.storage_discharge_to_load_mwh/np.sqrt(.9),a.storage_terminal_soc_mwh,rtol=1e-11,atol=.01)
+          for (year,shape),g in a.groupby(['planning_year','synthetic_supply_shape']):
+              assert np.allclose(g.available_renewable_mwh,g.available_renewable_mwh.iloc[0],rtol=1e-11,atol=.01)
+              assert np.allclose(g.demand_mwh,g.demand_mwh.iloc[0],rtol=1e-11,atol=.01)
+          assert m['Western_OPF_admitted'] is False and m['source_hour_physical_utc_verified'] is False
+          for row in a.sort_values(['planning_year','synthetic_supply_shape','battery_duration_hours']).itertuples(index=False):
+              print(f'STORAGE_RESULT year={row.planning_year} shape={row.synthetic_supply_shape} '
+                    f'duration={row.battery_duration_hours} demand_TWh={row.demand_mwh/1e6:.6f} '
+                    f'unused_TWh={row.unused_renewable_mwh/1e6:.6f} firm_TWh={row.firm_generation_mwh/1e6:.6f} '
+                    f'battery_discharge_TWh={row.storage_discharge_to_load_mwh/1e6:.6f} '
+                    f'soc_end_GWh={row.storage_terminal_soc_mwh/1000:.6f}')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-seven-state-27-ordinal-synthetic-storage-scenarios
+          path: |
+            outputs/efs_storage_27_synthetic_scenarios.csv
+            outputs/efs_storage_27_synthetic_scenarios_metadata.json
+          if-no-files-found: warn
