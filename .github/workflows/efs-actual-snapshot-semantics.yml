@@ -17,6 +17,8 @@ name: Audit actual EFS 2030-2050 stored snapshot calendar semantics
       - 'tests/test_efs_zonal_archive_hourly_equivalence.py'
       - 'src/energy_transition/efs_source_to_zonal_laf_hourly_gate.py'
       - 'tests/test_efs_source_to_zonal_laf_hourly_gate.py'
+      - 'src/energy_transition/efs_numerical_chain_provenance.py'
+      - 'tests/test_efs_numerical_chain_provenance.py'
 permissions:
   contents: read
   actions: read
@@ -32,7 +34,7 @@ jobs:
       - name: Install PyPSA and test runtime
         run: python -m pip install -e '.[model]' netcdf4 pytest
       - name: Verify leap-year model-hour semantics tests
-        run: PYTHONPATH=src python -m pytest tests/test_efs_actual_archived_snapshot_semantics.py tests/test_efs_archive_sequence_manifest.py tests/test_efs_archive_calendar_diagnostic.py tests/test_efs_pinned_ordinal_bijection.py tests/test_efs_zonal_archive_hourly_equivalence.py tests/test_efs_source_to_zonal_laf_hourly_gate.py -q
+        run: PYTHONPATH=src python -m pytest tests/test_efs_actual_archived_snapshot_semantics.py tests/test_efs_archive_sequence_manifest.py tests/test_efs_archive_calendar_diagnostic.py tests/test_efs_pinned_ordinal_bijection.py tests/test_efs_zonal_archive_hourly_equivalence.py tests/test_efs_source_to_zonal_laf_hourly_gate.py tests/test_efs_numerical_chain_provenance.py -q
       - name: Restore original three-year seven-state EFS Load-only network
         env:
           GH_TOKEN: ${{ github.token }}
@@ -70,6 +72,18 @@ jobs:
             --zonal /tmp/efs-zonal/efs-real-laf-zonal-pilot.csv.gz \
             --network /tmp/efs-model/efs-real-2030-local-hour-load-only.nc \
             --out outputs/efs_source_to_zonal_laf_hourly_gate.json
+      - name: Create input SHA256 manifest and numerical chain certification (not physical UTC)
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_numerical_chain_provenance \
+            --source /tmp/efs-source-state/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --zonal /tmp/efs-zonal/efs-real-laf-zonal-pilot.csv.gz \
+            --network /tmp/efs-model/efs-real-2030-local-hour-load-only.nc \
+            --net2030 /tmp/efs-model/efs-real-2030-local-hour-load-only.nc \
+            --net2040 /tmp/efs-model/efs-real-2040-local-hour-load-only.nc \
+            --net2050 /tmp/efs-model/efs-real-2050-local-hour-load-only.nc \
+            --source-report outputs/efs_source_to_zonal_laf_hourly_gate.json \
+            --archive-report outputs/efs_zonal_archive_hourly_equivalence.json \
+            --out outputs/efs_numerical_chain_provenance.json
       - name: Audit real stored EFS snapshots and dynamic-vs-static series
         run: |
           PYTHONPATH=src python -m energy_transition.efs_actual_archived_snapshot_semantics \
@@ -125,4 +139,5 @@ jobs:
             outputs/efs_pinned_ordinal_bijection.json
             outputs/efs_zonal_archive_hourly_equivalence.json
             outputs/efs_source_to_zonal_laf_hourly_gate.json
+            outputs/efs_numerical_chain_provenance.json
           if-no-files-found: warn
