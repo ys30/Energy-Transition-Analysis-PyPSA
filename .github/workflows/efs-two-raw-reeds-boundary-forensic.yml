@@ -1,0 +1,70 @@
+name: Forensic source ReEDS polygon distances for Arizona p28 and Montana p18
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-two-raw-reeds-boundary-forensic.yml'
+      - 'src/energy_transition/efs_two_raw_reeds_boundary_forensic.py'
+      - 'tests/test_efs_two_raw_reeds_boundary_forensic.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install original PyPSA and GIS dependencies
+        run: python -m pip install -e '.[model]' netcdf4 geopandas shapely pyogrio pyproj pytest
+      - name: Verify exact source polygon boundary fixture
+        run: PYTHONPATH=src python -m pytest tests/test_efs_two_raw_reeds_boundary_forensic.py -q
+      - name: Reuse original accepted source files and exact pinned ReEDS shapefile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs/source /tmp/efs/shapes
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs/source
+          gh run download 41874891129 -R "${{ github.repository }}" \
+            -n efs-2030-three-source-bus-placement-rules -D /tmp/efs/source
+          NET=$(find /tmp/efs/source -name real-western-base-network.nc -type f -print -quit)
+          PAIRS=$(find /tmp/efs/source -name efs_2030_three_bus_placement_rules.csv -type f -print -quit)
+          test -n "$NET" && test -s "$NET"
+          test -n "$PAIRS" && test -s "$PAIRS"
+          echo "SOURCE_NET=$NET" >> "$GITHUB_ENV"
+          echo "SOURCE_PAIRS=$PAIRS" >> "$GITHUB_ENV"
+          for ext in shp shx dbf prj cpg; do
+            curl --fail --retry 3 --silent --show-error --location \
+              "https://raw.githubusercontent.com/PyPSA/pypsa-usa/338af9912addbaf038c6098fe27e1e6ef099d8aa/workflow/repo_data/geospatial/Reeds_Shapes/rb_and_ba_areas.${ext}" \
+              -o "/tmp/efs/shapes/rb_and_ba_areas.${ext}"
+            test -s "/tmp/efs/shapes/rb_and_ba_areas.${ext}"
+          done
+      - name: Measure mismatched original candidate to exact source zone boundary distance
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_two_raw_reeds_boundary_forensic \
+            --base "$SOURCE_NET" --choices "$SOURCE_PAIRS" \
+            --shp /tmp/efs/shapes/rb_and_ba_areas.shp \
+            --out outputs/efs_two_reeds_boundary_original_candidates.json
+      - name: Require original two mismatches and fail-closed physical assertions
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("outputs/efs_two_reeds_boundary_original_candidates.json").read_text())
+          assert len(r['source_bus_results'])==4
+          assert r['source_mismatch_Load_IDs']==['EFS_2030_p28_Arizona','EFS_2030_p18_Montana']
+          assert not r['upstream_county_majority_reassignment_recovered']
+          assert not r['physical_load_delivery_approved']
+          assert not r['actual_Western_OPF_solved']
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-original-two-reeds-raw-boundary-forensics
+          path: outputs/efs_two_reeds_boundary_original_candidates.json
+          if-no-files-found: warn
