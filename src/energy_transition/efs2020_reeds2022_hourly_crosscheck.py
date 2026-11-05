@@ -48,6 +48,15 @@ def compare_arrays(original, independent, *, abs_tolerance_mw=0.01):
     zero=next(v for v in comparisons if v["offset_hours"]==0)
     best=min(comparisons,key=lambda x:(x["mae_mw"],abs(x["offset_hours"]),x["offset_hours"]))
     valid=[x["offset_hours"] for x in comparisons if x["all_8760_hour_values_equal_within_tolerance"]]
+    # Exploratory algebraic fit only: possible state-level mixing of two
+    # shifted signals. This is NOT evidence of two validated physical zones.
+    shifted_mountain_like=np.roll(b,-2)
+    shifted_pacific_like=np.roll(b,-3)
+    contrast=shifted_mountain_like-shifted_pacific_like
+    denominator=float(contrast@contrast)
+    mixed_weight=float(np.clip(((a-shifted_pacific_like)@contrast)/denominator,0.,1.)) if denominator>0 else 0.
+    hypothetical_mixture=mixed_weight*shifted_mountain_like+(1.-mixed_weight)*shifted_pacific_like
+    mixed_difference=np.abs(a-hypothetical_mixture)
     return {
         "source_2020_annual_mwh":float(a.sum()),
         "source_2022_annual_mwh":float(b.sum()),
@@ -69,6 +78,12 @@ def compare_arrays(original, independent, *, abs_tolerance_mw=0.01):
         "best_offset_all_8760_match":best["all_8760_hour_values_equal_within_tolerance"],
         "all_exact_matching_offsets_in_tested_range":valid,
         "shift_uniquely_identified":len(valid)==1,
+        "exploratory_two_shift_minus2_weight":mixed_weight,
+        "exploratory_two_shift_minus3_weight":1.-mixed_weight,
+        "exploratory_two_shift_mix_mae_mw":float(mixed_difference.mean()),
+        "exploratory_two_shift_mix_max_abs_error_mw":float(mixed_difference.max()),
+        "exploratory_two_shift_mix_hours_above_1MW":int((mixed_difference>1.).sum()),
+        "exploratory_two_shift_mix_is_physical_timezone_attribution":False,
         "comparison_tolerance_mw":abs_tolerance_mw,
     }
 
@@ -143,6 +158,6 @@ def main():
     a.out_json.write_text(json.dumps(metadata,indent=2)+"\n")
     print(json.dumps({k:v for k,v in metadata.items() if k!="source_2022_clock_samples"},indent=2))
     for x in result.itertuples(index=False):
-        print(f"EFS_2020_2022_HOURLY year={x.planning_year} state={x.state} annual_diff_MWh={x.annual_difference_mwh:.6f} direct_MAE_MW={x.direct_ordinal_mae_mw:.6f} direct_equal={x.direct_ordinal_all_8760_match} best_shift_h={x.best_offset_hours} best_MAE_MW={x.best_offset_mae_mw:.6f} best_equal={x.best_offset_all_8760_match} rounded_hours={x.best_offset_hours_within_half_MW_rounding}/8760 max_abs_error_MW={x.best_offset_max_abs_error_mw:.6f} above_1MW={x.best_offset_hours_above_1_MW_error}")
+        print(f"EFS_2020_2022_HOURLY year={x.planning_year} state={x.state} annual_diff_MWh={x.annual_difference_mwh:.6f} direct_MAE_MW={x.direct_ordinal_mae_mw:.6f} direct_equal={x.direct_ordinal_all_8760_match} best_shift_h={x.best_offset_hours} best_MAE_MW={x.best_offset_mae_mw:.6f} best_equal={x.best_offset_all_8760_match} rounded_hours={x.best_offset_hours_within_half_MW_rounding}/8760 max_abs_error_MW={x.best_offset_max_abs_error_mw:.6f} above_1MW={x.best_offset_hours_above_1_MW_error} mixed_minus2_weight={x.exploratory_two_shift_minus2_weight:.5f} mixed_MAE_MW={x.exploratory_two_shift_mix_mae_mw:.5f} mixed_above_1MW={x.exploratory_two_shift_mix_hours_above_1MW}")
 if __name__=="__main__":
     main()
