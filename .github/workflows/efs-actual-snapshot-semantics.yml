@@ -13,6 +13,8 @@ name: Audit actual EFS 2030-2050 stored snapshot calendar semantics
       - 'tests/test_efs_archive_calendar_diagnostic.py'
       - 'src/energy_transition/efs_pinned_ordinal_bijection.py'
       - 'tests/test_efs_pinned_ordinal_bijection.py'
+      - 'src/energy_transition/efs_zonal_archive_hourly_equivalence.py'
+      - 'tests/test_efs_zonal_archive_hourly_equivalence.py'
 permissions:
   contents: read
   actions: read
@@ -28,7 +30,7 @@ jobs:
       - name: Install PyPSA and test runtime
         run: python -m pip install -e '.[model]' netcdf4 pytest
       - name: Verify leap-year model-hour semantics tests
-        run: PYTHONPATH=src python -m pytest tests/test_efs_actual_archived_snapshot_semantics.py tests/test_efs_archive_sequence_manifest.py tests/test_efs_archive_calendar_diagnostic.py tests/test_efs_pinned_ordinal_bijection.py -q
+        run: PYTHONPATH=src python -m pytest tests/test_efs_actual_archived_snapshot_semantics.py tests/test_efs_archive_sequence_manifest.py tests/test_efs_archive_calendar_diagnostic.py tests/test_efs_pinned_ordinal_bijection.py tests/test_efs_zonal_archive_hourly_equivalence.py -q
       - name: Restore original three-year seven-state EFS Load-only network
         env:
           GH_TOKEN: ${{ github.token }}
@@ -39,6 +41,20 @@ jobs:
           for year in 2030 2040 2050; do
             test -s "/tmp/efs-model/efs-real-${year}-local-hour-load-only.nc"
           done
+      - name: Check every EFS zonal hour against reloaded archived NetCDF
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs-zonal
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs-zonal
+          test -s /tmp/efs-zonal/efs-real-laf-zonal-pilot.csv.gz
+          PYTHONPATH=src python -m energy_transition.efs_zonal_archive_hourly_equivalence \
+            --net2030 /tmp/efs-model/efs-real-2030-local-hour-load-only.nc \
+            --net2040 /tmp/efs-model/efs-real-2040-local-hour-load-only.nc \
+            --net2050 /tmp/efs-model/efs-real-2050-local-hour-load-only.nc \
+            --zonal /tmp/efs-zonal/efs-real-laf-zonal-pilot.csv.gz \
+            --out outputs/efs_zonal_archive_hourly_equivalence.json
       - name: Audit real stored EFS snapshots and dynamic-vs-static series
         run: |
           PYTHONPATH=src python -m energy_transition.efs_actual_archived_snapshot_semantics \
@@ -92,4 +108,5 @@ jobs:
             outputs/efs_archive_sequence_manifest_summary.json
             outputs/efs_archive_calendar_label_diagnostic.json
             outputs/efs_pinned_ordinal_bijection.json
+            outputs/efs_zonal_archive_hourly_equivalence.json
           if-no-files-found: warn
