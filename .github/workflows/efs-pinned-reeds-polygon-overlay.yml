@@ -1,0 +1,76 @@
+name: Validate source EFS load buses against PINNED PyPSA-USA original ReEDS polygons
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-pinned-reeds-polygon-overlay.yml'
+      - 'src/energy_transition/efs_2030_pinned_reeds_polygon_overlay.py'
+      - 'tests/test_efs_2030_pinned_reeds_polygon_overlay.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pinned-reeds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install network source and geospatial dependencies
+        run: python -m pip install -e '.[model]' netcdf4 geopandas shapely pyogrio pytest
+      - name: Test pinned source zone polygon overlay and mismatch safeguards
+        run: PYTHONPATH=src python -m pytest tests/test_efs_2030_pinned_reeds_polygon_overlay.py -q
+      - name: Retrieve verified archived network and 20 source load candidate pairs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/pinned-reeds /tmp/pinned-reeds/source
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/pinned-reeds/source
+          gh run download 41874891129 -R "${{ github.repository }}" \
+            -n efs-2030-three-source-bus-placement-rules -D /tmp/pinned-reeds/source
+          NET=$(find /tmp/pinned-reeds/source -name real-western-base-network.nc -type f -print -quit)
+          PAIRS=$(find /tmp/pinned-reeds/source -name efs_2030_three_bus_placement_rules.csv -type f -print -quit)
+          test -n "$NET" && test -s "$NET"
+          test -n "$PAIRS" && test -s "$PAIRS"
+          echo "SOURCE_NET=$NET" >> "$GITHUB_ENV"
+          echo "SOURCE_PAIRS=$PAIRS" >> "$GITHUB_ENV"
+      - name: Download ALL ReEDS source Shapefile parts from exact upstream pinned commit
+        run: |
+          mkdir -p /tmp/pinned-reeds/shapes
+          for ext in shp shx dbf prj cpg; do
+            curl --fail --retry 3 --silent --show-error --location \
+              "https://raw.githubusercontent.com/PyPSA/pypsa-usa/338af9912addbaf038c6098fe27e1e6ef099d8aa/workflow/repo_data/geospatial/Reeds_Shapes/rb_and_ba_areas.${ext}" \
+              -o "/tmp/pinned-reeds/shapes/rb_and_ba_areas.${ext}"
+            test -s "/tmp/pinned-reeds/shapes/rb_and_ba_areas.${ext}"
+            sha256sum "/tmp/pinned-reeds/shapes/rb_and_ba_areas.${ext}"
+          done
+      - name: Overlay actual source bus candidates on original same-commit ReEDS rb polygon geography
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_2030_pinned_reeds_polygon_overlay \
+            --network "$SOURCE_NET" --choices "$SOURCE_PAIRS" \
+            --reeds-shapefile /tmp/pinned-reeds/shapes/rb_and_ba_areas.shp \
+            --out-dir outputs/efs_2030_pinned_reeds_polygon
+      - name: Assert pinned 20-zone source identity and reject false ReEDS certification
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("outputs/efs_2030_pinned_reeds_polygon/efs_2030_pinned_ReEDS_polygon_summary.json").read_text())
+          assert r['pinned_PyPSA_USA_commit']=='338af9912addbaf038c6098fe27e1e6ef099d8aa'
+          assert r['original_archived_2030_source_load_count']==20
+          assert r['source_pilot_ReEDS_zone_count']>=7
+          assert abs(r['original_source_efs_load_mwh']-274706987.114121)<.05
+          assert r['source_raw_polygon_does_not_reproduce_post_processing'] is True
+          assert r['full_original_network_ReEDS_region_membership_certified'] is False
+          assert r['real_grid_OPF_solved'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-2030-20-source-load-buses-pinned-reeds-original-polygon-evidence
+          path: outputs/efs_2030_pinned_reeds_polygon/
+          if-no-files-found: warn
