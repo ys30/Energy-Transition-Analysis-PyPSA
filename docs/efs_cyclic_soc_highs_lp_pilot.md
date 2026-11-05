@@ -34,3 +34,20 @@ The solver reports optimality, energy mass and primal equality residual, and ter
 The scoped workflow is [EFS cyclic HiGHS storage LP](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/efs-cyclic-storage-lp.yml). Original archived EFS/LAF demand comes from Actions run 41281576025. Output artifacts contain per-year CSV and JSON. **Check the latest run before claiming empirical execution success.**
 
 The exercise does not admit weather synchronization, real plant-to-bus POIs, interzonal transmission, battery capex, or calibrated Western OPF. The next engineering step is a full-8,760-hour cyclic optimization after the scoped solve and reference-boundary checks pass.
+
+
+## Verified original-archive CI results — 2026-11-05
+
+All three year-matrix jobs completed **successfully** in [run #42103133043](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42103133043). Each year selected original source-load zones **p28** and **p33** for the first 168 ordinals; 2 zones × 3 supply shapes × 3 durations = 18 LP solves/year, **54 solved cases** total. All reported zero terminal SOC and optimal HiGHS solver status.
+
+For hypothetical wave A, **across only the two selected zones and 168 hours**:
+
+| Year | No-battery unused renewable (MWh) | 4h battery unused renewable (MWh) | 8h battery unused renewable (MWh) | Assumed firm generation reduction, no battery → 4h (MWh) |
+|---|---:|---:|---:|---:|
+| 2030 | 1,013.318 | 0 | 0 | 911.986 |
+| 2040 | 1,132.939 | 0 | 0 | 1,019.645 |
+| 2050 | 1,297.342 | 0 | 0 | 1,167.608 |
+
+The difference between unused-energy reduction and firm-energy reduction is compatible with the assumed 90% battery round-trip efficiency. Under this **specific week and these two zones**, 4h storage is enough to capture all hypothetical supply surplus in wave A; 8h has no incremental effect. It would be **incorrect** to extrapolate this outcome to the prior 20-zone, full-8,760-hour, *greedy* sensitivity results. Those use a different horizon, potentially positive terminal SOC, and different demand set. No storage economics/optimal investment inference follows.
+
+**Remaining critical gate:** scale to a complete 8,760-hour cyclic LP and test end effects on every admitted zone before writing generalized annual storage conclusions. Supply shapes and costs still require empirical source support.
