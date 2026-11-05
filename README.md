@@ -15,6 +15,10 @@ The [source-to-archive full-hour validation](docs/verified_efs_source_to_archive
 
 The same archived-source CI confirms the **2040 leap-year label issue** (the synthetic 8,760-hour 2040 calendar includes Feb 29 and excludes Dec 31), with **7,344 different month/day/hour labels** compared with the pinned nonleap 2018 ordinal template. No original source files were altered, and no simultaneous generation/weather/Western-grid OPF has been admitted. Original EFS timezone/DST conventions and network electrical/calibration evidence remain unresolved.
 
+## New generator interconnection evidence gate — November 2026
+
+A [passing independent EIA-860/Southwest Power Pool evidence grading CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42073377310) audits three 2024 source plants totaling **1,647.7 MW** of historical nameplate against the geographically assigned **synthetic** source-model bus `2053003` (115 kV). Official named evidence identifies Sagamore Wind's Crossroads 345-kV substation context and a Hobbs 230-kV receipt-point context; Cunningham documentation is unit-side voltage, **not** a comparable high-voltage POI. Neither a nominal-voltage discrepancy nor a nearby geographic bus independently authenticates a plant-to-network electrical tie. **Approved generator injections remain 0 MW**, and full Western physical OPF remains blocked. [Methods and limits](docs/eia860_source_voltage_vs_synthetic_bus_2024.md).
+
 ## Project A → B integration status (audited)
 
 [**A contribution, repository boundaries, and revised B milestone progress**](docs/A_TO_B_CONTRIBUTION_AND_PROGRESS_AUDIT.md)
