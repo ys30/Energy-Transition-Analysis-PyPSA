@@ -45,7 +45,7 @@ def test_frozen_shift_is_not_refit_in_target_year():
 def test_original_archive_disagreement_rejected():
     d=synthetic_original()
     sec=d.loc[d.Year==2030,["Year","Sector","LocalHourID","LoadMW"]]
-    original=sec.groupby("LocalHourID").LoadMW.sum().to_numpy()
+    original=sec.groupby("LocalHourID").LoadMW.sum().to_numpy().copy()
     original[7]+=100.
     with pytest.raises(ValueError,match="does not match"):
         frozen_shift_transfer(sec,original,np.roll(original,2),2030)
