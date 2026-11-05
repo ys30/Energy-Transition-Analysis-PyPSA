@@ -1,0 +1,67 @@
+name: EFS cyclic SOC HiGHS optimization 168h pilot
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/efs-cyclic-storage-lp.yml'
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'tests/test_efs_cyclic_storage_lp.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  cyclic-storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2030, 2040, 2050]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install reproducible LP runtime
+        run: python -m pip install 'numpy>=1.24' 'pandas>=2' 'scipy>=1.11,<2' 'pytest>=8'
+      - name: Test cycle-constrained optimizer and fail-closed source gates
+        run: PYTHONPATH=src python -m pytest tests/test_efs_cyclic_storage_lp.py -q
+      - name: Retrieve the previously verified seven-state EFS hourly zone input
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs
+          test -s /tmp/efs/efs-real-laf-zonal-pilot.csv.gz
+      - name: Optimize top two source-demand zones over 168 original ordinal hours
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_cyclic_storage_lp \
+            --zonal /tmp/efs/efs-real-laf-zonal-pilot.csv.gz \
+            --year ${{ matrix.year }} --hours 168 --max-zones 2 \
+            --out-csv outputs/cyclic_storage_168h_${{ matrix.year }}.csv \
+            --out-json outputs/cyclic_storage_168h_${{ matrix.year }}.json
+          python - <<'PY'
+          import json, numpy as np, pandas as pd
+          from pathlib import Path
+          year=${{ matrix.year }}
+          rows=pd.read_csv(f'outputs/cyclic_storage_168h_{year}.csv')
+          meta=json.loads(Path(f'outputs/cyclic_storage_168h_{year}.json').read_text())
+          assert len(rows)==18
+          assert (rows.source_hours==168).all()
+          assert set(rows.battery_duration_h)=={0,4,8}
+          assert set(rows.synthetic_supply_shape)=={'flat_50pct','ordinal24_wave_A','ordinal24_wave_B'}
+          assert (rows.solver_status=='optimal').all()
+          assert (rows.max_equality_residual_mwh<1e-5).all()
+          assert (rows.storage_terminal_soc_mwh.abs()<1e-5).all()
+          assert np.allclose(rows.renewable_direct_mwh+rows.storage_discharge_to_load_mwh+rows.firm_generation_mwh,rows.demand_mwh,atol=1e-5)
+          assert not meta['physical_UTC_verified']
+          assert not meta['real_Western_network_OPF_admitted']
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: efs-cyclic-storage-168h-${{ matrix.year }}-pilot
+          path: outputs/cyclic_storage_168h_${{ matrix.year }}.*
+          if-no-files-found: warn
