@@ -14,6 +14,33 @@ CHECKSUM="7b2055d43200744a16a8c4fed68b1a17"
 YEARS=(2030,2040,2050)
 STATES=("AZ","CA","CO","ID","MT","NM","NV","OR","UT","WA","WY")
 
+def verify_publisher_2012_clock(raw_datetimes):
+    """Require exact 2012 CST UTC-06 sequence, Feb 29 kept and Dec 31 absent.
+
+    This checks the *separate ReEDS2022 HDF5* native timeline, never EFS2020.
+    """
+    strings=[v.decode("utf-8") if isinstance(v,bytes) else str(v) for v in raw_datetimes]
+    if len(strings)!=8760 or len(set(strings))!=8760:
+        raise ValueError("Invalid ReEDS2022 native clock length or duplicate hours")
+    if not all(s.endswith("-06:00") for s in strings):
+        raise ValueError("ReEDS2022 source CST UTC-06 offset changed")
+    times=pd.to_datetime(strings,utc=True,errors="raise")
+    expected=pd.date_range(
+        start="2012-01-01 00:00:00-06:00",
+        end="2012-12-31 00:00:00-06:00",
+        freq="h",inclusive="left",
+    ).tz_convert("UTC")
+    if len(expected)!=8760 or not pd.DatetimeIndex(times).equals(expected):
+        raise ValueError("ReEDS2022 publisher 2012 CST leap/final-day chronology mismatch")
+    return {
+        "exact_2012_CST_UTC_minus_6_sequence_verified":True,
+        "Feb_29_2012_included":True,
+        "Dec_31_2012_omitted":True,
+        "native_datetime_first":strings[0],
+        "native_datetime_last":strings[-1],
+        "native_time_index_hour_ending_semantics_only_from_publisher":True,
+    }
+
 def inspect(path):
     md5=hashlib.md5()
     with path.open("rb") as f:
@@ -33,11 +60,11 @@ def inspect(path):
                 raise ValueError(f"Missing independently published datetime dataset in {year}")
             raw=group["datetime"][:]
             datetimes=[v.decode("utf-8") if isinstance(v,bytes) else str(v) for v in raw]
-            if len(datetimes)!=8760 or len(set(datetimes))!=8760:
-                raise ValueError(f"Invalid ReEDS datetime coverage {year}")
+            clock_status=verify_publisher_2012_clock(raw)
             if not all(s in group for s in STATES):
                 raise ValueError(f"Missing Western state profiles in {year}")
             samples[str(year)]={"first":datetimes[:3],"last":datetimes[-3:],
+                                 "calendar_validation":clock_status,
                                  "unique_datetime_values":len(datetimes)}
             for state in STATES:
                 values=np.asarray(group[state][:],dtype=float)
