@@ -8,7 +8,6 @@ import argparse, hashlib, json
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import h5py
 
 CHECKSUM="7b2055d43200744a16a8c4fed68b1a17"
 YEARS=(2030,2040,2050)
@@ -42,6 +41,7 @@ def verify_publisher_2012_clock(raw_datetimes):
     }
 
 def inspect(path):
+    import h5py  # Optional source-file reader; unit tests for chronology need no h5py.
     md5=hashlib.md5()
     with path.open("rb") as f:
         for block in iter(lambda:f.read(1024*1024),b""):
