@@ -65,11 +65,10 @@ jobs:
           gh run download 41265678862 -R "${{ github.repository }}" \
             -n pypsa-usa-efs-source-evidence -D /tmp/efs-source-state
           test -s /tmp/efs-source-state/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
-          test -s /tmp/efs-model/real-western-base-network.nc
           PYTHONPATH=src python -m energy_transition.efs_source_to_zonal_laf_hourly_gate \
             --source /tmp/efs-source-state/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
             --zonal /tmp/efs-zonal/efs-real-laf-zonal-pilot.csv.gz \
-            --network /tmp/efs-model/real-western-base-network.nc \
+            --network /tmp/efs-model/efs-real-2030-local-hour-load-only.nc \
             --out outputs/efs_source_to_zonal_laf_hourly_gate.json
       - name: Audit real stored EFS snapshots and dynamic-vs-static series
         run: |
