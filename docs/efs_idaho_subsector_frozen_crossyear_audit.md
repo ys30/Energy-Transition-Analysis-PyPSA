@@ -26,4 +26,29 @@ In parallel, the original raw NLR EFS ZIP does retain `Sector` and `Subsector` i
 
 **Scientific interpretation:** even a positive source-index fit on later years would only show a transferable mathematical rule on these two releases. It would not prove actual physical time-zone boundaries, causality of upstream data processing, or forecast-calibrated grid operation. A worsening later-year result would strengthen the evidence against a stable Transportation +1-hour explanation.
 
-**Status:** CI source audit must pass before recording the numeric subsector population and cross-year transfer outcomes.
+**Validated source results:** [original publisher-source CI #42131511821](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42131511821) succeeded: 14 distinct Sector×Subsector source combinations across the same 367,920 Idaho source records, original file and archive checksums passed, all annual energy totals reconciled.
+
+### 2030 source subsector energy shares (selected)
+
+| Sector / original Subsector | Idaho original 2030 MWh (approx) | Fraction of Idaho 2030 EFS original total |
+|---|---:|---:|
+| Commercial / other | 8,812,122 | 31.48% |
+| Industrial / other | 7,520,245 | 26.87% |
+| Residential / other | 6,189,303 | 22.11% |
+| Residential / space heating and cooling | 1,461,317 | 5.22% |
+| Industrial / machine drives | 1,468,272 | 5.25% |
+| Transportation / light-duty vehicles | 380,937 | 1.36% |
+
+The original source includes other smaller and some zero-MWh subsectors; the full 42-row source-year table is preserved in the CI artifact. `Subsector` describes end-use classification, **not Idaho geography, balancing-area membership or physical clock**.
+
+### Frozen original 2030 Transportation +1 index shift: strictly later-half evaluations
+
+| Year | Held-out original baseline MAE (MW) | Held-out fixed Transportation +1 MAE (MW) | Numeric improvement (MW) |
+|---|---:|---:|---:|
+| 2030 | 17.795943 | 15.585717 | 2.210226 |
+| 2040 | 19.902631 | 17.889956 | 2.012675 |
+| 2050 | 22.785865 | 20.558538 | 2.227327 |
+
+The **same previously selected** 2030 source-index perturbation shows lower mismatch on the *later halves* of all three years, without tuning a new parameter in 2040 or 2050. This contrasts with the previous experiment's **per-year first-half selection**, which preferred the all-unshifted reference in 2040 and 2050. That implies the candidate's relative usefulness varies by evaluation window. It **does not** prove a stable EFS physical time zone rule, because both source releases' data processing and the original EFS2020 publisher clock are still not independently linked. Substantial residual remains even after the perturbation, and the original subsector labels are not an electrical or geographical mapping.
+
+A supplementary CI version adds first-half performance of this same fixed rule for a direct train/test window comparison. Treat those additional first-half numeric claims as pending that separate verified run.
