@@ -1,0 +1,39 @@
+name: Paper T Figure T1 source admission diagram
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-source-admission-diagram.yml'
+      - 'src/energy_transition/paper_t_source_admission_flowchart.py'
+permissions:
+  contents: read
+jobs:
+  source-admission-diagram:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'matplotlib>=3.7'
+      - name: Draw exact source admissibility and check static evidence boundaries
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_t_source_admission_flowchart \
+            --out-dir outputs/paper_t_source_admission_figure
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('outputs/paper_t_source_admission_figure')
+          files=[p/'figure_T1_source_admission.svg',p/'figure_T1_source_admission.png']
+          assert all(x.exists() and x.stat().st_size>5000 for x in files)
+          svg=files[0].read_text()
+          assert 'BLOCKED' in svg
+          assert 'EFS2020' in svg
+          print('PAPER_T_T1_SOURCE_ADMISSION_FIGURE_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-figure-t1-source-admission
+          path: outputs/paper_t_source_admission_figure/
+          if-no-files-found: error
