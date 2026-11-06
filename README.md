@@ -1,5 +1,9 @@
 # Western US Energy Transition Modeling | PyPSA + EIA
 
+### Verified publication-figure and solver-objective evidence
+
+[Paper T source-derived Figures T2 and T4](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42145896229) **passed**: two SVG/PNG research exhibits from verified original EFS2020/ReEDS2022 nonwrapping lag and Idaho frozen-transport-source archives. [Paper S independent 540-case objective and cyclic energy audit](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42146086492) **passed**: every original HiGHS case reproduces the exact toy objective `5*(renewable direct + charging input) + 90*firm` with maximum discrepancy **$0.00022221**, plus source demand/supply conservation and strict 90% roundtrip charging energy identity. This is a numerical code/results certificate, **not** authentic electricity market costs, generator wind/solar resource, source 2020 UTC, or a real Western network OPF. [Evidence details, figure captions and reproducibility](docs/PAPERS_T_S_VERIFIED_FIGURES_AND_OBJECTIVE_CERTIFICATE.md).
+
 ## Research deliverables — two separate tracks (November 2026)
 
 **Engineering evidence is verified; neither manuscript is currently submission-ready.** We have separated **Paper T, temporal provenance** (11 Western states × 3 years × 8,760 = **289,080 EFS2020/ReEDS2022 source-hour comparisons**, plus Idaho original sector/subsector and fixed-shift holdout falsification) from **Paper S, source-bounded cyclic-storage sensitivity** (**540 solved full-year HiGHS LP cases** across 20 EFS load zones × 3 planning years × 3 explicitly synthetic supply shapes × 0/4/8-hour battery durations). See the [two-paper research roadmap and exact evidence boundaries](docs/PROJECT_B_TWO_PAPER_RESEARCH_ROADMAP.md).
