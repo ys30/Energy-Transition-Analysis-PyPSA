@@ -1,0 +1,59 @@
+name: Paper T source-derived state lag and Idaho cross-year figures
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-source-figures.yml'
+      - 'src/energy_transition/paper_t_source_figures.py'
+      - 'tests/test_paper_t_source_figures.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  paper-t-figures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install figure dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7' 'pytest>=8'
+      - name: Test source-data figure gates
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_t_source_figures.py
+      - name: Download original source-verified 33-pair and frozen-candidate artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source-lags /tmp/source-idaho
+          gh run download 42122065064 -R "${{ github.repository }}" -n efs2020-reeds2022-nonwrapping-shift-33-pairs -D /tmp/source-lags
+          gh run download 42131969905 -R "${{ github.repository }}" -n idaho-efs-original-subsector-frozen-crossyear-evidence -D /tmp/source-idaho
+          test -s /tmp/source-lags/efs_2020_2022_nonwrap_33_pairs.csv
+          test -s /tmp/source-idaho/idaho_frozen_2030_transport_shift_crossyear.csv
+      - name: Generate publication figures from independently archived source evidence
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_t_source_figures \
+            --nonwrap /tmp/source-lags/efs_2020_2022_nonwrap_33_pairs.csv \
+            --transfer /tmp/source-idaho/idaho_frozen_2030_transport_shift_crossyear.csv \
+            --out outputs/paper_t_source_figures
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('outputs/paper_t_source_figures')
+          m=json.loads((p/'manifest.json').read_text())
+          assert m['source_state_year_lag_pairs']==33
+          assert m['source_frozen_rule_years']==3
+          assert len(list(p.glob('*.svg')))==2
+          assert len(list(p.glob('*.png')))==2
+          assert not m['EFS2020_physical_UTC_certified']
+          assert m['frozen_shift_first_half_improvements_mw']['2040']<0
+          assert m['frozen_shift_heldout_improvements_mw']['2040']>0
+          print('PAPER_T_SOURCE_FIGURES_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-source-lag-and-idaho-heldout-publication-figures
+          path: outputs/paper_t_source_figures/
+          if-no-files-found: error
