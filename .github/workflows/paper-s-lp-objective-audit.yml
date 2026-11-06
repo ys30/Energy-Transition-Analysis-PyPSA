@@ -1,0 +1,53 @@
+name: Paper S independently certify 540-case HiGHS objective and energy accounting
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-s-lp-objective-audit.yml'
+      - 'src/energy_transition/paper_s_lp_objective_certification.py'
+      - 'tests/test_paper_s_lp_objective_certification.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  certify-lp-objective:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install independent auditing runtime
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Test objective and energy conservation regression gates
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_s_lp_objective_certification.py
+      - name: Restore source-verified 540 solved case archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source-lp outputs
+          gh run download 42107237659 -R "${{ github.repository }}" \
+            -n efs-cyclic-full-year-all-20-zones-validated -D /tmp/source-lp
+          test -s /tmp/source-lp/all_20zone_cyclic_8760h_results.csv
+      - name: Recompute toy LP objective and source energy conservation on every case
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_lp_objective_certification \
+            --cases /tmp/source-lp/all_20zone_cyclic_8760h_results.csv \
+            --out outputs/paper_s_540_case_objective_energy_audit.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('outputs/paper_s_540_case_objective_energy_audit.json').read_text())
+          assert m['cases']==540
+          assert m['max_absolute_objective_usd_recalculation_error']<.01
+          assert m['max_cyclic_battery_90pct_balance_mwh_error']<.02
+          assert not m['real_western_grid_optimization']
+          print('PAPER_S_OBJECTIVE_AND_CYCLIC_ENERGY_SOURCE_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-540-case-objective-conservation-certificate
+          path: outputs/paper_s_540_case_objective_energy_audit.json
+          if-no-files-found: error
