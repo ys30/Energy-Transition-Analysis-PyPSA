@@ -1,5 +1,11 @@
 # Western US Energy Transition Modeling | PyPSA + EIA
 
+## Research deliverables — two separate tracks (November 2026)
+
+**Engineering evidence is verified; neither manuscript is currently submission-ready.** We have separated **Paper T, temporal provenance** (11 Western states × 3 years × 8,760 = **289,080 EFS2020/ReEDS2022 source-hour comparisons**, plus Idaho original sector/subsector and fixed-shift holdout falsification) from **Paper S, source-bounded cyclic-storage sensitivity** (**540 solved full-year HiGHS LP cases** across 20 EFS load zones × 3 planning years × 3 explicitly synthetic supply shapes × 0/4/8-hour battery durations). See the [two-paper research roadmap and exact evidence boundaries](docs/PROJECT_B_TWO_PAPER_RESEARCH_ROADMAP.md).
+
+**Key caution:** a numerical −2/−3 source-index match does not certify the EFS2020 physical UTC calendar; the 540 storage cases use *synthetic renewable availability and toy economics*, not actual Western Interconnection dispatch or observed curtailment. The complete research manuscripts are maintained privately and are **not** published in this repository.
+
 [![CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/ci.yml/badge.svg)](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/ci.yml)
 [![BPAT empirical data](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/bpat-wind-empirical.yml/badge.svg)](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/workflows/bpat-wind-empirical.yml)
 
