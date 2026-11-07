@@ -1,0 +1,68 @@
+name: Assemble Paper T verified supplementary data and figures with SHA256
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-source-supplement-bundle.yml'
+      - 'src/energy_transition/paper_t_supplement_bundle.py'
+      - 'tests/test_paper_t_supplement_bundle.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  assemble-supplement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pandas and source-bundle test dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Test bundle against missing and corrupt original input manifests
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_t_supplement_bundle.py
+      - name: Fetch each actual, previously passing original source and figures artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/t-source/{lags,subsectors,marginals,t1,t24,t3}
+          gh run download 42122065064 -R "${{ github.repository }}" -n efs2020-reeds2022-nonwrapping-shift-33-pairs -D /tmp/t-source/lags
+          gh run download 42131969905 -R "${{ github.repository }}" -n idaho-efs-original-subsector-frozen-crossyear-evidence -D /tmp/t-source/subsectors
+          gh run download 42125517759 -R "${{ github.repository }}" -n efs-idaho-source-residual-month-hour-2030-2050 -D /tmp/t-source/marginals
+          gh run download 42177083314 -R "${{ github.repository }}" -n paper-t-figure-t1-source-admission -D /tmp/t-source/t1
+          gh run download 42145896229 -R "${{ github.repository }}" -n paper-t-source-lag-and-idaho-heldout-publication-figures -D /tmp/t-source/t24
+          gh run download 42162565936 -R "${{ github.repository }}" -n paper-t-idaho-reference-month-hour-marginal-figure -D /tmp/t-source/t3
+      - name: Build source SHA256 files, validate 33/42/324 data populations and four figure pairs
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_t_supplement_bundle \
+            --lags /tmp/t-source/lags \
+            --subsectors /tmp/t-source/subsectors \
+            --marginals /tmp/t-source/marginals \
+            --t1 /tmp/t-source/t1 \
+            --t24 /tmp/t-source/t24 \
+            --t3 /tmp/t-source/t3 \
+            --out outputs/paper_t_original_source_supplement
+          cd outputs/paper_t_original_source_supplement
+          sha256sum -c SHA256SUMS.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('source_sha256_manifest.json').read_text())
+          assert len(m['files'])==16
+          assert m['source_lag_state_year_pairs']==33
+          assert m['source_idaho_subsector_year_rows']==42
+          assert m['source_idaho_month_hour_marginal_rows']==324
+          assert m['all_four_figures_have_svg_and_png'] is True
+          assert m['permanent_archival_DOI_registered'] is False
+          assert m['physical_EFS2020_UTC_verified'] is False
+          print('PAPER_T_16_FILE_SOURCE_SHA256_SUPPLEMENT_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-original-source-supplement-16-files-sha256
+          path: outputs/paper_t_original_source_supplement/
+          retention-days: 90
+          if-no-files-found: error
