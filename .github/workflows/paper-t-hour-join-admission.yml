@@ -1,0 +1,45 @@
+name: Paper T reusable physical-hour join admission policy
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-hour-join-admission.yml'
+      - 'src/energy_transition/temporal_join_admission_policy.py'
+      - 'tests/test_temporal_join_admission_policy.py'
+permissions:
+  contents: read
+jobs:
+  fail-closed-admission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run generic input validation and missing-metadata tests
+        run: |
+          python -m pip install 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_temporal_join_admission_policy.py
+      - name: Emit EFS2020 ReEDS2022 genuine pass/fail passport
+        run: |
+          PYTHONPATH=src python -m energy_transition.temporal_join_admission_policy \
+            --out outputs/paper_t_temporal_admission/efs2020_reeds2022_hour_join_decision.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('outputs/paper_t_temporal_admission/efs2020_reeds2022_hour_join_decision.json')
+          x=json.loads(p.read_text())
+          assert x['decision']=='BLOCK_PHYSICAL_JOIN'
+          assert x['gate_results']['source_integrity']['passed'] is True
+          assert not x['gate_results']['physical_crosswalk']['passed']
+          assert not x['gate_results']['native_calendar']['passed']
+          assert x['fitted_source_index_lag_counts_as_authoritative_clock'] is False
+          print('EFS_SOURCE_CLOCK_FAIL_CLOSED_POLICY_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-physical-hour-join-admission-passport
+          path: outputs/paper_t_temporal_admission/
+          if-no-files-found: error
