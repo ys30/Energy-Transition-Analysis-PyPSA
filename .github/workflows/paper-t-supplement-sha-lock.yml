@@ -1,0 +1,39 @@
+name: Paper T frozen supplement SHA256 provenance lock verification
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-supplement-sha-lock.yml'
+      - 'docs/paper_t_frozen_supplement_sha256.txt'
+      - 'src/energy_transition/paper_t_frozen_sha_lock.py'
+      - 'tests/test_paper_t_frozen_sha_lock.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore accepted 16-file combined supplement and verify its own source hashes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/paper-t-accepted
+          gh run download 42332230767 -R "${{ github.repository }}" \
+            -n paper-t-original-source-supplement-16-files-sha256 \
+            -D /tmp/paper-t-accepted
+          cd /tmp/paper-t-accepted
+          sha256sum -c SHA256SUMS.txt
+          sha256sum SHA256SUMS.txt source_sha256_manifest.json
+          echo '=== FROZEN_SOURCE_FILE_HASHES_BEGIN ==='
+          cat SHA256SUMS.txt
+          echo '=== FROZEN_SOURCE_FILE_HASHES_END ==='
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-supplement-source-sha-lock-verification
+          path: /tmp/paper-t-accepted/SHA256SUMS.txt
+          if-no-files-found: error
