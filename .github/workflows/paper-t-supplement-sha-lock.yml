@@ -17,6 +17,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Regression-test independent repository checksum lock
+        run: |
+          python -m pip install pytest
+          PYTHONPATH=src python -m pytest -q tests/test_paper_t_frozen_sha_lock.py
       - name: Restore accepted 16-file combined supplement and verify its own source hashes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -28,6 +32,8 @@ jobs:
             -D /tmp/paper-t-accepted
           cd /tmp/paper-t-accepted
           sha256sum -c SHA256SUMS.txt
+          sha256sum -c "$GITHUB_WORKSPACE/docs/paper_t_frozen_supplement_sha256.txt"
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m energy_transition.paper_t_frozen_sha_lock --lock "$GITHUB_WORKSPACE/docs/paper_t_frozen_supplement_sha256.txt" --bundle .
           sha256sum SHA256SUMS.txt source_sha256_manifest.json
           echo '=== FROZEN_SOURCE_FILE_HASHES_BEGIN ==='
           cat SHA256SUMS.txt
