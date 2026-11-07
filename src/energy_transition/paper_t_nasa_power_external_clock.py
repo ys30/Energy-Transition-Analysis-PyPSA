@@ -71,6 +71,9 @@ def audit(utc,lst):
     joined=[(ts,x,l[ts+timedelta(hours=offset)]) for ts,x in u.items()
             if ts+timedelta(hours=offset) in l]
     naive=[abs(u[ts]-l[ts]) for ts in u]
+    # Strict apples-to-apples comparison on precisely the same UTC anchors
+    # as the 89 pairs surviving the physical UTC→LST mapping.
+    paired_naive=[abs(u[ts]-l[ts]) for ts,_,_ in joined]
     physically=[abs(x-y) for ts,x,y in joined]
     if len(joined)!=96-abs(offset):raise ValueError("Unexpected NASA nonwrapping overlap")
     max_aligned=max(physically)
@@ -78,6 +81,7 @@ def audit(utc,lst):
     if max_aligned>1e-6:
         raise ValueError(f"NASA UTC/LST publisher conversion failed against source data: max={max_aligned}")
     naive_mae=sum(naive)/len(naive)
+    paired_naive_mae=sum(paired_naive)/len(paired_naive)
     true_mae=sum(physically)/len(physically)
     if naive_mae<=1e-5:
         raise ValueError("Selected NASA source sample has no measurable naive clock mismatch")
@@ -94,6 +98,8 @@ def audit(utc,lst):
       "publisher_expected_LST_minus_UTC_hours":offset,
       "nonwrapping_matched_hours":len(joined),
       "naive_equal_hour_label_mae_celsius":naive_mae,
+      "naive_equal_label_on_same_89_utc_anchors_mae_celsius":paired_naive_mae,
+      "matched_utc_anchors_for_both_comparison_arms":len(joined),
       "publisher_time_normalized_hour_mae_celsius":true_mae,
       "max_publisher_time_normalized_difference_celsius":max_aligned,
       "original_EFS2020_physical_clock_certified":False,
