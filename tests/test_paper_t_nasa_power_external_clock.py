@@ -24,6 +24,8 @@ def test_real_api_schema_publisher_shift_contract():
     assert result["publisher_expected_LST_minus_UTC_hours"]==-7
     assert result["publisher_time_normalized_hour_mae_celsius"]==0.
     assert result["naive_equal_hour_label_mae_celsius"]>0
+    assert result["naive_equal_label_on_same_89_utc_anchors_mae_celsius"]>0
+    assert result["matched_utc_anchors_for_both_comparison_arms"]==89
     assert result["UTC_and_LST_independent_physical_observations"] is False
 
 def test_do_not_accept_missing_hour():
