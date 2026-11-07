@@ -29,7 +29,7 @@ jobs:
           gh run download 42415066759 -R "${{ github.repository }}" \
             -n paper-t-nasa-power-actual-utc-lst-2024-source-verified \
             -D /tmp/paper-t-nasa-original
-          echo '3d24f1604da17daea9126c7384ec9f4a9132760e224a7cab3d0c833feea81837  nasa_power_hourly_UTC_original.json' > /tmp/paper-t-nasa-original/SHA256SUMS.txt
+          echo '3d24f1604da17daea9126c7384ec9f4a9132760e224a7cab3d3c833feea81837  nasa_power_hourly_UTC_original.json' > /tmp/paper-t-nasa-original/SHA256SUMS.txt
           echo '1bf50d3c1852e100e4c8dfb4989c56a93fa86cde9beaa097f828355612f4f886  nasa_power_hourly_LST_original.json' >> /tmp/paper-t-nasa-original/SHA256SUMS.txt
           cd /tmp/paper-t-nasa-original
           sha256sum -c SHA256SUMS.txt
