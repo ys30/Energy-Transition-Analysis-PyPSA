@@ -21,9 +21,23 @@ jobs:
       - run: python -m pip install 'pytest>=8'
       - name: Run deterministic source-clock and missing-data tests
         run: PYTHONPATH=src python -m pytest -q tests/test_paper_t_nasa_power_external_clock.py
-      - name: Download true NASA POWER hourly UTC and LST samples and verify physical normalization
+      - name: Recover verified real NASA POWER original JSON bytes for identical-sample audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/paper-t-nasa-original
+          gh run download 42415066759 -R "${{ github.repository }}" \
+            -n paper-t-nasa-power-actual-utc-lst-2024-source-verified \
+            -D /tmp/paper-t-nasa-original
+          echo '3d24f1604da17daea9126c7384ec9f4a9132760e224a7cab3d0c833feea81837  nasa_power_hourly_UTC_original.json' > /tmp/paper-t-nasa-original/SHA256SUMS.txt
+          echo '1bf50d3c1852e100e4c8dfb4989c56a93fa86cde9beaa097f828355612f4f886  nasa_power_hourly_LST_original.json' >> /tmp/paper-t-nasa-original/SHA256SUMS.txt
+          cd /tmp/paper-t-nasa-original
+          sha256sum -c SHA256SUMS.txt
+      - name: Recalculate naive and physical match on identical 89 UTC anchors
         run: |
           PYTHONPATH=src python -m energy_transition.paper_t_nasa_power_external_clock \
+            --utc-file /tmp/paper-t-nasa-original/nasa_power_hourly_UTC_original.json \
+            --lst-file /tmp/paper-t-nasa-original/nasa_power_hourly_LST_original.json \
             --out outputs/paper_t_nasa_power_external_clock
           python - <<'PY'
           import json
@@ -33,6 +47,8 @@ jobs:
           assert a['status']=='NASA_POWER_REAL_UTC_LST_SOURCE_CLOCK_TEST_PASS'
           assert a['nonwrapping_matched_hours']==89
           assert a['naive_equal_hour_label_mae_celsius']>0
+          assert a['naive_equal_label_on_same_89_utc_anchors_mae_celsius']>0
+          assert a['matched_utc_anchors_for_both_comparison_arms']==89
           assert a['publisher_time_normalized_hour_mae_celsius']<1e-6
           assert a['UTC_and_LST_independent_physical_observations'] is False
           print('PAPER_T_REAL_NASA_EXTERNAL_SOURCE_TIME_PROVENANCE_PASS')
