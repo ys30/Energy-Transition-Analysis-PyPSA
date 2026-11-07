@@ -19,7 +19,11 @@ def test_positive_fixture_requires_every_documented_gate():
     for item in passport["evidence"].values():
         item["passed"]=True
         item["basis"]="Synthetic valid-contract fixture for a fully documented source pair"
-    assert assess(passport)["decision"]=="ADMIT_PHYSICAL_JOIN"
+    ready=assess(passport)
+    assert ready["decision"]=="READY_FOR_INDEPENDENT_SOURCE_REVIEW"
+    assert ready["declared_gate_evidence_complete"]
+    assert not ready["physical_hour_join_admitted"]
+    assert not ready["independent_evidence_verification_performed"]
     passport["evidence"]["weather_year"]["passed"]=False
     assert assess(passport)["decision"]=="BLOCK_PHYSICAL_JOIN"
 
@@ -40,3 +44,13 @@ def test_truthy_text_cannot_be_accepted_as_boolean():
     passport["evidence"]["native_calendar"]["passed"]="true"
     with pytest.raises(ValueError,match="explicit boolean"):
         assess(passport)
+
+def test_malicious_all_true_self_attestation_cannot_authorize_join():
+    passport=copy.deepcopy(DEFAULT_PASSPORT)
+    for item in passport["evidence"].values():
+        item["passed"]=True
+        item["basis"]="I say this has been verified"
+    result=assess(passport)
+    assert result["decision"]=="READY_FOR_INDEPENDENT_SOURCE_REVIEW"
+    assert not result["physical_hour_join_admitted"]
+    assert not result["independent_evidence_verification_performed"]
