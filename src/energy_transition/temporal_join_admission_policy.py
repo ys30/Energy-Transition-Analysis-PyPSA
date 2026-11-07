@@ -1,9 +1,7 @@
 """A reusable, fail-closed temporal-join admission policy.
 
 Purpose: express testable *metadata/evidence gates*, distinct from a numerical
-best-fit lag. This is source-agnostic policy code. It DOES NOT infer a clock
-mapping or independently establish provenance; evidence flags must originate
-from independently verified source records.
+best-fit lag. This source-agnostic screening policy DOES NOT independently authenticate\ncaller-supplied evidence. Even six declared passes are REVIEW-READY, never\nauthorization for physical hourly joining.
 """
 from __future__ import annotations
 import argparse
@@ -41,15 +39,19 @@ def assess(passport):
         if not isinstance(item,dict) or type(item.get("passed")) is not bool or not str(item.get("basis","")).strip():
             raise ValueError("Evidence gate requires explicit boolean and nonempty independent basis: "+gate)
         details[gate]={"passed":item["passed"],"requirement":description,"basis":item["basis"]}
-    approved=all(x["passed"] for x in details.values())
+    declared_pass=all(x["passed"] for x in details.values())
+    # Caller-authored evidence is not independently authenticated.
+    # Even an all-True passport must not grant physical-time join authority.
     return {
       "source_pair":passport.get("source_pair","unspecified"),
-      "physical_hour_join_admitted":approved,
+      "physical_hour_join_admitted":False,
+      "declared_gate_evidence_complete":declared_pass,
+      "independent_evidence_verification_performed":False,
       "failed_gates":[g for g,item in details.items() if not item["passed"]],
       "gate_results":details,
       "fitted_source_index_lag_counts_as_authoritative_clock":False,
       "no_automatic_imputation_for_failed_gates":True,
-      "decision":"ADMIT_PHYSICAL_JOIN" if approved else "BLOCK_PHYSICAL_JOIN",
+      "decision":"READY_FOR_INDEPENDENT_SOURCE_REVIEW" if declared_pass else "BLOCK_PHYSICAL_JOIN",
       "reusable_policy_contract":True,
       "this_passport_is_not_source_clock_certification":True,
     }
