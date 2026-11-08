@@ -1,0 +1,45 @@
+name: EFS all-zone normalized original-hour shape uniqueness audit
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_source_normalized_shapes.py'
+      - 'tests/test_efs_source_normalized_shapes.py'
+      - '.github/workflows/efs-source-shape-uniqueness.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-uniqueness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test normalized original source-hour grouping
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_efs_source_normalized_shapes.py
+      - name: Restore accepted real-source demand 20-zone EFS time series
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs
+          test -s /tmp/efs/efs-real-laf-zonal-pilot.csv.gz
+      - name: Identify independent normalized hourly demand patterns in all years
+        run: |
+          PYTHONPATH=src python -m energy_transition.efs_source_normalized_shapes \
+            --source /tmp/efs/efs-real-laf-zonal-pilot.csv.gz \
+            --out-dir outputs
+          test -s outputs/efs_source_normalized_shape_groups.csv
+          test -s outputs/efs_source_normalized_shape_group_summary.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-efs-20zone-three-year-normalized-shape-groups
+          path: outputs/
+          if-no-files-found: error
