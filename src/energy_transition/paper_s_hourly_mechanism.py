@@ -1,6 +1,6 @@
 """Export bounded original-source EFS + synthetic-supply hourly LP mechanism traces.
 
-Only one deterministic highest-demand zone in a given projection year.
+One deterministic source-demand-ranked zone in a given projection year.
 Preserves old solver defaults; compares complete summaries against archived 540 cases.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ MEASURES=("demand_mwh","renewable_available_mwh","renewable_direct_mwh",
           "firm_generation_mwh","unused_renewable_mwh","objective_illustrative_variable_usd")
 
 
-def run(source, archive, year=2030, hours=8760):
+def run(source, archive, year=2030, hours=8760, zone_rank=0):
     required={"year","state","reeds_zone","local_hour_id","allocated_mw"}
     if not required.issubset(source): raise ValueError("Missing original source demand columns")
     a=source[source.year==year].copy()
@@ -33,7 +33,9 @@ def run(source, archive, year=2030, hours=8760):
         zones.append((float(d.sum()),str(state),str(zone),d))
     zones.sort(key=lambda q:(-q[0],q[1],q[2]))
     if len(zones)!=20:raise ValueError("Expected 20 original source zones for target year")
-    _,state,zone,demand=zones[0]
+    if zone_rank not in (0,9,18):raise ValueError('Precommitted supported zone ranks are 0, 9, 18')
+    if zones[zone_rank][0] <= 0:raise ValueError('Selected source zone has zero demand')
+    _,state,zone,demand=zones[zone_rank]
     reference=archive[(archive.planning_year==year)&
                       (archive.state.astype(str)==state)&
                       (archive.reeds_zone.astype(str)==zone)]
@@ -74,7 +76,7 @@ def run(source, archive, year=2030, hours=8760):
     if len(hourly)!=hours*9 or len(summary_table)!=9:
         raise ValueError("Incomplete mechanism traces")
     return hourly,summary_table,{"status":"HOURLY_SOURCE_ARCHIVE_RECONCILIATION_PASS",
-        "year":year,"state":state,"reeds_zone":zone,"hours_per_case":hours,
+        "year":year,"state":state,"reeds_zone":zone,"source_demand_rank_zero_based":zone_rank,"hours_per_case":hours,
         "cases":9,"archive_matched":True,"physical_utc_certified":False,
         "real_renewable_profiles":False,"western_grid_opf":False}
 
@@ -85,8 +87,9 @@ def main():
     p.add_argument("--archive",type=Path,required=True)
     p.add_argument("--year",type=int,choices=(2030,2040,2050),default=2030)
     p.add_argument("--out-dir",type=Path,required=True)
+    p.add_argument("--zone-rank",type=int,choices=(0,9,18),default=0)
     a=p.parse_args()
-    hourly,stats,meta=run(pd.read_csv(a.source,compression="infer"),pd.read_csv(a.archive),a.year)
+    hourly,stats,meta=run(pd.read_csv(a.source,compression="infer"),pd.read_csv(a.archive),a.year,zone_rank=a.zone_rank)
     a.out_dir.mkdir(parents=True,exist_ok=True)
     hourly.to_csv(a.out_dir/"representative_zone_hourly_lp.csv.gz",index=False,compression="gzip")
     stats.to_csv(a.out_dir/"representative_zone_mechanism_metrics.csv",index=False)
