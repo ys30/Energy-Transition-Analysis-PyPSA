@@ -26,3 +26,15 @@ def test_zero_battery_has_no_false_active_constraints():
     assert not trace.soc_at_energy_limit.any()
     assert trace.soc_end_mwh.eq(0).all()
     assert summary["storage_capacity_mwh"]==0
+
+
+def test_source_demand_rank_restrictions_fail_closed():
+    from energy_transition.paper_s_hourly_mechanism import run
+    with pytest.raises(ValueError,match="Precommitted supported zone ranks"):
+        # Make a complete source table with 20 zones to reach rank validation.
+        src=pd.concat([
+            pd.DataFrame({"year":2030,"state":"Arizona","reeds_zone":f"p{i:02}",
+                          "local_hour_id":np.arange(1,25),
+                          "allocated_mw":np.full(24,20-i)})
+            for i in range(20)],ignore_index=True)
+        run(src,pd.DataFrame(),year=2030,hours=24,zone_rank=5)
