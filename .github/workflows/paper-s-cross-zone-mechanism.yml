@@ -1,0 +1,135 @@
+name: Paper S precommitted 2030 cross-zone mechanism replication
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'src/energy_transition/paper_s_hourly_mechanism.py'
+      - 'src/energy_transition/paper_s_trace_mechanism.py'
+      - 'tests/test_paper_s_hourly_mechanism.py'
+      - '.github/workflows/paper-s-cross-zone-mechanism.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  solve-selected-source-ranks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        rank: [0, 9, 18]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies and test full-year LP compatibility
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_efs_cyclic_storage_lp.py tests/test_paper_s_hourly_mechanism.py tests/test_paper_s_trace_mechanism.py
+      - name: Restore identical archived source demand and accepted 540-case LP records
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs /tmp/cases
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs
+          gh run download 42107237659 -R "${{ github.repository }}" \
+            -n efs-cyclic-full-year-all-20-zones-validated -D /tmp/cases
+          test -s /tmp/efs/efs-real-laf-zonal-pilot.csv.gz
+          test -s /tmp/cases/all_20zone_cyclic_8760h_results.csv
+      - name: Run predetermined original-demand-rank zone 2030 nine-case exact LP match
+        run: |
+          mkdir -p outputs
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_hourly_mechanism \
+            --source /tmp/efs/efs-real-laf-zonal-pilot.csv.gz \
+            --archive /tmp/cases/all_20zone_cyclic_8760h_results.csv \
+            --year 2030 --zone-rank ${{ matrix.rank }} --out-dir outputs
+          PYTHONPATH=src python -m energy_transition.paper_s_trace_mechanism \
+            --hourly outputs/representative_zone_hourly_lp.csv.gz \
+            --original outputs/representative_zone_mechanism_metrics.csv \
+            --out-dir outputs
+          python - <<'PY'
+          import json,pandas as pd
+          from pathlib import Path
+          x=json.loads(Path('outputs/representative_zone_mechanism_manifest.json').read_text())
+          assert x['source_demand_rank_zero_based']==${{ matrix.rank }}
+          assert x['archive_matched'] and x['cases']==9 and x['hours_per_case']==8760
+          a=pd.read_csv('outputs/paper_s_p28_temporal_mechanism.csv')
+          assert len(a)==9 and a.state.nunique()==1 and a.reeds_zone.nunique()==1
+          assert a.synthetic_supply_shape.nunique()==3
+          print('SOURCE_RANK_PRECOMMITTED_2030_TRACE_AND_ARCHIVE_PASS',x['state'],x['reeds_zone'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-2030-source-rank-${{ matrix.rank }}-hourly
+          path: outputs/
+          if-no-files-found: error
+  cross-zone-summary:
+    needs: solve-selected-source-ranks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Download all three accepted rank-specific mechanism artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/all
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-2030-source-rank-*-hourly' -D /tmp/all
+      - name: Compare pre-specified rank 0/9/18 source-demand zones
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          root=Path('/tmp/all')
+          frames=[]
+          for rank in (0,9,18):
+              dirs=list(root.glob(f'paper-s-2030-source-rank-{rank}-hourly'))
+              assert len(dirs)==1,dirs
+              d=dirs[0]
+              m=json.loads((d/'representative_zone_mechanism_manifest.json').read_text())
+              assert m['source_demand_rank_zero_based']==rank and m['archive_matched']
+              a=pd.read_csv(d/'paper_s_p28_temporal_mechanism.csv')
+              assert len(a)==9
+              a.insert(0,'source_demand_rank_zero_based',rank)
+              frames.append(a)
+          all_cases=pd.concat(frames,ignore_index=True)
+          assert len(all_cases)==27 and all_cases[['state','reeds_zone']].drop_duplicates().shape[0]==3
+          assert set(all_cases.battery_duration_h)=={0,4,8}
+          assert set(all_cases.planning_year)=={2030}
+          all_cases.to_csv('outputs/paper_s_cross_zone_2030_hourly_mechanism_27_cases.csv',index=False)
+          summaries=[]
+          for (rank,shape),g in all_cases.groupby(['source_demand_rank_zero_based','synthetic_supply_shape']):
+              g=g.set_index('battery_duration_h')
+              assert set(g.index)=={0,4,8}
+              summaries.append({'source_demand_rank_zero_based':rank,'state':g.state.iloc[0],
+                  'reeds_zone':g.reeds_zone.iloc[0],'synthetic_supply_shape':shape,
+                  'discharged_4h_gwh':g.loc[4,'discharge_gwh'],
+                  'discharged_8h_gwh':g.loc[8,'discharge_gwh'],
+                  'incremental_discharge_4to8h_gwh':g.loc[8,'discharge_gwh']-g.loc[4,'discharge_gwh'],
+                  'mean_soc_fraction_4h':g.loc[4,'mean_soc_fraction'],
+                  'mean_soc_fraction_8h':g.loc[8,'mean_soc_fraction'],
+                  'surplus_run_mean_hours':g.loc[0,'surplus_run_mean_hours'],
+                  'deficit_run_mean_hours':g.loc[0,'deficit_run_mean_hours']})
+          out=pd.DataFrame(summaries).sort_values(['source_demand_rank_zero_based','synthetic_supply_shape'])
+          assert len(out)==9
+          out.to_csv('outputs/paper_s_cross_zone_2030_shape_comparisons.csv',index=False)
+          print(out.to_string(index=False))
+          print('THREE_ZONE_27_CASE_SOURCE_ARCHIVE_MECHANISM_REPLICATION_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-2030-precommitted-cross-zone-synthesis
+          path: outputs/
+          if-no-files-found: error
