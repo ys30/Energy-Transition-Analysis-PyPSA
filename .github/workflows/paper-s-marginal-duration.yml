@@ -8,6 +8,8 @@ name: Paper S archived 540-case marginal duration audit
       - 'tests/test_paper_s_marginal_duration.py'
       - 'src/energy_transition/paper_s_marginal_duration_figures.py'
       - 'tests/test_paper_s_marginal_duration_figures.py'
+      - 'src/energy_transition/paper_s_objective_decomposition.py'
+      - 'tests/test_paper_s_objective_decomposition.py'
       - '.github/workflows/paper-s-marginal-duration.yml'
 permissions:
   contents: read
@@ -24,7 +26,7 @@ jobs:
       - name: Install dependencies and regression tests
         run: |
           python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8,<10' 'matplotlib>=3.7,<4'
-          PYTHONPATH=src python -m pytest -q tests/test_paper_s_marginal_duration.py tests/test_paper_s_marginal_duration_figures.py tests/test_paper_s_lp_objective_certification.py
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_marginal_duration.py tests/test_paper_s_marginal_duration_figures.py tests/test_paper_s_lp_objective_certification.py tests/test_paper_s_objective_decomposition.py
       - name: Restore original accepted 540-case CSV, not rounded report values
         env:
           GH_TOKEN: ${{ github.token }}
@@ -48,6 +50,12 @@ jobs:
           assert (a.zones==20).all()
           print("ARCHIVED_SOURCE_MARGINAL_DURATION_GATE_PASSED")
           PY
+      - name: Certify the exact algebraic decomposition against original 540 LP cases
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_objective_decomposition \
+            --cases /tmp/source/all_20zone_cyclic_8760h_results.csv \
+            --csv outputs/paper_s_objective_decomposition.csv \
+            --json outputs/paper_s_objective_decomposition_certificate.json
       - name: Render audited Paper S Figures S4/S5 directly from nine unrounded comparisons
         run: |
           PYTHONPATH=src python -m energy_transition.paper_s_marginal_duration_figures \
