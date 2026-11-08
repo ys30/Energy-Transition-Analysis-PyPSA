@@ -11,13 +11,14 @@ import numpy as np
 import pandas as pd
 from .efs_cyclic_storage_lp import solve_zone,SHAPES,DURATIONS
 from .efs_ordinal_storage_sensitivity import shape_cf
+from .efs_source_normalized_shapes import audit_shapes
 
 MEASURES=("demand_mwh","renewable_available_mwh","renewable_direct_mwh",
           "storage_charge_input_mwh","storage_discharge_to_load_mwh",
           "firm_generation_mwh","unused_renewable_mwh","objective_illustrative_variable_usd")
 
 
-def run(source, archive, year=2030, hours=8760, zone_rank=0):
+def run(source, archive, year=2030, hours=8760, zone_rank=0, source_shape_group=0):
     required={"year","state","reeds_zone","local_hour_id","allocated_mw"}
     if not required.issubset(source): raise ValueError("Missing original source demand columns")
     a=source[source.year==year].copy()
@@ -33,7 +34,26 @@ def run(source, archive, year=2030, hours=8760, zone_rank=0):
         zones.append((float(d.sum()),str(state),str(zone),d))
     zones.sort(key=lambda q:(-q[0],q[1],q[2]))
     if len(zones)!=20:raise ValueError("Expected 20 original source zones for target year")
-    if zone_rank not in (0,9,18):raise ValueError('Precommitted supported zone ranks are 0, 9, 18')
+    if source_shape_group:
+        if zone_rank != 0 or source_shape_group not in range(1,8):
+            raise ValueError("Source shape group must be 1..7 and cannot be combined with zone-rank")
+        groups_df,group_summary=audit_shapes(source,years=(year,),hours=hours)
+        if int(group_summary.unique_positive_normalized_shapes.iloc[0])!=7:
+            raise ValueError("Source shape population no longer equals preregistered seven")
+        selected=groups_df[groups_df.normalized_shape_group==f"normalized_shape_{source_shape_group:02d}"]
+        if selected.empty or selected.source_zero_demand.any():
+            raise ValueError("Missing or invalid preregistered source shape group")
+        # Group membership derived solely from source load. Highest annual demand wins;
+        # stable state/zone tie-breaking, independent of LP outputs.
+        selected=selected.sort_values(["source_demand_mwh","state","reeds_zone"],
+                                      ascending=[False,True,True])
+        target_state=str(selected.iloc[0].state)
+        target_zone=str(selected.iloc[0].reeds_zone)
+        hits=[i for i,z in enumerate(zones) if z[1]==target_state and z[2]==target_zone]
+        if len(hits)!=1:raise ValueError("Group representative cannot be resolved")
+        zone_rank=hits[0]
+    elif zone_rank not in (0,9,18):
+        raise ValueError('Precommitted supported zone ranks are 0, 9, 18')
     if zones[zone_rank][0] <= 0:raise ValueError('Selected source zone has zero demand')
     _,state,zone,demand=zones[zone_rank]
     reference=archive[(archive.planning_year==year)&
@@ -76,7 +96,7 @@ def run(source, archive, year=2030, hours=8760, zone_rank=0):
     if len(hourly)!=hours*9 or len(summary_table)!=9:
         raise ValueError("Incomplete mechanism traces")
     return hourly,summary_table,{"status":"HOURLY_SOURCE_ARCHIVE_RECONCILIATION_PASS",
-        "year":year,"state":state,"reeds_zone":zone,"source_demand_rank_zero_based":zone_rank,"hours_per_case":hours,
+        "year":year,"state":state,"reeds_zone":zone,"source_demand_rank_zero_based":zone_rank,"source_shape_group_id":int(source_shape_group),"hours_per_case":hours,
         "cases":9,"archive_matched":True,"physical_utc_certified":False,
         "real_renewable_profiles":False,"western_grid_opf":False}
 
@@ -88,8 +108,9 @@ def main():
     p.add_argument("--year",type=int,choices=(2030,2040,2050),default=2030)
     p.add_argument("--out-dir",type=Path,required=True)
     p.add_argument("--zone-rank",type=int,choices=(0,9,18),default=0)
+    p.add_argument("--source-shape-group",type=int,choices=range(0,8),default=0)
     a=p.parse_args()
-    hourly,stats,meta=run(pd.read_csv(a.source,compression="infer"),pd.read_csv(a.archive),a.year,zone_rank=a.zone_rank)
+    hourly,stats,meta=run(pd.read_csv(a.source,compression="infer"),pd.read_csv(a.archive),a.year,zone_rank=a.zone_rank,source_shape_group=a.source_shape_group)
     a.out_dir.mkdir(parents=True,exist_ok=True)
     hourly.to_csv(a.out_dir/"representative_zone_hourly_lp.csv.gz",index=False,compression="gzip")
     stats.to_csv(a.out_dir/"representative_zone_mechanism_metrics.csv",index=False)
