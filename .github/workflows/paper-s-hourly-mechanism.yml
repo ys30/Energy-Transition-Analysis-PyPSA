@@ -1,0 +1,52 @@
+name: Paper S representative zone hourly LP mechanism audit
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'src/energy_transition/paper_s_hourly_mechanism.py'
+      - 'tests/test_paper_s_hourly_mechanism.py'
+      - '.github/workflows/paper-s-hourly-mechanism.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  hourly-mechanism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies and test unchanged solver compatibility
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_efs_cyclic_storage_lp.py tests/test_paper_s_hourly_mechanism.py
+      - name: Download source load and originally accepted 540-case archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source /tmp/archived
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/source
+          gh run download 42107237659 -R "${{ github.repository }}" \
+            -n efs-cyclic-full-year-all-20-zones-validated -D /tmp/archived
+          test -s /tmp/source/efs-real-laf-zonal-pilot.csv.gz
+          test -s /tmp/archived/all_20zone_cyclic_8760h_results.csv
+      - name: Solve nine full-year cases with hourly traces and compare original annual results
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_hourly_mechanism \
+            --source /tmp/source/efs-real-laf-zonal-pilot.csv.gz \
+            --archive /tmp/archived/all_20zone_cyclic_8760h_results.csv \
+            --year 2030 --out-dir outputs
+          test -s outputs/representative_zone_hourly_lp.csv.gz
+          test -s outputs/representative_zone_mechanism_metrics.csv
+          test -s outputs/representative_zone_mechanism_manifest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-representative-zone-hourly-mechanism-2030
+          path: outputs/
+          if-no-files-found: error
