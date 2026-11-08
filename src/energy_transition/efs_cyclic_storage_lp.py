@@ -15,7 +15,7 @@ SHAPES=("flat_50pct","ordinal24_wave_A","ordinal24_wave_B")
 DURATIONS=(0,4,8)
 ETA=np.sqrt(.9)
 
-def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_ratio=.25,firm_peak_ratio=1.2):
+def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_ratio=.25,firm_peak_ratio=1.2,return_trace=False):
     load=np.asarray(demand,dtype=float); factors=np.asarray(cf,dtype=float)
     n=len(load)
     if n==0 or len(factors)!=n or not np.isfinite(load).all() or not np.isfinite(factors).all():
@@ -53,7 +53,7 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
         raise ValueError("Demand mass conservation failed")
     if not np.isclose(v[0]+v[1]+v[4],available.sum(),atol=1e-5,rtol=1e-10):
         raise ValueError("Renewable availability conservation failed")
-    return {"solver":"HiGHS scipy.optimize.linprog","solver_status":"optimal",
+    summary={"solver":"HiGHS scipy.optimize.linprog","solver_status":"optimal",
             "source_hours":n,"demand_mwh":float(load.sum()),
             "renewable_available_mwh":float(available.sum()),
             "renewable_direct_mwh":float(v[0]),"storage_charge_input_mwh":float(v[1]),
@@ -63,6 +63,32 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
             "storage_capacity_mwh":capacity,
             "objective_illustrative_variable_usd":float(sol.fun),
             "max_equality_residual_mwh":resid,"cyclic_SOC_0_to_0_verified":True}
+    if not return_trace:
+        return summary
+    trace=pd.DataFrame(x,columns=["renewable_direct_mwh","storage_charge_input_mwh",
+                                    "storage_discharge_to_load_mwh","firm_generation_mwh",
+                                    "unused_renewable_mwh","soc_end_mwh"])
+    trace.insert(0,"local_hour_id",np.arange(1,n+1))
+    trace["demand_mwh"]=load
+    trace["renewable_available_mwh"]=available
+    trace["surplus_pre_dispatch_mwh"]=np.maximum(available-load,0.)
+    trace["deficit_pre_dispatch_mwh"]=np.maximum(load-available,0.)
+    soc_start=np.r_[0.,x[:-1,5]]
+    trace["soc_start_mwh"]=soc_start
+    trace["charge_at_power_limit"]=(power>0)&np.isclose(x[:,1],power,atol=1e-6,rtol=0)
+    trace["discharge_at_power_limit"]=(power>0)&np.isclose(x[:,2],power,atol=1e-6,rtol=0)
+    trace["soc_at_energy_limit"]=(capacity>0)&np.isclose(x[:,5],capacity,atol=1e-6,rtol=0)
+    if not np.allclose(x[:,5]-soc_start,ETA*x[:,1]-x[:,2]/ETA,atol=1e-5,rtol=0):
+        raise ValueError("Hourly storage SOC recursion failed")
+    if not np.allclose(x[:,0]+x[:,1]+x[:,4],available,atol=1e-5,rtol=0):
+        raise ValueError("Hourly renewable balance failed")
+    if not np.allclose(x[:,0]+x[:,2]+x[:,3],load,atol=1e-5,rtol=0):
+        raise ValueError("Hourly load balance failed")
+    for key in ("renewable_direct_mwh","storage_charge_input_mwh",
+                "storage_discharge_to_load_mwh","firm_generation_mwh","unused_renewable_mwh"):
+        if not np.isclose(trace[key].sum(),summary[key],atol=1e-5,rtol=1e-10):
+            raise ValueError("Hourly trace does not reconcile to original annual LP summary")
+    return summary,trace
 
 def evaluate_zones(source,year,hours=168,max_zones=2,zone_offset=0):
     keys=["year","state","reeds_zone","local_hour_id","allocated_mw"]
