@@ -1,0 +1,49 @@
+name: Paper S cross-zone independent source-demand shape audit
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_source_shape_independence.py'
+      - 'tests/test_paper_s_source_shape_independence.py'
+      - '.github/workflows/paper-s-source-shape-independence.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-demand-shape-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies and run unit tests
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_source_shape_independence.py
+      - name: Restore previously archived 2030 cross-zone hourly traces
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/r0 /tmp/r9 /tmp/r18
+          gh run download 42463963411 -R "${{ github.repository }}" -n paper-s-2030-source-rank-0-hourly -D /tmp/r0
+          gh run download 42463963411 -R "${{ github.repository }}" -n paper-s-2030-source-rank-9-hourly -D /tmp/r9
+          gh run download 42463963411 -R "${{ github.repository }}" -n paper-s-2030-source-rank-18-hourly -D /tmp/r18
+          test -s /tmp/r0/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/r9/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/r18/representative_zone_hourly_lp.csv.gz
+      - name: Verify exact normalized source demand hour profiles and nonindependence
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_source_shape_independence \
+            --trace-rank-0 /tmp/r0/representative_zone_hourly_lp.csv.gz \
+            --trace-rank-9 /tmp/r9/representative_zone_hourly_lp.csv.gz \
+            --trace-rank-18 /tmp/r18/representative_zone_hourly_lp.csv.gz \
+            --out-dir outputs
+          test -s outputs/paper_s_cross_zone_source_shape_independence.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-source-demand-shape-independence-2030
+          path: outputs/
+          if-no-files-found: error
