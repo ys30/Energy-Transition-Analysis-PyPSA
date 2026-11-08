@@ -1,0 +1,45 @@
+name: Paper S archived seven-demand-shape Figure S9
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_seven_shape_figures.py'
+      - 'tests/test_paper_s_seven_shape_figures.py'
+      - '.github/workflows/paper-s-seven-shape-figures.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-derived-figure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install plotting and tests
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7,<4' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_seven_shape_figures.py
+      - name: Restore accepted 63-LP seven-shape synthesis
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-seven-independent-source-shape-synthesis -D /tmp/source
+          test -s /tmp/source/paper_s_2030_seven_shape_21_comparisons.csv
+      - name: Recompute relative increments and publication Figure S9
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_seven_shape_figures \
+            --comparisons /tmp/source/paper_s_2030_seven_shape_21_comparisons.csv \
+            --out-dir outputs
+          test -s outputs/Figure_S9_2030_seven_shape_relative_increment.svg
+          test -s outputs/Figure_S9_2030_seven_shape_relative_increment.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-verified-figure-S9-seven-source-shapes
+          path: outputs/
+          if-no-files-found: error
