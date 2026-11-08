@@ -1,0 +1,55 @@
+name: Paper S archived hourly temporal mechanism diagnostics
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_trace_mechanism.py'
+      - 'tests/test_paper_s_trace_mechanism.py'
+      - '.github/workflows/paper-s-trace-mechanism.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  temporal-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install and run exact method tests
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_trace_mechanism.py
+      - name: Restore accepted hourly primal trace
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/accepted
+          gh run download 42460995051 -R "${{ github.repository }}" \
+            -n paper-s-representative-zone-hourly-mechanism-2030 -D /tmp/accepted
+          test -s /tmp/accepted/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/accepted/representative_zone_mechanism_metrics.csv
+      - name: Verify and compute source-ordinal surplus runs and SOC utilization
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_trace_mechanism \
+            --hourly /tmp/accepted/representative_zone_hourly_lp.csv.gz \
+            --original /tmp/accepted/representative_zone_mechanism_metrics.csv \
+            --out-dir outputs
+          test -s outputs/paper_s_p28_temporal_mechanism.csv
+          python - <<'PY'
+          import pandas as pd
+          a=pd.read_csv('outputs/paper_s_p28_temporal_mechanism.csv')
+          assert len(a)==9
+          assert a.synthetic_supply_shape.nunique()==3
+          assert set(a.battery_duration_h)=={0,4,8}
+          assert (a.mean_soc_fraction.between(0,1)).all()
+          print('ARCHIVED_SOURCE_ORDINAL_MECHANISM_GATE_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-p28-temporal-mechanism-source-derived
+          path: outputs/
+          if-no-files-found: error
