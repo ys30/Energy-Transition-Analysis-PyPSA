@@ -1,0 +1,131 @@
+name: Paper S seven unique source-demand shape mechanism replication
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_hourly_mechanism.py'
+      - 'src/energy_transition/efs_source_normalized_shapes.py'
+      - 'src/energy_transition/paper_s_trace_mechanism.py'
+      - '.github/workflows/paper-s-seven-shape-mechanism.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-shape-representative:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shape_group: [1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate original LP, source grouping and temporal diagnostics
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_efs_cyclic_storage_lp.py tests/test_paper_s_hourly_mechanism.py tests/test_paper_s_trace_mechanism.py tests/test_efs_source_normalized_shapes.py
+      - name: Restore original projected demand and archived accepted 540 LP summaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs /tmp/archived
+          gh run download 41281576025 -R "${{ github.repository }}" \
+            -n real-western-base-network-attempt -D /tmp/efs
+          gh run download 42107237659 -R "${{ github.repository }}" \
+            -n efs-cyclic-full-year-all-20-zones-validated -D /tmp/archived
+          test -s /tmp/efs/efs-real-laf-zonal-pilot.csv.gz
+          test -s /tmp/archived/all_20zone_cyclic_8760h_results.csv
+      - name: Re-solve 9 full-year cases for source-demand-shape representative
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_hourly_mechanism \
+            --source /tmp/efs/efs-real-laf-zonal-pilot.csv.gz \
+            --archive /tmp/archived/all_20zone_cyclic_8760h_results.csv \
+            --year 2030 --source-shape-group ${{ matrix.shape_group }} --out-dir outputs
+          PYTHONPATH=src python -m energy_transition.paper_s_trace_mechanism \
+            --hourly outputs/representative_zone_hourly_lp.csv.gz \
+            --original outputs/representative_zone_mechanism_metrics.csv \
+            --out-dir outputs
+          python - <<'PY'
+          import json,pandas as pd
+          from pathlib import Path
+          m=json.loads(Path('outputs/representative_zone_mechanism_manifest.json').read_text())
+          assert m['source_shape_group_id']==${{ matrix.shape_group }}
+          assert m['archive_matched'] and m['cases']==9
+          x=pd.read_csv('outputs/paper_s_p28_temporal_mechanism.csv')
+          assert len(x)==9 and x.synthetic_supply_shape.nunique()==3
+          assert (x.mean_soc_fraction.between(0,1)).all()
+          print('SEVEN_GROUP_REP_SOURCE_ARCHIVE_PASS',m['state'],m['reeds_zone'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-2030-source-shape-${{ matrix.shape_group }}-hourly
+          path: outputs/
+          if-no-files-found: error
+  seven-group-summary:
+    needs: source-shape-representative
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Restore all seven original source-shape jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/shapejobs
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-2030-source-shape-*-hourly' -D /tmp/shapejobs
+      - name: Aggregate 63 LP mechanism cases without zone pseudo-replication
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          frames=[]
+          names=set()
+          for number in range(1,8):
+              d=Path('/tmp/shapejobs')/f'paper-s-2030-source-shape-{number}-hourly'
+              m=json.loads((d/'representative_zone_mechanism_manifest.json').read_text())
+              assert m['source_shape_group_id']==number and m['archive_matched']
+              name=(m['state'],m['reeds_zone'])
+              assert name not in names
+              names.add(name)
+              a=pd.read_csv(d/'paper_s_p28_temporal_mechanism.csv')
+              assert len(a)==9 and set(a.battery_duration_h)=={0,4,8}
+              a.insert(0,'source_shape_group',number)
+              frames.append(a)
+          merged=pd.concat(frames,ignore_index=True)
+          assert len(merged)==63 and merged[['state','reeds_zone']].drop_duplicates().shape[0]==7
+          merged.to_csv('outputs/paper_s_2030_seven_unique_shapes_63_mechanisms.csv',index=False)
+          out=[]
+          for (number,shape),g in merged.groupby(['source_shape_group','synthetic_supply_shape']):
+              g=g.set_index('battery_duration_h')
+              a=g.loc[4];b=g.loc[8]
+              out.append({'source_shape_group':number,'state':a.state,'reeds_zone':a.reeds_zone,
+                 'synthetic_supply_shape':shape,
+                 'discharged_4h_gwh':a.discharge_gwh,'discharged_8h_gwh':b.discharge_gwh,
+                 'incremental_discharge_4to8h_gwh':b.discharge_gwh-a.discharge_gwh,
+                 'mean_soc_fraction_4h':a.mean_soc_fraction,
+                 'mean_soc_fraction_8h':b.mean_soc_fraction,
+                 'surplus_mean_run_h':a.surplus_run_mean_hours,
+                 'deficit_mean_run_h':a.deficit_run_mean_hours})
+          summary=pd.DataFrame(out).sort_values(['source_shape_group','synthetic_supply_shape'])
+          assert len(summary)==21
+          summary.to_csv('outputs/paper_s_2030_seven_shape_21_comparisons.csv',index=False)
+          print(summary.to_string(index=False))
+          print('SEVEN_SOURCE_SHAPE_63_LP_ORIGINAL_ARCHIVE_REPLICATION_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-2030-seven-independent-source-shape-synthesis
+          path: outputs/
+          if-no-files-found: error
