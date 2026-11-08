@@ -37,7 +37,7 @@ def run(source, archive, year=2030, hours=8760, zone_rank=0, source_shape_group=
     if source_shape_group:
         if zone_rank != 0 or source_shape_group not in range(1,8):
             raise ValueError("Source shape group must be 1..7 and cannot be combined with zone-rank")
-        groups_df,group_summary=audit_shapes(source,years=(year,),hours=hours)
+        groups_df,group_summary=audit_shapes(source.loc[source.year==year],years=(year,),hours=hours)
         if int(group_summary.unique_positive_normalized_shapes.iloc[0])!=7:
             raise ValueError("Source shape population no longer equals preregistered seven")
         selected=groups_df[groups_df.normalized_shape_group==f"normalized_shape_{source_shape_group:02d}"]
