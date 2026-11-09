@@ -17,7 +17,7 @@ ETA=np.sqrt(.9)
 
 def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_ratio=.25,firm_peak_ratio=1.2,return_trace=False,
                roundtrip_efficiency=.9,renewable_unit_cost=5.,firm_unit_cost=90.,
-               storage_energy_peak_hours=None):
+               storage_energy_peak_hours=None,return_duals=False):
     load=np.asarray(demand,dtype=float); factors=np.asarray(cf,dtype=float)
     n=len(load)
     if n==0 or len(factors)!=n or not np.isfinite(load).all() or not np.isfinite(factors).all():
@@ -80,8 +80,39 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
             "storage_capacity_mwh":capacity,
             "objective_illustrative_variable_usd":float(sol.fun),
             "max_equality_residual_mwh":resid,"cyclic_SOC_0_to_0_verified":True}
+    if return_duals:
+        # For minimization the marginal of a finite upper variable bound is <=0.
+        # The per-hour envelope derivatives of C with respect to installed
+        # MW and MWh use upper bound marginals from the *optimal* HiGHS basis.
+        upper=np.asarray(sol.upper.marginals,dtype=float).reshape(n,6)
+        if not np.isfinite(upper).all() or (upper[:,[1,2,5]]>1e-5).any():
+            raise ValueError("Invalid LP upper-bound dual marginal")
+        duals=pd.DataFrame({
+            "local_hour_id":np.arange(1,n+1),
+            "charge_power_upper_marginal_usd_per_mw":upper[:,1],
+            "discharge_power_upper_marginal_usd_per_mw":upper[:,2],
+            "soc_energy_upper_marginal_usd_per_mwh":upper[:,5],
+            "charging_upper_bound_active":np.isclose(x[:,1],power,atol=1e-6,rtol=0),
+            "discharging_upper_bound_active":np.isclose(x[:,2],power,atol=1e-6,rtol=0),
+            "soc_upper_bound_active":np.isclose(x[:,5],capacity,atol=1e-6,rtol=0)
+        })
+        duals["charge_power_upper_marginal_usd_per_mw"]+=0.
+        # Check complementary slackness; a nonzero upper marginal requires
+        # the corresponding upper bound to be active (within tolerance).
+        for col,active in (
+            ("charge_power_upper_marginal_usd_per_mw","charging_upper_bound_active"),
+            ("discharge_power_upper_marginal_usd_per_mw","discharging_upper_bound_active"),
+            ("soc_energy_upper_marginal_usd_per_mwh","soc_upper_bound_active")):
+            if ((duals[col].abs()>1e-5)&(~duals[active])).any():
+                raise ValueError("Bound dual violates complementarity")
+        summary["objective_derivative_installed_power_usd_per_mw"]=float(
+            upper[:,1].sum()+upper[:,2].sum())
+        summary["objective_derivative_installed_energy_usd_per_mwh"]=float(upper[:,5].sum())
+        summary["num_nonzero_charge_power_duals"]=int((upper[:,1]<-1e-5).sum())
+        summary["num_nonzero_discharge_power_duals"]=int((upper[:,2]<-1e-5).sum())
+        summary["num_nonzero_soc_energy_duals"]=int((upper[:,5]<-1e-5).sum())
     if not return_trace:
-        return summary
+        return (summary,duals) if return_duals else summary
     trace=pd.DataFrame(x,columns=["renewable_direct_mwh","storage_charge_input_mwh",
                                     "storage_discharge_to_load_mwh","firm_generation_mwh",
                                     "unused_renewable_mwh","soc_end_mwh"])
@@ -105,7 +136,7 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
                 "storage_discharge_to_load_mwh","firm_generation_mwh","unused_renewable_mwh"):
         if not np.isclose(trace[key].sum(),summary[key],atol=1e-5,rtol=1e-10):
             raise ValueError("Hourly trace does not reconcile to original annual LP summary")
-    return summary,trace
+    return (summary,trace,duals) if return_duals else (summary,trace)
 
 def evaluate_zones(source,year,hours=168,max_zones=2,zone_offset=0):
     keys=["year","state","reeds_zone","local_hour_id","allocated_mw"]
