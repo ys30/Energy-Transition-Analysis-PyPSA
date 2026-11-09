@@ -1,0 +1,105 @@
+name: Paper S source-archived exact-cost-cap SOC minimum maximum envelope
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'src/energy_transition/paper_s_soc_optimal_envelope.py'
+      - 'tests/test_paper_s_soc_optimal_envelope.py'
+      - '.github/workflows/paper-s-soc-optimal-envelope.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  soc-min-max:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify original solver remains identical and secondary LP is constrained
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_soc_optimal_envelope.py tests/test_efs_cyclic_storage_lp.py tests/test_paper_s_soc_tiebreak.py tests/test_paper_s_bound_dual_diagnostics.py
+      - name: Recover original EFS hourly source archive and accepted annual LP outcomes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/archived
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/archived
+          test -s /tmp/archived/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/archived/representative_zone_mechanism_metrics.csv
+      - name: Solve original objective constrained min/max annual SOC occupancy
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_soc_optimal_envelope \
+            --original-hourly /tmp/archived/representative_zone_hourly_lp.csv.gz \
+            --original-metrics /tmp/archived/representative_zone_mechanism_metrics.csv \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_soc_optimal_envelope_summary.csv
+          test -s outputs/paper_s_soc_optimal_envelope_hourly.csv.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-explicit-near-optimal-soc-envelope-group-${{ matrix.group }}
+          path: outputs/
+          if-no-files-found: error
+  combine:
+    needs: soc-min-max
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Restore both preregistered shape-group SOC optimal envelopes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/parts
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-explicit-near-optimal-soc-envelope-group-*' -D /tmp/parts
+      - name: Validate and combine eight min-max SOC occupancy intervals
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+          all_rows=[]
+          for group in (1,7):
+              root=Path('/tmp/parts')/f'paper-s-explicit-near-optimal-soc-envelope-group-{group}'
+              m=json.loads((root/'paper_s_soc_optimal_envelope_manifest.json').read_text())
+              assert m['solutions']==12 and m['source_group']==group
+              df=pd.read_csv(root/'paper_s_soc_optimal_envelope_summary.csv')
+              assert len(df)==12 and df.solution.value_counts().to_dict()=={'baseline':4,'min':4,'max':4}
+              all_rows.append(df)
+          a=pd.concat(all_rows,ignore_index=True)
+          assert len(a)==24
+          keys=['source_shape_group','synthetic_supply_shape',
+                'battery_power_peak_ratio','battery_energy_peak_hours']
+          b=a.pivot(index=keys,columns='solution',values='total_soc_mwh_hours')
+          assert len(b)==8
+          assert np.all(b['min']<=b['baseline']+np.maximum(.01,1e-7*b['max']))
+          assert np.all(b['baseline']<=b['max']+np.maximum(.01,1e-7*b['max']))
+          b['mean_soc_occupancy_interval_mwh_hours']=b['max']-b['min']
+          b.to_csv('outputs/paper_s_eight_soc_occupancy_envelopes.csv')
+          a.to_csv('outputs/paper_s_24_original_cost_certified_schedules.csv',index=False)
+          print(b.to_string())
+          print('SOC_SOURCE_ARCHIVED_EIGHT_ENVELOPES_24_OPTIMAL_SCHEDULES_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-eight-explicit-cost-cap-soc-envelope-comparisons
+          path: outputs/
+          if-no-files-found: error
