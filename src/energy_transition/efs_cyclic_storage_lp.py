@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.optimize import linprog
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix,csr_matrix
 from .efs_ordinal_storage_sensitivity import dispatch_zone,shape_cf
 
 SHAPES=("flat_50pct","ordinal24_wave_A","ordinal24_wave_B")
@@ -18,7 +18,8 @@ ETA=np.sqrt(.9)
 def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_ratio=.25,firm_peak_ratio=1.2,return_trace=False,
                roundtrip_efficiency=.9,renewable_unit_cost=5.,firm_unit_cost=90.,
                storage_energy_peak_hours=None,return_duals=False,
-               soc_tiebreak_usd_per_mwh=None):
+               soc_tiebreak_usd_per_mwh=None,
+               soc_extremum=None,original_cost_ceiling_usd=None):
     load=np.asarray(demand,dtype=float); factors=np.asarray(cf,dtype=float)
     n=len(load)
     if n==0 or len(factors)!=n or not np.isfinite(load).all() or not np.isfinite(factors).all():
@@ -45,7 +46,17 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
         raise ValueError("Storage power and energy capacity must both be positive")
     # Variables for each hour: r=renewable direct, c=charge, d=discharge,
     # f=firm, u=unused renewable, s=SOC. Zero initial/terminal SOC.
-    objective=np.tile([renewable_unit_cost,renewable_unit_cost,0.,firm_unit_cost,0.,0.],n)
+    original_objective=np.tile([renewable_unit_cost,renewable_unit_cost,0.,firm_unit_cost,0.,0.],n)
+    objective=original_objective.copy()
+    if soc_extremum is not None:
+        if soc_extremum not in ("min","max") or soc_tiebreak_usd_per_mwh is not None:
+            raise ValueError("Invalid SOC secondary optimization mode")
+        if original_cost_ceiling_usd is None or not np.isfinite(original_cost_ceiling_usd) or original_cost_ceiling_usd<0:
+            raise ValueError("SOC secondary objective requires a valid original cost ceiling")
+        objective[:]=0.
+        objective[5::6]=(1. if soc_extremum=="min" else -1.)
+    elif original_cost_ceiling_usd is not None:
+        raise ValueError("Original cost ceiling without secondary objective")
     if soc_tiebreak_usd_per_mwh is not None:
         tie=np.asarray(soc_tiebreak_usd_per_mwh,dtype=float)
         if tie.shape!=(n,) or not np.isfinite(tie).all() or np.max(np.abs(tie))>1e-3:
@@ -67,9 +78,17 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
                        (0.,firm_peak_ratio*peak),(0.,None),(0.,capacity)])
     add(3*n,n-1,5,1.)
     A=coo_matrix((vv,(rr,cc)),shape=(3*n+1,6*n)).tocsr()
-    sol=linprog(objective,A_eq=A,b_eq=rhs,bounds=bounds,method="highs",
+    cost_inequality=(csr_matrix(original_objective.reshape(1,-1))
+                     if soc_extremum is not None else None)
+    cost_limit=([float(original_cost_ceiling_usd)] if soc_extremum is not None else None)
+    sol=linprog(objective,A_eq=A,b_eq=rhs,A_ub=cost_inequality,
+                b_ub=cost_limit,bounds=bounds,method="highs",
                 options={"primal_feasibility_tolerance":1e-8,"dual_feasibility_tolerance":1e-8})
     if not sol.success:raise RuntimeError("HiGHS cyclic storage LP: "+sol.message)
+    if soc_extremum is not None:
+        original_scored_cost=float(original_objective@sol.x)
+        if original_scored_cost>float(original_cost_ceiling_usd)+0.02:
+            raise ValueError("Secondary SOC schedule violates original objective ceiling")
     x=sol.x.reshape(n,6);resid=float(np.abs(A@sol.x-rhs).max())
     if resid>1e-5 or abs(x[-1,5])>1e-5 or (x<-1e-6).any():
         raise ValueError("Cyclic SOC / primal feasibility gate failed")
@@ -87,9 +106,14 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
             "storage_max_soc_mwh":float(x[:,5].max()),"storage_power_mw":power,
             "storage_capacity_mwh":capacity,
             "objective_illustrative_variable_usd":float(
-                np.dot(np.tile([renewable_unit_cost,renewable_unit_cost,0.,firm_unit_cost,0.,0.],n),sol.x)),
+                np.dot(original_objective,sol.x)),
             "solver_perturbed_objective_usd":float(sol.fun) if tie is not None else float(sol.fun),
             "max_equality_residual_mwh":resid,"cyclic_SOC_0_to_0_verified":True}
+    if soc_extremum is not None:
+        summary["secondary_soc_extremum"]=soc_extremum
+        summary["secondary_total_soc_mwh_hours"]=float(x[:,5].sum())
+        summary["original_cost_ceiling_usd"]=float(original_cost_ceiling_usd)
+        summary["original_cost_slack_usd"]=float(original_cost_ceiling_usd-summary["objective_illustrative_variable_usd"])
     if return_duals:
         # For minimization the marginal of a finite upper variable bound is <=0.
         # The per-hour envelope derivatives of C with respect to installed
