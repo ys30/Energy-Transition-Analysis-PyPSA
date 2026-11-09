@@ -17,7 +17,8 @@ ETA=np.sqrt(.9)
 
 def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_ratio=.25,firm_peak_ratio=1.2,return_trace=False,
                roundtrip_efficiency=.9,renewable_unit_cost=5.,firm_unit_cost=90.,
-               storage_energy_peak_hours=None,return_duals=False):
+               storage_energy_peak_hours=None,return_duals=False,
+               soc_tiebreak_usd_per_mwh=None):
     load=np.asarray(demand,dtype=float); factors=np.asarray(cf,dtype=float)
     n=len(load)
     if n==0 or len(factors)!=n or not np.isfinite(load).all() or not np.isfinite(factors).all():
@@ -45,6 +46,13 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
     # Variables for each hour: r=renewable direct, c=charge, d=discharge,
     # f=firm, u=unused renewable, s=SOC. Zero initial/terminal SOC.
     objective=np.tile([renewable_unit_cost,renewable_unit_cost,0.,firm_unit_cost,0.,0.],n)
+    if soc_tiebreak_usd_per_mwh is not None:
+        tie=np.asarray(soc_tiebreak_usd_per_mwh,dtype=float)
+        if tie.shape!=(n,) or not np.isfinite(tie).all() or np.max(np.abs(tie))>1e-3:
+            raise ValueError("Invalid bounded SOC objective tiebreak weights")
+        objective[5::6]=tie
+    else:
+        tie=None
     rr=[];cc=[];vv=[]; rhs=np.zeros(3*n+1); bounds=[]
     def add(eq,t,k,v):
         rr.append(eq);cc.append(6*t+k);vv.append(v)
@@ -78,7 +86,9 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
             "unused_renewable_mwh":float(v[4]),"storage_terminal_soc_mwh":float(x[-1,5]),
             "storage_max_soc_mwh":float(x[:,5].max()),"storage_power_mw":power,
             "storage_capacity_mwh":capacity,
-            "objective_illustrative_variable_usd":float(sol.fun),
+            "objective_illustrative_variable_usd":float(
+                np.dot(np.tile([renewable_unit_cost,renewable_unit_cost,0.,firm_unit_cost,0.,0.],n),sol.x)),
+            "solver_perturbed_objective_usd":float(sol.fun) if tie is not None else float(sol.fun),
             "max_equality_residual_mwh":resid,"cyclic_SOC_0_to_0_verified":True}
     if return_duals:
         # For minimization the marginal of a finite upper variable bound is <=0.
