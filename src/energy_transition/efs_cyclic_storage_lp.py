@@ -16,7 +16,8 @@ DURATIONS=(0,4,8)
 ETA=np.sqrt(.9)
 
 def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_ratio=.25,firm_peak_ratio=1.2,return_trace=False,
-               roundtrip_efficiency=.9,renewable_unit_cost=5.,firm_unit_cost=90.):
+               roundtrip_efficiency=.9,renewable_unit_cost=5.,firm_unit_cost=90.,
+               storage_energy_peak_hours=None):
     load=np.asarray(demand,dtype=float); factors=np.asarray(cf,dtype=float)
     n=len(load)
     if n==0 or len(factors)!=n or not np.isfinite(load).all() or not np.isfinite(factors).all():
@@ -30,8 +31,17 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
         or renewable_unit_cost<0 or firm_unit_cost<=renewable_unit_cost):
         raise ValueError('Invalid objective coefficients')
     eta=np.sqrt(roundtrip_efficiency)
+    if storage_energy_peak_hours is not None:
+        if (not np.isfinite(storage_energy_peak_hours) or storage_energy_peak_hours < 0):
+            raise ValueError("Invalid independent battery energy capacity")
+        if duration == 0 and storage_energy_peak_hours != 0:
+            raise ValueError("Positive capacity with zero-duration mode is not allowed")
     peak=float(load.max()); available=peak*renewable_peak_ratio*factors
-    power=peak*battery_power_peak_ratio if duration else 0.;capacity=power*duration
+    power=peak*battery_power_peak_ratio if duration else 0.
+    capacity=(power*duration if storage_energy_peak_hours is None
+              else peak*storage_energy_peak_hours)
+    if (capacity>0 and power<=0) or (power>0 and capacity<=0):
+        raise ValueError("Storage power and energy capacity must both be positive")
     # Variables for each hour: r=renewable direct, c=charge, d=discharge,
     # f=firm, u=unused renewable, s=SOC. Zero initial/terminal SOC.
     objective=np.tile([renewable_unit_cost,renewable_unit_cost,0.,firm_unit_cost,0.,0.],n)
