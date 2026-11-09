@@ -55,9 +55,16 @@ def evaluate(source_hourly,original_cases):
                     original=original_cases[(original_cases.synthetic_supply_shape==shape)&
                                             (original_cases.battery_duration_h==duration)]
                     if len(original)!=1:raise ValueError("Missing original baseline case")
-                    for key,source_key in ARCHIVED_COLUMNS.items():
-                        if not np.isclose(result[key],float(original.iloc[0][source_key]),
-                                          atol=.03,rtol=1e-9):
+                    archived_hourly=source_hourly.loc[
+                        (source_hourly.synthetic_supply_shape==shape)&
+                        (source_hourly.battery_duration_h==duration)]
+                    if len(archived_hourly)!=8760:
+                        raise ValueError("Original archived full-hour case absent")
+                    for key in ARCHIVED_COLUMNS:
+                        expected=(float(original.iloc[0]["annual_toy_cost_usd"])
+                                  if key=="objective_illustrative_variable_usd"
+                                  else float(archived_hourly[key].sum()))
+                        if not np.isclose(result[key],expected,atol=.03,rtol=1e-9):
                             raise ValueError("Changed original LP baseline: "+key)
                 records.append({"planning_year":year,"state":state,"reeds_zone":zone,
                     "synthetic_supply_shape":shape,"scenario":label,
