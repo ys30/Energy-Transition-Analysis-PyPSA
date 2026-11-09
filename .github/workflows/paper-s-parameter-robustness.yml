@@ -1,0 +1,117 @@
+name: Paper S seven-shape one-factor battery parameter robustness
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'src/energy_transition/paper_s_parameter_sensitivity.py'
+      - 'tests/test_paper_s_parameter_sensitivity.py'
+      - '.github/workflows/paper-s-parameter-robustness.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  seven-independent-source-shapes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        source_shape_group: [1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate original solver behavior and controlled variants
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_parameter_sensitivity.py tests/test_efs_cyclic_storage_lp.py
+      - name: Restore original 2030 representative source hour trace and matched 9-case archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.source_shape_group }}-hourly -D /tmp/source
+          test -s /tmp/source/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/source/representative_zone_mechanism_metrics.csv
+      - name: Re-solve 42 LP variants for precommitted source shape and check baseline
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_parameter_sensitivity \
+            --original-hourly /tmp/source/representative_zone_hourly_lp.csv.gz \
+            --original-metrics /tmp/source/representative_zone_mechanism_metrics.csv \
+            --out-dir outputs
+          python - <<'PY'
+          import pandas as pd
+          p=pd.read_csv('outputs/paper_s_parameter_sensitivity_42_lp.csv')
+          q=pd.read_csv('outputs/paper_s_parameter_sensitivity_21_comparisons.csv')
+          assert len(p)==42 and len(q)==21 and p.solver_status.eq('optimal').all()
+          assert p.storage_terminal_soc_mwh.abs().max()<1e-5
+          assert q.scenario.nunique()==7 and q.synthetic_supply_shape.nunique()==3
+          print('FULL_YEAR_SOURCE_SHAPE_PARAMETER_STRESS_PASS',${{ matrix.source_shape_group }})
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-2030-parameter-source-shape-${{ matrix.source_shape_group }}
+          path: outputs/
+          if-no-files-found: error
+  consolidated-sensitivity:
+    needs: seven-independent-source-shapes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3'
+      - name: Restore all seven parameter stress artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/parts
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-2030-parameter-source-shape-*' -D /tmp/parts
+      - name: Merge 294 optimized LPs and 147 sensitivity comparisons
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+          rows=[];cases=[]
+          for grp in range(1,8):
+              d=Path('/tmp/parts')/f'paper-s-2030-parameter-source-shape-{grp}'
+              m=json.loads((d/'paper_s_parameter_sensitivity_manifest.json').read_text())
+              assert m['archive_baseline_all_shapes_verified'] and m['full_year_lp_cases']==42
+              a=pd.read_csv(d/'paper_s_parameter_sensitivity_42_lp.csv')
+              b=pd.read_csv(d/'paper_s_parameter_sensitivity_21_comparisons.csv')
+              a.insert(0,'source_shape_group',grp)
+              b.insert(0,'source_shape_group',grp)
+              assert len(a)==42 and len(b)==21
+              cases.append(a);rows.append(b)
+          all_cases=pd.concat(cases,ignore_index=True)
+          all_rows=pd.concat(rows,ignore_index=True)
+          assert len(all_cases)==294 and len(all_rows)==147
+          assert all_cases[['source_shape_group','state','reeds_zone']].drop_duplicates().shape[0]==7
+          assert not all_cases.duplicated(['source_shape_group','synthetic_supply_shape','scenario','battery_duration_h']).any()
+          assert not all_rows.duplicated(['source_shape_group','synthetic_supply_shape','scenario']).any()
+          all_cases.to_csv('outputs/paper_s_2030_294_parameter_lp_results.csv',index=False)
+          all_rows.to_csv('outputs/paper_s_2030_147_parameter_comparisons.csv',index=False)
+          tiny=1e-3
+          counts=(all_rows.assign(positive=all_rows.additional_discharge_mwh>tiny)
+                       .groupby(['scenario','synthetic_supply_shape'])['positive']
+                       .sum().unstack().sort_index())
+          counts.to_csv('outputs/paper_s_2030_positive_increment_counts_by_scenario.csv')
+          print(counts.to_string())
+          print('SEVEN_SHAPE_294_FULL_YEAR_PARAMETER_LP_ROBUSTNESS_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-2030-seven-shape-parameter-robustness-synthesis
+          path: outputs/
+          if-no-files-found: error
