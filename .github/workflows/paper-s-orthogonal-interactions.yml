@@ -1,0 +1,46 @@
+name: Paper S source-archived orthogonal MW MWh interaction certificate
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_orthogonal_interactions.py'
+      - 'tests/test_paper_s_orthogonal_interactions.py'
+      - '.github/workflows/paper-s-orthogonal-interactions.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-derived-84-interactions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate 2x2 source LP interaction accounting
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_orthogonal_interactions.py
+      - name: Restore accepted 189 full-year LP source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/original
+          gh run download 42674534963 -R "${{ github.repository }}" \
+            -n paper-s-orthogonal-189-lp-252-contrasts -D /tmp/original
+          test -s /tmp/original/paper_s_189_orthogonal_mw_mwh_lp.csv
+      - name: Audit all 84 interactions against original unrounded LP outputs
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_orthogonal_interactions \
+            --source-csv /tmp/original/paper_s_189_orthogonal_mw_mwh_lp.csv \
+            --out-dir outputs
+          test -s outputs/paper_s_84_orthogonal_interactions.csv
+          test -s outputs/paper_s_interaction_signs_by_supply.csv
+          test -s outputs/paper_s_interaction_manifest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-84-mw-mwh-interaction-source-certificate
+          path: outputs/
+          if-no-files-found: error
