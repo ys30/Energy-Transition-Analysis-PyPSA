@@ -1,0 +1,82 @@
+name: Paper S parameter robustness serial source-archive consolidation
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-s-parameter-robustness-serial.yml'
+      - 'src/energy_transition/paper_s_parameter_sensitivity.py'
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-archived-seven-group-serial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run parameterized LP compatibility tests
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_parameter_sensitivity.py tests/test_efs_cyclic_storage_lp.py
+      - name: Restore seven original accepted source-hour cases and solve each group
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          for group in 1 2 3 4 5 6 7; do
+            mkdir -p "/tmp/group-${group}" "outputs/group-${group}"
+            gh run download 42511072562 -R "${{ github.repository }}" \
+              -n "paper-s-2030-source-shape-${group}-hourly" -D "/tmp/group-${group}"
+            test -s "/tmp/group-${group}/representative_zone_hourly_lp.csv.gz"
+            test -s "/tmp/group-${group}/representative_zone_mechanism_metrics.csv"
+            /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+              python -m energy_transition.paper_s_parameter_sensitivity \
+              --original-hourly "/tmp/group-${group}/representative_zone_hourly_lp.csv.gz" \
+              --original-metrics "/tmp/group-${group}/representative_zone_mechanism_metrics.csv" \
+              --out-dir "outputs/group-${group}"
+            echo "REPRODUCED_SEVEN_SHAPE_PARAMETER_GROUP_${group}"
+          done
+      - name: Consolidate and validate exactly 294 LPs and 147 paired comparisons
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          out=Path('outputs')
+          all_cases=[];all_deltas=[]
+          for group in range(1,8):
+              d=out/f'group-{group}'
+              meta=json.loads((d/'paper_s_parameter_sensitivity_manifest.json').read_text())
+              assert meta['archive_baseline_all_shapes_verified']
+              a=pd.read_csv(d/'paper_s_parameter_sensitivity_42_lp.csv')
+              b=pd.read_csv(d/'paper_s_parameter_sensitivity_21_comparisons.csv')
+              assert len(a)==42 and len(b)==21
+              a.insert(0,'source_shape_group',group)
+              b.insert(0,'source_shape_group',group)
+              all_cases.append(a);all_deltas.append(b)
+          cases=pd.concat(all_cases,ignore_index=True)
+          delta=pd.concat(all_deltas,ignore_index=True)
+          assert len(cases)==294 and len(delta)==147
+          assert not cases.duplicated(['source_shape_group','synthetic_supply_shape','scenario','battery_duration_h']).any()
+          assert not delta.duplicated(['source_shape_group','synthetic_supply_shape','scenario']).any()
+          cases.to_csv(out/'paper_s_2030_294_parameter_lp_results.csv',index=False)
+          delta.to_csv(out/'paper_s_2030_147_parameter_comparisons.csv',index=False)
+          c=(delta.assign(positive=delta.additional_discharge_mwh>1e-3)
+                    .groupby(['scenario','synthetic_supply_shape']).positive.sum().unstack())
+          c.to_csv(out/'paper_s_2030_positive_increment_counts_by_scenario.csv')
+          print(c.to_string())
+          print('ALL_SEVEN_SHAPES_294_FULL_YEAR_PARAM_LP_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-all-seven-shapes-294-lp-parameter-sensitivity
+          path: |
+            outputs/paper_s_2030_294_parameter_lp_results.csv
+            outputs/paper_s_2030_147_parameter_comparisons.csv
+            outputs/paper_s_2030_positive_increment_counts_by_scenario.csv
+          if-no-files-found: error
