@@ -15,7 +15,8 @@ SHAPES=("flat_50pct","ordinal24_wave_A","ordinal24_wave_B")
 DURATIONS=(0,4,8)
 ETA=np.sqrt(.9)
 
-def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_ratio=.25,firm_peak_ratio=1.2,return_trace=False):
+def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_ratio=.25,firm_peak_ratio=1.2,return_trace=False,
+               roundtrip_efficiency=.9,renewable_unit_cost=5.,firm_unit_cost=90.):
     load=np.asarray(demand,dtype=float); factors=np.asarray(cf,dtype=float)
     n=len(load)
     if n==0 or len(factors)!=n or not np.isfinite(load).all() or not np.isfinite(factors).all():
@@ -23,11 +24,17 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
     if (load<0).any() or (factors<0).any() or (factors>1).any():raise ValueError("Invalid source load / factors")
     if duration not in DURATIONS or renewable_peak_ratio<0 or battery_power_peak_ratio<0:
         raise ValueError("Unsupported assumed capacity")
+    if not (0 < roundtrip_efficiency <= 1) or not np.isfinite(roundtrip_efficiency):
+        raise ValueError('Invalid roundtrip efficiency')
+    if (not np.isfinite(renewable_unit_cost) or not np.isfinite(firm_unit_cost)
+        or renewable_unit_cost<0 or firm_unit_cost<=renewable_unit_cost):
+        raise ValueError('Invalid objective coefficients')
+    eta=np.sqrt(roundtrip_efficiency)
     peak=float(load.max()); available=peak*renewable_peak_ratio*factors
     power=peak*battery_power_peak_ratio if duration else 0.;capacity=power*duration
     # Variables for each hour: r=renewable direct, c=charge, d=discharge,
     # f=firm, u=unused renewable, s=SOC. Zero initial/terminal SOC.
-    objective=np.tile([5.,5.,0.,90.,0.,0.],n)
+    objective=np.tile([renewable_unit_cost,renewable_unit_cost,0.,firm_unit_cost,0.,0.],n)
     rr=[];cc=[];vv=[]; rhs=np.zeros(3*n+1); bounds=[]
     def add(eq,t,k,v):
         rr.append(eq);cc.append(6*t+k);vv.append(v)
@@ -36,7 +43,7 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
         rhs[3*t]=available[t]
         for k in (0,2,3):add(3*t+1,t,k,1.)
         rhs[3*t+1]=load[t]
-        add(3*t+2,t,5,1.);add(3*t+2,t,1,-ETA);add(3*t+2,t,2,1./ETA)
+        add(3*t+2,t,5,1.);add(3*t+2,t,1,-eta);add(3*t+2,t,2,1./eta)
         if t:add(3*t+2,t-1,5,-1.)
         bounds.extend([(0.,min(available[t],load[t])),(0.,power),(0.,power),
                        (0.,firm_peak_ratio*peak),(0.,None),(0.,capacity)])
@@ -78,7 +85,7 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
     trace["charge_at_power_limit"]=(power>0)&np.isclose(x[:,1],power,atol=1e-6,rtol=0)
     trace["discharge_at_power_limit"]=(power>0)&np.isclose(x[:,2],power,atol=1e-6,rtol=0)
     trace["soc_at_energy_limit"]=(capacity>0)&np.isclose(x[:,5],capacity,atol=1e-6,rtol=0)
-    if not np.allclose(x[:,5]-soc_start,ETA*x[:,1]-x[:,2]/ETA,atol=1e-5,rtol=0):
+    if not np.allclose(x[:,5]-soc_start,eta*x[:,1]-x[:,2]/eta,atol=1e-5,rtol=0):
         raise ValueError("Hourly storage SOC recursion failed")
     if not np.allclose(x[:,0]+x[:,1]+x[:,4],available,atol=1e-5,rtol=0):
         raise ValueError("Hourly renewable balance failed")
