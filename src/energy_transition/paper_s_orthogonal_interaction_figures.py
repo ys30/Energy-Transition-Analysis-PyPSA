@@ -72,18 +72,19 @@ def figure(source:pd.DataFrame,out_dir:Path):
         im=ax.imshow(vals,aspect="auto",vmin=0,vmax=max_value)
         for i in range(7):
             for j in range(4):
-                ax.text(j,i,f"{vals[i,j]:.2f}",ha="center",va="center",
+                ax.text(j,i,f"{(0. if abs(vals[i,j])<.005 else vals[i,j]):.2f}",ha="center",va="center",
                         color="white" if vals[i,j]>.58*max_value else "black",fontsize=9)
         ax.set_title(title)
         ax.set_xticks(range(4),["MW .125→.25\nMWh .5→1","MW .125→.25\nMWh 1→2",
                                  "MW .25→.5\nMWh .5→1","MW .25→.5\nMWh 1→2"],rotation=35,ha="right",fontsize=8)
         ax.set_yticks(range(7),labels)
     axes[0].set_ylabel("Unique peak-normalized source demand group")
-    cb=fig.colorbar(im,ax=axes,shrink=.78,pad=.025)
-    cb.set_label("MW–MWh complementarity (percentage points of baseline LP cost)")
+    fig.subplots_adjust(left=.11,right=.84,top=.82,bottom=.26,wspace=.12)
+    color_axis=fig.add_axes([.86,.30,.014,.47])
+    cb=fig.colorbar(im,cax=color_axis)
+    cb.set_label("MW–MWh interaction (% of baseline LP cost)",fontsize=9)
     fig.suptitle("Figure S13 | Interaction of independently rated storage power and capacity",fontsize=13)
     fig.text(.5,.01,"Annual EFS source ordinal × synthetic renewables; conditional variable objective only. No storage CAPEX or Western OPF.",ha="center",fontsize=8)
-    fig.subplots_adjust(left=.11,right=.89,top=.85,bottom=.28,wspace=.18)
     for ext in (".png",".svg"):
         fig.savefig(out_dir/("Figure_S13_orthogonal_MW_MWh_interaction_heatmap"+ext),
                     dpi=220,bbox_inches="tight")
