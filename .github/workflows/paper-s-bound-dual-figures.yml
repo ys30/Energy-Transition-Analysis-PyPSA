@@ -1,0 +1,45 @@
+name: Paper S verified dual finite difference Figure S14
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_bound_dual_figures.py'
+      - 'tests/test_paper_s_bound_dual_figures.py'
+      - '.github/workflows/paper-s-bound-dual-figures.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  figure-s14:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install and run derivative source checks
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7,<4' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_bound_dual_figures.py
+      - name: Restore verified eight-case source dual derivative table
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source
+          gh run download 42688265863 -R "${{ github.repository }}" \
+            -n paper-s-dual-finite-difference-representative-comparison -D /tmp/source
+          test -s /tmp/source/paper_s_8_source_dual_vs_fd_comparisons.csv
+      - name: Regenerate source-audited Figure S14
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_bound_dual_figures \
+            --csv /tmp/source/paper_s_8_source_dual_vs_fd_comparisons.csv \
+            --out-dir outputs
+          test -s outputs/Figure_S14_dual_capacity_marginal_values.png
+          test -s outputs/Figure_S14_dual_capacity_marginal_values.svg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-certified-figure-S14-bound-dual-fd
+          path: outputs/
+          if-no-files-found: error
