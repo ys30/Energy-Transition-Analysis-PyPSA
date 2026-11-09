@@ -1,0 +1,94 @@
+name: Paper S source-backed MW MWh dual and finite difference audit
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'src/energy_transition/paper_s_bound_dual_diagnostics.py'
+      - 'tests/test_paper_s_bound_dual_diagnostics.py'
+      - '.github/workflows/paper-s-bound-dual-diagnostics.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  trace-and-duals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test optional dual API and historical solver compatibility
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_bound_dual_diagnostics.py tests/test_efs_cyclic_storage_lp.py tests/test_paper_s_orthogonal_power_energy.py
+      - name: Restore accepted EFS 2030 hourly original source demand
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/accepted
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/accepted
+          test -s /tmp/accepted/representative_zone_hourly_lp.csv.gz
+      - name: Quantify capacity bound duals and finite differences without changing inputs
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_bound_dual_diagnostics \
+            --original-hourly /tmp/accepted/representative_zone_hourly_lp.csv.gz \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_dual_vs_fd_summary.csv
+          test -s outputs/paper_s_hourly_bound_duals.csv.gz
+          test -s outputs/paper_s_dual_fd_manifest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-dual-finite-difference-source-group-${{ matrix.group }}
+          path: outputs/
+          if-no-files-found: error
+  compare:
+    needs: trace-and-duals
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Restore dual and sensitivity evidence from both shape groups
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/parts
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-dual-finite-difference-source-group-*' -D /tmp/parts
+      - name: Compile evidence with no hidden discrepant derivative estimates
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          frames=[]
+          for group in (1,7):
+              d=Path('/tmp/parts')/f'paper-s-dual-finite-difference-source-group-{group}'
+              a=pd.read_csv(d/'paper_s_dual_vs_fd_summary.csv')
+              assert len(a)==4 and set(a.source_shape_group)=={group}
+              frames.append(a)
+          combined=pd.concat(frames,ignore_index=True)
+          assert len(combined)==8
+          assert not combined.duplicated(['source_shape_group','synthetic_supply_shape',
+                             'battery_power_peak_ratio','battery_energy_peak_hours']).any()
+          combined.to_csv('outputs/paper_s_8_source_dual_vs_fd_comparisons.csv',index=False)
+          print(combined.to_string(index=False))
+          print('SOURCE_DUAL_FD_EIGHT_REPRESENTATIVE_CONFIGURATIONS_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-dual-finite-difference-representative-comparison
+          path: outputs/
+          if-no-files-found: error
