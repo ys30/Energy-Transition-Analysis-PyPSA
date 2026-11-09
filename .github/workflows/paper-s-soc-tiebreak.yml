@@ -1,0 +1,99 @@
+name: Paper S near-optimal SOC schedule tiebreak diagnostic
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'src/energy_transition/paper_s_soc_tiebreak.py'
+      - 'tests/test_paper_s_soc_tiebreak.py'
+      - '.github/workflows/paper-s-soc-tiebreak.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  compare-schedules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install and test baseline compatibility
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_soc_tiebreak.py tests/test_efs_cyclic_storage_lp.py tests/test_paper_s_bound_dual_diagnostics.py
+      - name: Restore accepted EFS original hourly source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/accepted
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/accepted
+          test -s /tmp/accepted/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/accepted/representative_zone_mechanism_metrics.csv
+      - name: Optimize baseline and three independently fixed near-optimal tie-breaks
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_soc_tiebreak \
+            --hourly /tmp/accepted/representative_zone_hourly_lp.csv.gz \
+            --original /tmp/accepted/representative_zone_mechanism_metrics.csv \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_soc_tiebreak_schedule_sensitivity.csv
+          test -s outputs/paper_s_soc_tiebreak_manifest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-near-optimal-source-group-${{ matrix.group }}
+          path: outputs/
+          if-no-files-found: error
+  compare:
+    needs: compare-schedules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3'
+      - name: Download source-backed near optimal schedules
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/parts
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-near-optimal-source-group-*' -D /tmp/parts
+      - name: Reconcile 32 schedule solutions across eight original LP probes
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          a=[]
+          for group in (1,7):
+              p=Path('/tmp/parts')/f'paper-s-near-optimal-source-group-{group}'/'paper_s_soc_tiebreak_schedule_sensitivity.csv'
+              x=pd.read_csv(p)
+              assert len(x)==16 and x.near_optimal_within_1ppm.all()
+              assert set(x.perturbation_mode)=={'baseline','soc_penalty','soc_reward','ordinal_wiggle'}
+              assert x.source_shape_group.eq(group).all()
+              a.append(x)
+          x=pd.concat(a,ignore_index=True)
+          assert len(x)==32
+          assert not x.duplicated(['source_shape_group','synthetic_supply_shape',
+                       'battery_power_peak_ratio','battery_energy_peak_hours','perturbation_mode']).any()
+          x.to_csv('outputs/paper_s_32_original_cost_rescored_schedule_perturbations.csv',index=False)
+          print(x.groupby(['source_shape_group','perturbation_mode'])[
+              ['original_objective_gap_usd','sum_abs_hourly_soc_change_mwh','soc_bound_hours_delta']
+              ].max().to_string())
+          print('SOURCE_ARCHIVE_REPRODUCED_32_NEAR_OPTIMAL_SCHEDULES_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-32-near-optimal-schedule-comparisons
+          path: outputs/
+          if-no-files-found: error
