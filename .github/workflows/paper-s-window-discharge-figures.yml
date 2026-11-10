@@ -1,0 +1,45 @@
+name: Paper S certified 168-hour discharge Figure S18
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_window_discharge_figures.py'
+      - 'tests/test_paper_s_window_discharge_figures.py'
+      - '.github/workflows/paper-s-window-discharge-figures.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-figure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install plotting tools and verify four source intervals
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7,<4' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_window_discharge_figures.py
+      - name: Restore original source hour interval certificate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source
+          gh run download 42780417107 -R "${{ github.repository }}" \
+            -n paper-s-four-cost-capped-window-discharge-intervals -D /tmp/source
+          test -s /tmp/source/paper_s_four_preregistered_window_discharge_intervals.csv
+      - name: Draw Figure S18 from accepted source-backed LP results
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_window_discharge_figures \
+            --source /tmp/source/paper_s_four_preregistered_window_discharge_intervals.csv \
+            --out-dir outputs
+          test -s outputs/Figure_S18_window_discharge_redistribution.svg
+          test -s outputs/Figure_S18_window_discharge_redistribution.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-verified-source-window-Figure-S18
+          path: outputs/
+          if-no-files-found: error
