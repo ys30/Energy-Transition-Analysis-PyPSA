@@ -1,0 +1,103 @@
+name: Paper S discharge throughput cost sensitivity and near-optimal temporal range
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'src/energy_transition/paper_s_throughput_penalty_sensitivity.py'
+      - 'tests/test_paper_s_throughput_penalty_sensitivity.py'
+      - '.github/workflows/paper-s-throughput-penalty.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  penalty:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test penalty objective and original backward compatibility
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_throughput_penalty_sensitivity.py tests/test_paper_s_window_discharge_envelope.py tests/test_efs_cyclic_storage_lp.py
+      - name: Restore historical unpenalized original demand and LP case records
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source /tmp/accepted
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/source
+          gh run download 42780417107 -R "${{ github.repository }}" \
+            -n paper-s-window-discharge-source-group-${{ matrix.group }} -D /tmp/accepted
+          test -s /tmp/source/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/source/representative_zone_mechanism_metrics.csv
+          test -s /tmp/accepted/paper_s_6_source_window_discharge_lp.csv
+      - name: Run 3 penalty rates x 3 full-year LPs and original source reconciliation
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_throughput_penalty_sensitivity \
+            --hourly /tmp/source/representative_zone_hourly_lp.csv.gz \
+            --original /tmp/source/representative_zone_mechanism_metrics.csv \
+            --accepted-window /tmp/accepted/paper_s_6_source_window_discharge_lp.csv \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_penalty_three_window_envelopes.csv
+          test -s outputs/paper_s_penalty_nine_source_lp_solutions.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-throughput-penalty-original-source-group-${{ matrix.group }}
+          path: outputs/
+          if-no-files-found: error
+  synthesize:
+    needs: penalty
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Recover both original source-zone penalty archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/parts
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-throughput-penalty-original-source-group-*' -D /tmp/parts
+      - name: Verify source identities and six window penalty envelopes
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          x=[];y=[]
+          for g in (1,7):
+              p=Path('/tmp/parts')/f'paper-s-throughput-penalty-original-source-group-{g}'
+              a=pd.read_csv(p/'paper_s_penalty_nine_source_lp_solutions.csv')
+              b=pd.read_csv(p/'paper_s_penalty_three_window_envelopes.csv')
+              assert len(a)==9 and len(b)==3
+              assert a.source_shape_group.eq(g).all() and b.source_shape_group.eq(g).all()
+              assert set(b.penalty_usd_per_discharge_mwh)=={0,1,10}
+              x.append(a);y.append(b)
+          a=pd.concat(x,ignore_index=True);b=pd.concat(y,ignore_index=True)
+          assert len(a)==18 and len(b)==6
+          assert not b.duplicated(['source_shape_group','penalty_usd_per_discharge_mwh']).any()
+          assert (b.window_interval_width_mwh>=-.05).all()
+          a.to_csv('outputs/paper_s_18_penalized_original_LP_schedules.csv',index=False)
+          b.to_csv('outputs/paper_s_six_penalty_window_discharge_intervals.csv',index=False)
+          print(b.to_string(index=False))
+          print('PAPER_S_SOURCE_HOUR_THROUGHPUT_PENALTY_RESCORING_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-six-accepted-throughput-penalty-window-envelopes
+          path: outputs/
+          if-no-files-found: error
