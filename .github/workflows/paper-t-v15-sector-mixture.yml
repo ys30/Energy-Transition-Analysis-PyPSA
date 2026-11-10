@@ -1,0 +1,52 @@
+name: Paper T v15 four-sector frozen fit, conditional subsectors, precision
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-v15-sector-mixture.yml'
+      - 'src/energy_transition/paper_t_v15_sector_mixture.py'
+      - 'tests/test_paper_t_v15_sector_mixture.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audited-sector-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies and test
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'scipy>=1.11' 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_t_v15_sector_mixture.py
+      - name: Retrieve and verify original EFS source
+        run: |
+          mkdir -p /tmp/efs /tmp/reeds outputs
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 700 'https://data.nlr.gov/system/files/126/EFSLoadProfile_Reference_Moderate.zip' -o /tmp/efs/efs.zip
+          unzip -oq /tmp/efs/efs.zip -d /tmp/efs
+          echo '75b6cf99cc04a2b98bd69f7874809a396f256d57ae7f10d36f3e945fb0235eea  /tmp/efs/EFSLoadProfile_Reference_Moderate.csv' | sha256sum --check
+      - name: Recover pinned hourly state archive and publisher ReEDS 2022
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41262154939 -R "${{ github.repository }}" -n pypsa-usa-efs-source-evidence -D /tmp/efs
+          test -s /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Run publisher source numerical evaluation
+        run: |
+          OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONPATH=src python -m energy_transition.paper_t_v15_sector_mixture \
+            --original-efs /tmp/efs/EFSLoadProfile_Reference_Moderate.csv \
+            --state-hour /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --reeds-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --out-dir outputs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-t-v15-common-support-sector-mixtures
+          path: outputs/
+          if-no-files-found: warn
