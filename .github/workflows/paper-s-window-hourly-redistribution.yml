@@ -1,0 +1,120 @@
+name: Paper S reconstructed full-hour window discharge redistribution
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_window_hourly_redistribution.py'
+      - 'tests/test_paper_s_window_hourly_redistribution.py'
+      - '.github/workflows/paper-s-window-hourly-redistribution.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  reconstruct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run reproducibility and accounting tests
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_window_hourly_redistribution.py tests/test_paper_s_window_discharge_envelope.py tests/test_efs_cyclic_storage_lp.py
+      - name: Restore EFS source demand, archive baseline and accepted window LP candidates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/original /tmp/window
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/original
+          gh run download 42780417107 -R "${{ github.repository }}" \
+            -n paper-s-window-discharge-source-group-${{ matrix.group }} -D /tmp/window
+          test -s /tmp/original/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/original/representative_zone_mechanism_metrics.csv
+          test -s /tmp/window/paper_s_6_source_window_discharge_lp.csv
+      - name: Reoptimize original full-year window LPs, reconcile original historical archive, keep source-hour traces
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_window_hourly_redistribution \
+            --hourly /tmp/original/representative_zone_hourly_lp.csv.gz \
+            --original /tmp/original/representative_zone_mechanism_metrics.csv \
+            --accepted-window /tmp/window/paper_s_6_source_window_discharge_lp.csv \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_three_full_hour_window_dispatch_traces.csv.gz
+          test -s outputs/paper_s_two_candidate_24source_hour_redistribution.csv
+          test -s outputs/paper_s_window_hourly_redistribution_manifest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-full-hour-window-redistribution-source-group-${{ matrix.group }}
+          path: outputs/
+          if-no-files-found: error
+  summarize:
+    needs: reconstruct
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Restore both original source group hourly redistribution archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-full-hour-window-redistribution-source-group-*' -D /tmp/results
+      - name: Validate source-hour redistribution and summarize 24h offset blocks
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          import numpy as np
+          sums=[];days=[]
+          for group in (1,7):
+              root=Path('/tmp/results')/f'paper-s-full-hour-window-redistribution-source-group-{group}'
+              s=pd.read_csv(root/'paper_s_reconstructed_three_original_window_schedules.csv')
+              d=pd.read_csv(root/'paper_s_two_candidate_24source_hour_redistribution.csv')
+              assert len(s)==3 and len(d)==734
+              assert s.source_shape_group.eq(group).all()
+              assert d.source_shape_group.eq(group).all()
+              assert set(s.solution)=={'baseline','min','max'}
+              sums.append(s);days.append(d)
+          a=pd.concat(sums,ignore_index=True);b=pd.concat(days,ignore_index=True)
+          assert len(a)==6 and len(b)==1468
+          assert not b.duplicated(['source_shape_group','candidate_solution','source_day_block','in_predeclared_window']).any()
+          a.to_csv('outputs/paper_s_six_reconstructed_window_hourly_schedule_summaries.csv',index=False)
+          b.to_csv('outputs/paper_s_all_daily_block_window_redistribution.csv',index=False)
+          out=[]
+          for (group,mode),q in b.groupby(['source_shape_group','candidate_solution']):
+              inside=q.loc[q.in_predeclared_window,'storage_discharge_to_load_mwh'].sum()
+              outside=q.loc[~q.in_predeclared_window,'storage_discharge_to_load_mwh'].sum()
+              base=a[a.source_shape_group==group].set_index('solution')
+              ref=base.loc[mode,'annual_discharge_mwh']-base.loc['baseline','annual_discharge_mwh']
+              assert np.isclose(inside+outside,ref,atol=1e-4,rtol=1e-10)
+              top=q[~q.in_predeclared_window].sort_values('storage_discharge_to_load_mwh',key=abs,ascending=False).head(5)
+              out.append({'source_shape_group':group,'solution':mode,
+                 'inside_delta_mwh':inside,'outside_delta_mwh':outside,
+                 'annual_delta_mwh':inside+outside,
+                 'top_5_outside_source_day_blocks':','.join(map(str,top.source_day_block)),
+                 'top_5_outside_delta_mwh':','.join(map(lambda x:f'{x:.6f}',top.storage_discharge_to_load_mwh))})
+          t=pd.DataFrame(out)
+          assert len(t)==4
+          t.to_csv('outputs/paper_s_four_full_hour_redistribution_balance_witnesses.csv',index=False)
+          print(t.to_string(index=False))
+          print('SOURCE_HOUR_6_LP_FULL_DISPATCH_AND_OUTSIDE_24H_OFFSETS_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-certified-full-hour-discharge-redistribution-synthesis
+          path: outputs/
+          if-no-files-found: error
