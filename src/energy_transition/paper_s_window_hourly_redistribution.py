@@ -107,7 +107,7 @@ def reconstruct(hourly,original,accepted,group):
         if not np.isclose(grouped.storage_discharge_to_load_mwh.sum(),delta_discharge.sum(),atol=1e-5,rtol=1e-10):
             raise ValueError("24-hour grouped redistribution fails original full-year identity")
     days=pd.concat(recon,ignore_index=True)
-    if len(summary)!=3 or len(detailed)!=3*8760 or len(days)!=2*365:
+    if len(summary)!=3 or len(detailed)!=3*8760 or len(days)!=2*(365+2):
         raise ValueError("Incomplete source trace or daily-block candidate population")
     return summary,detailed,days
 
