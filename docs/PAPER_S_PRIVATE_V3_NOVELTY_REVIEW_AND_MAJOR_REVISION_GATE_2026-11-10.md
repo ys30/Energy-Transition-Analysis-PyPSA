@@ -29,3 +29,14 @@ The paper **does not invent MGA, alternative optima, or battery dispatch linear 
 **P1:** (i) full-text cross-reference/bibliography audit; (ii) journal selection, figure typography and copyright-safe source/data statements; (iii) confirm author declarations and independent scientific review.
 
 No new LP runs or source results have been accepted in this editorial revision. The private Word manuscript is intentionally **not** committed to public GitHub.
+
+## Direct original-archive primal audit completed (52,560 original hourly records)
+
+Without re-running any LPs, inspect accepted full-hour schedule artifacts [#42851448558](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42851448558), 2030 original projected demand, Arizona p28 and Wyoming p24; three schedules each: original baseline, minimum source-window discharge, maximum source-window discharge. A simultaneous charge/discharge event requires **charge input > 1e-6 MWh AND discharge > 1e-6 MWh in the same source hour**.
+
+| Group | Original baseline | Min window discharge | Max window discharge: overlapping hour(s) and energy |
+|---|---:|---:|---|
+| Arizona p28 | 0 | 0 | **1**, source hour 4035: charge 3,712.692349 MWh, discharge 3.246799 MWh |
+| Wyoming p24 | 0 | 0 | **1**, source hour 4137: charge 0.044732 MWh, discharge 0.040259 MWh |
+
+**2 of 52,560 source-schedule-hour records exhibit simultaneous positive charge and discharge at the specified threshold.** Both occur in the selected source-hour window 4001–4168. These overlap-discharge magnitudes are small compared with the Arizona window-discharge envelope (~29,352 MWh) and Wyoming envelope (~1,617 MWh), so the overlaps alone **cannot explain** the source-window range. Nevertheless, the current linear dispatch constraints do not categorically preclude simultaneous charge/discharge; **physically exclusive-operation reoptimization remains an open P0 scientific admission gate**. This evidence is diagnostic and must not be misrepresented as an LP run with improved battery physics.
