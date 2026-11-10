@@ -20,7 +20,7 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
                storage_energy_peak_hours=None,return_duals=False,
                soc_tiebreak_usd_per_mwh=None,
                soc_extremum=None,original_cost_ceiling_usd=None,
-               discharge_extremum=None):
+               discharge_extremum=None,discharge_hour_weights=None):
     load=np.asarray(demand,dtype=float); factors=np.asarray(cf,dtype=float)
     n=len(load)
     if n==0 or len(factors)!=n or not np.isfinite(load).all() or not np.isfinite(factors).all():
@@ -49,6 +49,12 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
     # f=firm, u=unused renewable, s=SOC. Zero initial/terminal SOC.
     original_objective=np.tile([renewable_unit_cost,renewable_unit_cost,0.,firm_unit_cost,0.,0.],n)
     objective=original_objective.copy()
+    if discharge_hour_weights is not None:
+        weights=np.asarray(discharge_hour_weights,dtype=float)
+        if discharge_extremum is None or weights.shape!=(n,) or not np.isfinite(weights).all() or (weights<0).any() or not weights.any():
+            raise ValueError("Invalid selected discharge-hour objective weights")
+    else:
+        weights=None
     if soc_extremum is not None and discharge_extremum is not None:
         raise ValueError("Only one secondary objective can be active")
     secondary_extremum=(soc_extremum if soc_extremum is not None else discharge_extremum)
@@ -60,7 +66,9 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
         if original_cost_ceiling_usd is None or not np.isfinite(original_cost_ceiling_usd) or original_cost_ceiling_usd<0:
             raise ValueError("SOC secondary objective requires a valid original cost ceiling")
         objective[:]=0.
-        objective[(5 if secondary_kind=="soc" else 2)::6]=(1. if secondary_extremum=="min" else -1.)
+        objective[(5 if secondary_kind=="soc" else 2)::6]=(
+            (1. if secondary_extremum=="min" else -1.)*
+            (weights if secondary_kind=="discharge" and weights is not None else 1.))
     elif original_cost_ceiling_usd is not None:
         raise ValueError("Original cost ceiling without secondary objective")
     if soc_tiebreak_usd_per_mwh is not None:
@@ -121,6 +129,7 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
         summary["secondary_soc_extremum"]=soc_extremum
         summary["secondary_total_soc_mwh_hours"]=float(x[:,5].sum())
         summary["secondary_total_discharge_mwh"]=float(x[:,2].sum())
+        summary["secondary_weighted_discharge_mwh"]=float(x[:,2]@(weights if weights is not None else np.ones(n)))
         summary["original_cost_ceiling_usd"]=float(original_cost_ceiling_usd)
         summary["original_cost_slack_usd"]=float(original_cost_ceiling_usd-summary["objective_illustrative_variable_usd"])
     if return_duals:
