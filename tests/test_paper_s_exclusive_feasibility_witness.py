@@ -15,7 +15,7 @@ def source():
                 "storage_discharge_to_load_mwh":discharge,
                 "soc_end_mwh":0.,"firm_generation_mwh":0.,
                 "unused_renewable_mwh":0.})
-        sums.append({"solution":mode,"window_discharge_mwh":discharge if mode=="max" else 0.,
+        sums.append({"solution":mode,"window_discharge_mwh":3.6 if mode=="max" else 0.,
              "annual_discharge_mwh":discharge if mode=="max" else 0.,
              "original_cost_usd":100000.,"allowed_extra_cost_usd":1.})
     return pd.DataFrame(rows),pd.DataFrame(sums)
