@@ -1,0 +1,50 @@
+name: Paper S proposed main Figure 5 independent MW MWh source audit
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_main_figure_5.py'
+      - 'tests/test_paper_s_main_figure_5.py'
+      - '.github/workflows/paper-s-main-figure-5.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  matched-source-factorial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify source population, four-corner identity and render
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7,<4' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_main_figure_5.py
+      - name: Restore original 252 orthogonal one-axis contrasts and 84 interaction terms
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/orthogonal /tmp/interaction
+          gh run download 42674534963 -R "${{ github.repository }}" \
+            -n paper-s-orthogonal-189-lp-252-contrasts -D /tmp/orthogonal
+          gh run download 42675999423 -R "${{ github.repository }}" \
+            -n paper-s-84-mw-mwh-interaction-source-certificate -D /tmp/interaction
+          test -s /tmp/orthogonal/paper_s_252_orthogonal_single_axis_contrasts.csv
+          test -s /tmp/interaction/paper_s_84_orthogonal_interactions.csv
+      - name: Audit source identities and render publication candidate
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_main_figure_5 \
+            --contrasts /tmp/orthogonal/paper_s_252_orthogonal_single_axis_contrasts.csv \
+            --interactions /tmp/interaction/paper_s_84_orthogonal_interactions.csv \
+            --out-dir outputs
+          test -s outputs/Paper_S_proposed_main_Figure_5_independent_MW_MWh.png
+          test -s outputs/Paper_S_proposed_main_Figure_5_independent_MW_MWh.svg
+          test -s outputs/Paper_S_main_Figure_5_interaction_signs.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-proposed-main-figure-5-independent-mw-mwh
+          path: outputs/
+          if-no-files-found: error
