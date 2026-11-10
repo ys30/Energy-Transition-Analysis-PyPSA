@@ -1,0 +1,48 @@
+name: Paper S source-backed inside-versus-outside window discharge accounting
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_window_outside_discharge.py'
+      - 'tests/test_paper_s_window_outside_discharge.py'
+      - '.github/workflows/paper-s-window-outside-discharge.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify-window-reallocation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test source accounting identities
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_window_outside_discharge.py
+      - name: Restore original archival per-source window schedules
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/a /tmp/w
+          gh run download 42780417107 -R "${{ github.repository }}" \
+            -n paper-s-window-discharge-source-group-1 -D /tmp/a
+          gh run download 42780417107 -R "${{ github.repository }}" \
+            -n paper-s-window-discharge-source-group-7 -D /tmp/w
+          test -s /tmp/a/paper_s_6_source_window_discharge_lp.csv
+          test -s /tmp/w/paper_s_6_source_window_discharge_lp.csv
+      - name: Reconcile selected-window changes with outside-window changes
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_window_outside_discharge \
+            --arizona /tmp/a/paper_s_6_source_window_discharge_lp.csv \
+            --wyoming /tmp/w/paper_s_6_source_window_discharge_lp.csv \
+            --out-dir outputs
+          test -s outputs/paper_s_eight_inside_outside_window_discharge_changes.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-window-discharge-original-source-inside-outside-reconciliation
+          path: outputs/
+          if-no-files-found: error
