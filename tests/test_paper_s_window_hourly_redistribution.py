@@ -10,7 +10,7 @@ def test_locked_source_window_and_source_block_size():
 def test_incomplete_archived_source_fails_closed():
     hourly=pd.DataFrame({"synthetic_supply_shape":["flat_50pct"],"battery_duration_h":[0],
                            "local_hour_id":[1],"demand_mwh":[10.]})
-    with pytest.raises(ValueError,match="8760"):
+    with pytest.raises(ValueError,match="source-hour chronology"):
         reconstruct(hourly,pd.DataFrame(),pd.DataFrame(),1)
 
 def test_group_summation_identity_for_paired_hourly_vectors():
