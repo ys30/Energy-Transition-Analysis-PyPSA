@@ -1,0 +1,52 @@
+name: Paper S Figure S20 original-hour gross and net discharge offsets
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_hourly_offset_figures.py'
+      - 'tests/test_paper_s_hourly_offset_figures.py'
+      - '.github/workflows/paper-s-hourly-offset-figures.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-hour-plot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test population and original-source certificate checks
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7,<4' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_hourly_offset_figures.py
+      - name: Restore accepted full-year hourly traces for both demand shapes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/arizona /tmp/wyoming
+          gh run download 42851448558 -R "${{ github.repository }}" \
+            -n paper-s-full-hour-window-redistribution-source-group-1 -D /tmp/arizona
+          gh run download 42851448558 -R "${{ github.repository }}" \
+            -n paper-s-full-hour-window-redistribution-source-group-7 -D /tmp/wyoming
+          test -s /tmp/arizona/paper_s_three_full_hour_window_dispatch_traces.csv.gz
+          test -s /tmp/wyoming/paper_s_three_full_hour_window_dispatch_traces.csv.gz
+      - name: Reconcile and draw original-hour net and gross reallocation Figure S20
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_hourly_offset_figures \
+            --arizona-hourly /tmp/arizona/paper_s_three_full_hour_window_dispatch_traces.csv.gz \
+            --wyoming-hourly /tmp/wyoming/paper_s_three_full_hour_window_dispatch_traces.csv.gz \
+            --arizona-summary /tmp/arizona/paper_s_reconstructed_three_original_window_schedules.csv \
+            --wyoming-summary /tmp/wyoming/paper_s_reconstructed_three_original_window_schedules.csv \
+            --out-dir outputs
+          test -s outputs/Figure_S20_original_hour_discharge_offsets.png
+          test -s outputs/Figure_S20_original_hour_discharge_offsets.svg
+          test -s outputs/paper_s_four_source_hour_gross_and_net_offset_metrics.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-certified-Figure-S20-source-hour-discharge-offsets
+          path: outputs/
+          if-no-files-found: error
