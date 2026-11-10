@@ -77,19 +77,31 @@ def render(annual,marginals,out_dir):
     fig.tight_layout(rect=[0,.055,1,1])
     _save(fig,out,"Paper_S_proposed_main_Figure_2_synthetic_supply_unused_fraction")
 
-    fig,ax=plt.subplots(figsize=(8.4,5.3))
+    fig,axes=plt.subplots(1,2,figsize=(11.4,5.0))
+    yearly=[]
     for year,color in zip(YEARS,COLORS):
         g=annual[(annual.planning_year==year)&(annual.synthetic_supply_shape=="ordinal24_wave_A")].sort_values("battery_duration_h")
-        ax.plot(g.battery_duration_h,100*g.firm_generation_mwh/g.demand_mwh,marker="o",
-                linewidth=2.2,markersize=7,color=color,label=f"{year} projected demand")
-    ax.set_xticks(DURATIONS)
-    ax.set_ylim(bottom=0)
-    ax.set_xlabel("Assumed storage duration (h)")
-    ax.set_ylabel("Firm generation / planning-year projected demand (%)")
-    ax.set_title("Figure 3 | Planning-year response after demand normalization")
-    ax.grid(axis="y",alpha=.2);ax.legend(frameon=False)
-    fig.text(.5,.025,"Synthetic Wave A held fixed; model-conditional normalized demand, not independent observed weather years.",ha="center",fontsize=8)
-    fig.tight_layout(rect=[0,.055,1,1])
+        demand=float(g.demand_mwh.iloc[0]/1e6)
+        share=100*g.firm_generation_mwh/g.demand_mwh
+        yearly.append((year,demand,float(share.iloc[0]),float(share.iloc[1]),float(share.iloc[2])))
+        axes[1].plot(g.battery_duration_h,share,marker="o",linewidth=2,markersize=6,
+                     color=color,label=str(year))
+    axes[0].bar(range(3),[r[1] for r in yearly],color=COLORS,width=.6)
+    axes[0].set_xticks(range(3),[str(r[0]) for r in yearly])
+    axes[0].set_ylabel("EFS projected annual demand (TWh)")
+    axes[0].set_title("A  Source projected demand scale")
+    axes[1].set_xticks(DURATIONS)
+    axes[1].set_ylim(25,40)
+    axes[1].set_xlabel("Assumed storage duration (h)")
+    axes[1].set_ylabel("Illustrative firm energy / source demand (%)")
+    axes[1].set_title("B  Normalized Wave A response nearly overlaps")
+    axes[1].legend(frameon=False,title="Planning year")
+    for ax in axes:
+        ax.grid(axis="y",alpha=.18)
+        ax.set_axisbelow(True)
+    fig.suptitle("Figure 3 | Projection-year scale changes without an independent temporal mechanism",fontsize=12.5)
+    fig.text(.5,.025,"Source planning years are not independent weather-year replications; synthetic Wave A profile is fixed.",ha="center",fontsize=8.4)
+    fig.tight_layout(rect=[0,.055,1,.93])
     _save(fig,out,"Paper_S_proposed_main_Figure_3_planning_year_normalized_firm")
 
     fig,axes=plt.subplots(1,3,figsize=(13.2,5.0),sharey=True)
