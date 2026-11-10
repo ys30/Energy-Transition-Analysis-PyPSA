@@ -1,0 +1,101 @@
+name: Paper S source-ordinal window discharge redistribution sensitivity
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/efs_cyclic_storage_lp.py'
+      - 'src/energy_transition/paper_s_window_discharge_envelope.py'
+      - 'tests/test_paper_s_window_discharge_envelope.py'
+      - '.github/workflows/paper-s-window-discharge-envelope.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  window-envelope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify window optimization API and unchanged original model
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_window_discharge_envelope.py tests/test_paper_s_discharge_optimal_envelope.py tests/test_efs_cyclic_storage_lp.py
+      - name: Download historically accepted EFS original source-hour load
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/archived
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/archived
+          test -s /tmp/archived/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/archived/representative_zone_mechanism_metrics.csv
+      - name: Optimize two preregistered source-ordinal window discharge envelopes
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_window_discharge_envelope \
+            --hourly /tmp/archived/representative_zone_hourly_lp.csv.gz \
+            --original /tmp/archived/representative_zone_mechanism_metrics.csv \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_6_source_window_discharge_lp.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-window-discharge-source-group-${{ matrix.group }}
+          path: outputs/
+          if-no-files-found: error
+  consolidate:
+    needs: window-envelope
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Recover both source-group artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/parts
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-window-discharge-source-group-*' -D /tmp/parts
+      - name: Verify baseline interval placement and summarize windows
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          frames=[]
+          for g in (1,7):
+              p=Path('/tmp/parts')/f'paper-s-window-discharge-source-group-{g}'/'paper_s_6_source_window_discharge_lp.csv'
+              d=pd.read_csv(p)
+              assert len(d)==6 and d.source_shape_group.eq(g).all()
+              assert set(d.solution)=={'baseline','min','max'}
+              frames.append(d)
+          a=pd.concat(frames,ignore_index=True)
+          assert len(a)==12
+          keys=['source_shape_group','state','reeds_zone','window']
+          b=a.pivot(index=keys,columns='solution',values='window_discharge_mwh')
+          assert len(b)==4
+          assert (b['min']<=b['baseline']+.03).all()
+          assert (b['baseline']<=b['max']+.03).all()
+          b['span_mwh']=b['max']-b['min']
+          b['relative_span_pct_of_baseline']=100*b['span_mwh']/b['baseline'].where(b['baseline']>0)
+          a.to_csv('outputs/paper_s_12_cost_capped_window_lp_solutions.csv',index=False)
+          b.to_csv('outputs/paper_s_four_preregistered_window_discharge_intervals.csv')
+          print(b.to_string())
+          print('SOURCE_ARCHIVE_COST_CAPPED_FOUR_WINDOW_DISCHARGE_INTERVALS_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-four-cost-capped-window-discharge-intervals
+          path: outputs/
+          if-no-files-found: error
