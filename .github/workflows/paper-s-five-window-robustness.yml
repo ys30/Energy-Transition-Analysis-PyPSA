@@ -1,0 +1,101 @@
+name: Paper S five predeclared source-hour window robustness
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_five_window_robustness.py'
+      - 'tests/test_paper_s_five_window_robustness.py'
+      - '.github/workflows/paper-s-five-window-robustness.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  window-robustness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies and validate all five independent windows
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_five_window_robustness.py tests/test_paper_s_window_discharge_envelope.py tests/test_efs_cyclic_storage_lp.py
+      - name: Restore original source and accepted fixed-window archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs /tmp/accepted
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/efs
+          gh run download 42780417107 -R "${{ github.repository }}" \
+            -n paper-s-window-discharge-source-group-${{ matrix.group }} -D /tmp/accepted
+          test -s /tmp/efs/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/efs/representative_zone_mechanism_metrics.csv
+          test -s /tmp/accepted/paper_s_6_source_window_discharge_lp.csv
+      - name: Run 5 source windows x 3 accepted solutions with source reconciliation
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_five_window_robustness \
+            --hourly /tmp/efs/representative_zone_hourly_lp.csv.gz \
+            --original /tmp/efs/representative_zone_mechanism_metrics.csv \
+            --accepted-window /tmp/accepted/paper_s_6_source_window_discharge_lp.csv \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_five_source_window_intervals.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-five-window-robustness-group-${{ matrix.group }}
+          path: outputs/
+          if-no-files-found: error
+  consolidate:
+    needs: window-robustness
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Download independently verified source groups
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/parts outputs
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-five-window-robustness-group-*' -D /tmp/parts
+      - name: Validate five windows and source identities across both original zones
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          frames=[];all_schedules=[]
+          for g in (1,7):
+              root=Path('/tmp/parts')/f'paper-s-five-window-robustness-group-{g}'
+              f=pd.read_csv(root/'paper_s_five_source_window_intervals.csv')
+              s=pd.read_csv(root/'paper_s_fifteen_source_window_schedules.csv')
+              assert len(f)==5 and len(s)==15
+              assert f.source_group.eq(g).all() and s.source_group.eq(g).all()
+              assert f.start_source_ordinal.tolist()==[1,2001,4001,6001,8001]
+              assert (f.span_mwh>=-.03).all()
+              frames.append(f);all_schedules.append(s)
+          result=pd.concat(frames,ignore_index=True)
+          schedules=pd.concat(all_schedules,ignore_index=True)
+          assert len(result)==10 and len(schedules)==30
+          assert not result.duplicated(['source_group','window']).any()
+          result.to_csv('outputs/paper_s_ten_predeclared_window_discharge_intervals.csv',index=False)
+          schedules.to_csv('outputs/paper_s_thirty_source_hour_window_LP_schedules.csv',index=False)
+          print(result.to_string(index=False))
+          print('PAPER_S_FIVE_SOURCE_HOUR_WINDOWS_TWO_ZONES_RECONCILED_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-ten-source-hour-window-robustness-verified
+          path: outputs/
+          if-no-files-found: error
