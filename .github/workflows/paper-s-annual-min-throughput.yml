@@ -1,0 +1,103 @@
+name: Paper S annual min-throughput canonical dispatch and window service audit
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_annual_min_throughput.py'
+      - 'tests/test_paper_s_annual_min_throughput.py'
+      - '.github/workflows/paper-s-annual-min-throughput.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  canonical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate canonical selection tests and base LP regressions
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_annual_min_throughput.py tests/test_paper_s_discharge_optimal_envelope.py tests/test_efs_cyclic_storage_lp.py
+      - name: Download three independently accepted LP source archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/original /tmp/annual /tmp/window
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/original
+          gh run download 42747095388 -R "${{ github.repository }}" \
+            -n paper-s-cost-capped-discharge-group-${{ matrix.group }} -D /tmp/annual
+          gh run download 42780417107 -R "${{ github.repository }}" \
+            -n paper-s-window-discharge-source-group-${{ matrix.group }} -D /tmp/window
+          test -s /tmp/original/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/annual/paper_s_discharge_envelope_12_solutions.csv
+          test -s /tmp/window/paper_s_6_source_window_discharge_lp.csv
+      - name: Reproduce minimum annual throughput and compare selected 168-hour service
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_annual_min_throughput \
+            --hourly /tmp/original/representative_zone_hourly_lp.csv.gz \
+            --original-metrics /tmp/original/representative_zone_mechanism_metrics.csv \
+            --accepted-annual /tmp/annual/paper_s_discharge_envelope_12_solutions.csv \
+            --accepted-window /tmp/window/paper_s_6_source_window_discharge_lp.csv \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_annual_min_throughput_selected_window_comparison.csv
+          test -s outputs/paper_s_annual_min_throughput_hourly_trace.csv.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-annual-min-throughput-original-source-${{ matrix.group }}
+          path: outputs/
+          if-no-files-found: error
+  compare:
+    needs: canonical
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Restore canonical schedules for both source groups
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/parts
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-annual-min-throughput-original-source-*' -D /tmp/parts
+      - name: Validate both zones against accepted window interval and annual objective
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          a=[]
+          for group in (1,7):
+              folder=Path('/tmp/parts')/f'paper-s-annual-min-throughput-original-source-{group}'
+              m=pd.read_csv(folder/'paper_s_annual_min_throughput_selected_window_comparison.csv')
+              assert len(m)==1 and int(m.source_shape_group.iloc[0])==group
+              assert m.full_source_hours.iloc[0]==8760
+              assert m.independent_hourly_conservation_verified.all()
+              assert m.canonical_window_discharge_mwh.iloc[0]>=m.accepted_window_min_mwh.iloc[0]-.1
+              assert m.canonical_window_discharge_mwh.iloc[0]<=m.accepted_window_max_mwh.iloc[0]+.1
+              a.append(m)
+          d=pd.concat(a,ignore_index=True)
+          assert len(d)==2
+          d.to_csv('outputs/paper_s_2_canonical_annual_min_throughput_window_services.csv',index=False)
+          print(d.to_string(index=False))
+          print('ORIGINAL_SOURCE_CANONICAL_MIN_THROUGHPUT_SCHEDULES_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-canonical-annual-throughput-window-comparison
+          path: outputs/
+          if-no-files-found: error
