@@ -1,0 +1,45 @@
+name: Paper T Idaho bidirectional residual and Oregon control
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-idaho-bidirectional-residual.yml'
+      - 'src/energy_transition/paper_t_idaho_bidirectional_residual.py'
+      - 'tests/test_paper_t_idaho_bidirectional_residual.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'scipy>=1.11' 'pytest>=8'
+      - run: PYTHONPATH=src python -m pytest -q tests/test_paper_t_idaho_bidirectional_residual.py
+      - name: Retrieve verified source EFS hourly archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs2020 /tmp/reeds2022 outputs
+          gh run download 41262154939 -R "${{ github.repository }}" -n pypsa-usa-efs-source-evidence -D /tmp/efs2020
+          test -s /tmp/efs2020/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+      - name: Retrieve independent ReEDS HDF5 reference
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' -o /tmp/reeds2022/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds2022/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Run full bidirectional source diagnostic
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_t_idaho_bidirectional_residual \
+            --efs-hourly /tmp/efs2020/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --reeds-h5 /tmp/reeds2022/demand_EFS_REFERENCE.h5 \
+            --out-dir outputs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-idaho-bidirectional-signed-residual-oregon
+          path: outputs/
+          if-no-files-found: error
