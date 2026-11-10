@@ -20,7 +20,8 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
                storage_energy_peak_hours=None,return_duals=False,
                soc_tiebreak_usd_per_mwh=None,
                soc_extremum=None,original_cost_ceiling_usd=None,
-               discharge_extremum=None,discharge_hour_weights=None):
+               discharge_extremum=None,discharge_hour_weights=None,
+               discharge_throughput_cost_usd_per_mwh=0.):
     load=np.asarray(demand,dtype=float); factors=np.asarray(cf,dtype=float)
     n=len(load)
     if n==0 or len(factors)!=n or not np.isfinite(load).all() or not np.isfinite(factors).all():
@@ -33,6 +34,8 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
     if (not np.isfinite(renewable_unit_cost) or not np.isfinite(firm_unit_cost)
         or renewable_unit_cost<0 or firm_unit_cost<=renewable_unit_cost):
         raise ValueError('Invalid objective coefficients')
+    if not np.isfinite(discharge_throughput_cost_usd_per_mwh) or discharge_throughput_cost_usd_per_mwh<0:
+        raise ValueError("Invalid nonnegative throughput penalty")
     eta=np.sqrt(roundtrip_efficiency)
     if storage_energy_peak_hours is not None:
         if (not np.isfinite(storage_energy_peak_hours) or storage_energy_peak_hours < 0):
@@ -48,7 +51,9 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
     # Variables for each hour: r=renewable direct, c=charge, d=discharge,
     # f=firm, u=unused renewable, s=SOC. Zero initial/terminal SOC.
     original_objective=np.tile([renewable_unit_cost,renewable_unit_cost,0.,firm_unit_cost,0.,0.],n)
-    objective=original_objective.copy()
+    penalized_objective=original_objective.copy()
+    penalized_objective[2::6]=float(discharge_throughput_cost_usd_per_mwh)
+    objective=penalized_objective.copy()
     if discharge_hour_weights is not None:
         weights=np.asarray(discharge_hour_weights,dtype=float)
         if discharge_extremum is None or weights.shape!=(n,) or not np.isfinite(weights).all() or (weights<0).any() or not weights.any():
@@ -92,7 +97,7 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
                        (0.,firm_peak_ratio*peak),(0.,None),(0.,capacity)])
     add(3*n,n-1,5,1.)
     A=coo_matrix((vv,(rr,cc)),shape=(3*n+1,6*n)).tocsr()
-    cost_inequality=(csr_matrix(original_objective.reshape(1,-1))
+    cost_inequality=(csr_matrix(penalized_objective.reshape(1,-1))
                      if secondary_kind is not None else None)
     cost_limit=([float(original_cost_ceiling_usd)] if secondary_kind is not None else None)
     sol=linprog(objective,A_eq=A,b_eq=rhs,A_ub=cost_inequality,
@@ -100,8 +105,8 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
                 options={"primal_feasibility_tolerance":1e-8,"dual_feasibility_tolerance":1e-8})
     if not sol.success:raise RuntimeError("HiGHS cyclic storage LP: "+sol.message)
     if secondary_kind is not None:
-        original_scored_cost=float(original_objective@sol.x)
-        if original_scored_cost>float(original_cost_ceiling_usd)+0.02:
+        penalized_scored_cost=float(penalized_objective@sol.x)
+        if penalized_scored_cost>float(original_cost_ceiling_usd)+0.02:
             raise ValueError("Secondary SOC schedule violates original objective ceiling")
     x=sol.x.reshape(n,6);resid=float(np.abs(A@sol.x-rhs).max())
     if resid>1e-5 or abs(x[-1,5])>1e-5 or (x<-1e-6).any():
@@ -121,7 +126,10 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
             "storage_capacity_mwh":capacity,
             "objective_illustrative_variable_usd":float(
                 np.dot(original_objective,sol.x)),
-            "solver_perturbed_objective_usd":float(sol.fun) if tie is not None else float(sol.fun),
+            "solver_perturbed_objective_usd":float(sol.fun),
+            "discharge_throughput_cost_usd_per_mwh":float(discharge_throughput_cost_usd_per_mwh),
+            "discharge_throughput_penalty_usd":float(discharge_throughput_cost_usd_per_mwh*v[2]),
+            "objective_with_throughput_penalty_usd":float(penalized_objective@sol.x),
             "max_equality_residual_mwh":resid,"cyclic_SOC_0_to_0_verified":True}
     if secondary_kind is not None:
         summary["secondary_metric"]=secondary_kind
@@ -131,7 +139,8 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
         summary["secondary_total_discharge_mwh"]=float(x[:,2].sum())
         summary["secondary_weighted_discharge_mwh"]=float(x[:,2]@(weights if weights is not None else np.ones(n)))
         summary["original_cost_ceiling_usd"]=float(original_cost_ceiling_usd)
-        summary["original_cost_slack_usd"]=float(original_cost_ceiling_usd-summary["objective_illustrative_variable_usd"])
+        summary["cost_cap_objective_type"]=("with_discharge_penalty" if discharge_throughput_cost_usd_per_mwh else "original")
+        summary["original_cost_slack_usd"]=float(original_cost_ceiling_usd-summary["objective_with_throughput_penalty_usd"])
     if return_duals:
         # For minimization the marginal of a finite upper variable bound is <=0.
         # The per-hour envelope derivatives of C with respect to installed
