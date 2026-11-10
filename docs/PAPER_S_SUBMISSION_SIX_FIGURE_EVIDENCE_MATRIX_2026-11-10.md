@@ -61,3 +61,13 @@
 ## Go/no-go criteria
 
 **Main source evidence is substantially assembled, not submission-ready.** Before journal-ready status: (a) create and visually audit final composite figure files, (b) freeze main Results/table citations to exact source archives and cases, (c) verify novel contribution and cite relevant literature, (d) validate publisher source permission and the original source-clock limits, (e) complete a private full manuscript with all in-text figures/captions and coauthor signoff, and (f) ensure the latest full repository CI completed successfully. Keep all unsatisfied gates visible.
+
+## Status update after actual main Figure 1/5/6 rendering (2026-11-10)
+
+The six-slot editorial plan above was written **before** the main figure production steps. The following figure **candidates** are now actually rendered with independent successful CI and original-source safeguards; they remain subject to manuscript-level editorial approval and journal layout:
+
+- **Figure 1:** source/provenance study-design schematic: [#42856072109](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42856072109), with corrected framing of synthetic supply as an **independent assumed input** (not a derivative of demand-shape auditing).
+- **Figure 5:** independent P/E axis-response counts plus 84 cost interaction classifications, restored from two accepted experimental artifacts: [#42857238238](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42857238238); full caption and exact source counts in [the certified Figure 5 record](PAPER_S_PROPOSED_MAIN_FIGURE_5_CERTIFIED_SOURCE_CAPTION.md).
+- **Figure 6:** original annual-delivery versus predetermined 168-source-hour delivery stability, from matching historical source LP archives: [#42854783701](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42854783701).
+
+**Three of six proposed main figure slots now have accepted candidate PNG/SVG and numerical/provenance verification.** Figure 2, Figure 3 and Figure 4 are **not** yet completed as final publication-numbered figures, although their source experimental charts and outputs were previously validated. The full manuscript remains private and still requires coherent Methods/Results text, related literature assessment, figure-to-text cross-reference validation and final source-data restrictions.
