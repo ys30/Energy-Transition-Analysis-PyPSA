@@ -1,0 +1,93 @@
+name: Paper S window-discharge original-cost tolerance ladder
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_window_tolerance_ladder.py'
+      - 'tests/test_paper_s_window_tolerance_ladder.py'
+      - '.github/workflows/paper-s-window-tolerance-ladder.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  original-source-window-tolerance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run original solver and cost-ladder unit regressions
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_window_tolerance_ladder.py tests/test_paper_s_window_discharge_envelope.py
+      - name: Restore previously source-certified hourly demand and original LP outcomes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/accepted
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/accepted
+          test -s /tmp/accepted/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/accepted/representative_zone_mechanism_metrics.csv
+      - name: Optimize source window bounds at three original dollar cost allowances
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_window_tolerance_ladder \
+            --hourly /tmp/accepted/representative_zone_hourly_lp.csv.gz \
+            --original /tmp/accepted/representative_zone_mechanism_metrics.csv \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_window_tolerance_ladder.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-source-group-${{ matrix.group }}-window-tolerance-ladder
+          path: outputs/
+          if-no-files-found: error
+  consolidate:
+    needs: original-source-window-tolerance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Recover both archived source groups
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/parts
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-source-group-*-window-tolerance-ladder' -D /tmp/parts
+      - name: Verify all six original-cost tolerance intervals
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          items=[]
+          for group in (1,7):
+              p=Path('/tmp/parts')/f'paper-s-source-group-{group}-window-tolerance-ladder'/'paper_s_window_tolerance_ladder.csv'
+              a=pd.read_csv(p)
+              assert len(a)==3 and a.source_shape_group.eq(group).all()
+              assert set(a.tolerance_label)=={'absolute_0p05','absolute_0p20','archived_1e-9'}
+              assert (a.window_discharge_span_mwh>=-.05).all()
+              items.append(a)
+          full=pd.concat(items,ignore_index=True)
+          assert len(full)==6
+          full.to_csv('outputs/paper_s_six_window_tolerance_envelopes.csv',index=False)
+          print(full.to_string(index=False))
+          print('PAPER_S_SOURCE_WINDOW_TOLERANCE_LADDER_SIX_INTERVALS_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-window-tolerance-six-certified-intervals
+          path: outputs/
+          if-no-files-found: error
