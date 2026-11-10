@@ -1,0 +1,96 @@
+name: Paper S E3 final independent source-shape validation
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_e3_two_group_final_window_check.py'
+      - 'tests/test_paper_s_e3_two_group_final_window_check.py'
+      - '.github/workflows/paper-s-e3-final-shape-validation.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  original-source-e3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install and test frozen 5-window source contract
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11,<2' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_e3_two_group_final_window_check.py tests/test_paper_s_five_window_robustness.py tests/test_efs_cyclic_storage_lp.py
+      - name: Download historical EFS load and full-year benchmark case
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/source
+          gh run download 42511072562 -R "${{ github.repository }}" \
+            -n paper-s-2030-source-shape-${{ matrix.group }}-hourly -D /tmp/source
+          test -s /tmp/source/representative_zone_hourly_lp.csv.gz
+          test -s /tmp/source/representative_zone_mechanism_metrics.csv
+      - name: Solve frozen five 168-source-hour windows
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.paper_s_e3_two_group_final_window_check \
+            --hourly /tmp/source/representative_zone_hourly_lp.csv.gz \
+            --original /tmp/source/representative_zone_mechanism_metrics.csv \
+            --group ${{ matrix.group }} --out-dir outputs
+          test -s outputs/paper_s_e3_five_window_intervals.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-e3-original-source-group-${{ matrix.group }}
+          path: outputs/
+          if-no-files-found: error
+  consolidate:
+    needs: original-source-e3
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas>=2,<3' 'numpy>=1.24,<3'
+      - name: Restore two independent original-source group results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/groups outputs
+          gh run download "${{ github.run_id }}" -R "${{ github.repository }}" \
+            -p 'paper-s-e3-original-source-group-*' -D /tmp/groups
+      - name: Enforce deterministic finite two-group five-window stop condition
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          out=[];sch=[]
+          for g,state in ((2,"Colorado"),(3,"Idaho")):
+              root=Path('/tmp/groups')/f'paper-s-e3-original-source-group-{g}'
+              a=pd.read_csv(root/'paper_s_e3_five_window_intervals.csv')
+              b=pd.read_csv(root/'paper_s_e3_fifteen_lp_window_rows.csv')
+              assert len(a)==5 and len(b)==15 and a.source_group.eq(g).all()
+              assert b.state.eq(state).all()
+              assert a.start_source_ordinal.tolist()==[1,2001,4001,6001,8001]
+              assert (a.span_mwh>=-.03).all()
+              assert not a.duplicated(['source_group','window']).any()
+              out.append(a);sch.append(b)
+          a=pd.concat(out,ignore_index=True);b=pd.concat(sch,ignore_index=True)
+          assert len(a)==10 and len(b)==30
+          a.to_csv('outputs/Paper_S_E3_ten_heldout_window_intervals.csv',index=False)
+          b.to_csv('outputs/Paper_S_E3_thirty_heldout_schedule_rows.csv',index=False)
+          print(a.to_string(index=False))
+          print('PAPER_S_E3_FINAL_HELDOUT_DISTINCT_SOURCE_SHAPES_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-e3-final-two-source-shape-closed-results
+          path: outputs/
+          if-no-files-found: error
