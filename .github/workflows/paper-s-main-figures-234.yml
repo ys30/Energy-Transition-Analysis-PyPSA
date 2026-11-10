@@ -1,0 +1,50 @@
+name: Paper S proposed main Figures 2 3 4 source archive reconciliation
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_main_figures_234.py'
+      - 'tests/test_paper_s_main_figures_234.py'
+      - '.github/workflows/paper-s-main-figures-234.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  three-journal-figures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test exact original source-factorial and plotting
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7,<4' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_main_figures_234.py
+      - name: Restore two independent accepted original LP archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/year /tmp/marginals
+          gh run download 42107237659 -R "${{ github.repository }}" \
+            -n efs-cyclic-full-year-all-20-zones-validated -D /tmp/year
+          gh run download 42455745341 -R "${{ github.repository }}" \
+            -n paper-s-source-derived-marginal-duration -D /tmp/marginals
+          test -s /tmp/year/all_20zone_cyclic_8760h_summary.csv
+          test -s /tmp/marginals/paper_s_marginal_duration_all_shapes.csv
+      - name: Reconcile all 27 source-year scenarios against nine marginal audits and draw figures
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_main_figures_234 \
+            --annual /tmp/year/all_20zone_cyclic_8760h_summary.csv \
+            --marginals /tmp/marginals/paper_s_marginal_duration_all_shapes.csv \
+            --out-dir outputs
+          test -s outputs/Paper_S_proposed_main_Figure_2_synthetic_supply_unused_fraction.png
+          test -s outputs/Paper_S_proposed_main_Figure_3_planning_year_normalized_firm.png
+          test -s outputs/Paper_S_proposed_main_Figure_4_marginal_duration_cost.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-three-certified-main-figure-candidates-2-3-4
+          path: outputs/
+          if-no-files-found: error
