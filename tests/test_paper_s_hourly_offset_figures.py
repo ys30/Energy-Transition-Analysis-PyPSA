@@ -12,4 +12,4 @@ def test_missing_source_fields_rejected_even_with_expected_rows():
     x=pd.DataFrame({"source_shape_group":[1]*52560,"solution":["baseline"]*52560,
          "local_hour_id":[1]*52560})
     with pytest.raises(ValueError,match="physical dispatch"):
-        audit(x,pd.DataFrame())
+        audit(x,pd.DataFrame({"source_shape_group":[1]*6}))
