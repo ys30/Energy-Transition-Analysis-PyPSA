@@ -16,7 +16,7 @@ def source():
                 "soc_end_mwh":0.,"firm_generation_mwh":0.,
                 "unused_renewable_mwh":0.})
         sums.append({"solution":mode,"window_discharge_mwh":3.6 if mode=="max" else 0.,
-             "annual_discharge_mwh":discharge if mode=="max" else 0.,
+             "annual_discharge_mwh":3.6 if mode=="max" else 0.,
              "original_cost_usd":100000.,"allowed_extra_cost_usd":1.})
     return pd.DataFrame(rows),pd.DataFrame(sums)
 
@@ -30,5 +30,5 @@ def test_exclusive_transformation_and_feasible_bounds():
 
 def test_incomplete_hourly_population_fails_closed():
     a,b=source()
-    with pytest.raises(ValueError,match="26280"):
+    with pytest.raises(ValueError,match="complete accepted"):
         certify(a.iloc[:-1],b,"toy")
