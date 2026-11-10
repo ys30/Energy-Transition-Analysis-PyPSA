@@ -33,5 +33,5 @@ def test_mismatched_source_rejected():
     with pytest.raises(ValueError,match="provenance"):reconcile(a,w)
 
 def test_bad_interval_span_fails():
-    a,w=source();a.loc[0,"width_mwh"]=500.
+    a,w=source();a.loc[(a.source_shape_group==1)&(a.synthetic_supply_shape=="ordinal24_wave_A")&(a.battery_power_peak_ratio==.25),"width_mwh"]=500.
     with pytest.raises(ValueError,match="reconcile"):reconcile(a,w)
