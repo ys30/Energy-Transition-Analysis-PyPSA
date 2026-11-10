@@ -103,11 +103,11 @@ def render(out_dir):
     _arrow(ax,(.23,.652),(.23,.562))
     _arrow(ax,(.8,.652),(.8,.562))
 
-    _node(ax,(.035,.103),.927,.145,"F  WHAT THE LP DOES — AND DOES NOT IDENTIFY",
-          "Illustrative operating objective: $5/MWh for renewable direct use + charge input; $90/MWh for firm supply.\n90% assumed battery round-trip efficiency; zero initial/terminal SOC. Each zone operates separately.\nNo actual Western transmission OPF, observed renewables, storage CAPEX, degradation, or reliability certification.",
+    _node(ax,(.035,.085),.927,.18,"F  WHAT THE LP DOES — AND DOES NOT IDENTIFY",
+          "Illustrative operating objective: USD 5/MWh for renewable direct use + charge input; USD 90/MWh for firm supply.\n90% assumed battery round-trip efficiency; zero initial/terminal SOC. Each zone operates separately.\nNo actual Western transmission OPF, observed renewables, storage CAPEX, degradation, or reliability certification.",
           face="#f8f8fa",edge="#b0b0bc")
-    _arrow(ax,(.245,.336),(.245,.254))
-    _arrow(ax,(.75,.336),(.75,.254))
+    _arrow(ax,(.245,.336),(.245,.272))
+    _arrow(ax,(.75,.336),(.75,.272))
     fig.text(.5,.032,"Source: accepted EFS shape audit #42464270811; original LP #42107237659; independent P/E LP #42674534963.",
         fontsize=8.2,ha="center",color="#66768a")
     fig.subplots_adjust(left=.02,right=.98,top=.98,bottom=.04)
