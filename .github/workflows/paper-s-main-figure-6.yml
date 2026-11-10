@@ -1,0 +1,50 @@
+name: Paper S proposed main Figure 6 matched original archive
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/paper_s_main_figure_6.py'
+      - 'tests/test_paper_s_main_figure_6.py'
+      - '.github/workflows/paper-s-main-figure-6.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evidence-panel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test exact source identity and editorial panel
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7,<4' 'pytest>=8,<10'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_main_figure_6.py
+      - name: Restore accepted original annual and selected-window discharge LP archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/annual /tmp/window
+          gh run download 42747095388 -R "${{ github.repository }}" \
+            -n paper-s-eight-certified-cost-capped-discharge-intervals -D /tmp/annual
+          gh run download 42780417107 -R "${{ github.repository }}" \
+            -n paper-s-four-cost-capped-window-discharge-intervals -D /tmp/window
+          test -s /tmp/annual/paper_s_eight_cost_capped_discharge_intervals.csv
+          test -s /tmp/window/paper_s_four_preregistered_window_discharge_intervals.csv
+      - name: Validate same Arizona Wyoming source cases and render main figure candidate
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_main_figure_6 \
+            --annual /tmp/annual/paper_s_eight_cost_capped_discharge_intervals.csv \
+            --window /tmp/window/paper_s_four_preregistered_window_discharge_intervals.csv \
+            --out-dir outputs
+          test -s outputs/paper_s_proposed_main_Figure_6_annual_vs_window.png
+          test -s outputs/paper_s_proposed_main_Figure_6_annual_vs_window.svg
+          test -s outputs/paper_s_main_figure_6_two_source_comparisons.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-proposed-main-figure-6-original-source-evidence
+          path: outputs/
+          if-no-files-found: error
