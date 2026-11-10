@@ -60,7 +60,7 @@ def solve_zone(demand,cf,duration,*,renewable_peak_ratio=.9,battery_power_peak_r
         if original_cost_ceiling_usd is None or not np.isfinite(original_cost_ceiling_usd) or original_cost_ceiling_usd<0:
             raise ValueError("SOC secondary objective requires a valid original cost ceiling")
         objective[:]=0.
-        objective[5::6 if secondary_kind=="soc" else 2::6]=(1. if secondary_extremum=="min" else -1.)
+        objective[(5 if secondary_kind=="soc" else 2)::6]=(1. if secondary_extremum=="min" else -1.)
     elif original_cost_ceiling_usd is not None:
         raise ValueError("Original cost ceiling without secondary objective")
     if soc_tiebreak_usd_per_mwh is not None:
