@@ -92,7 +92,7 @@ def render(out_dir):
     _node(ax,(.68,.657),.282,.205,"C  ASSUMED SUPPLY",
           "Flat 50% • ordinal Wave A • Wave B\nSynthetic and equal annual mean\nNo observed solar/wind time series\nNo validated physical weather alignment",
           face="#fff6e9",edge="#ddb984")
-    _arrow(ax,(.317,.76),(.351,.76));_arrow(ax,(.642,.76),(.675,.76))
+    _arrow(ax,(.317,.76),(.351,.76))\n    # Synthetic resource shapes are independent assumptions, NOT outputs of the source-demand shape audit.
 
     _node(ax,(.035,.34),.435,.215,"D  ORIGINAL STORAGE FACTORIAL",
           "20 zones × 3 planning years × 3 synthetic shapes × 3 durations\n540 annual HiGHS LPs; duration 0 / 4 / 8 h\nBattery power = 25% of original zone peak MW\nEnergy capacity = rated power × assumed duration",
