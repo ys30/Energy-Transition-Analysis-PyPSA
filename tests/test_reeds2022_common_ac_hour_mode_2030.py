@@ -22,9 +22,9 @@ def matrix():
     return pd.DataFrame(r)
 
 def test_exact_case_counts_and_36_hour_assumption_pairs():
-    frame,pairs,diff=summarize(matrix())
+    pairs,diff=summarize(matrix())
     assert len(pairs)==72 and len(diff)==36
-    assert len(frame)==216
+    assert len(matrix())==216
     assert diff.conditional_10_hurdle_decision_changed.sum()==0
     np.testing.assert_allclose(pairs.incremental_energy_annuity_hurdle_usd_per_kwh_year,.001)
 
