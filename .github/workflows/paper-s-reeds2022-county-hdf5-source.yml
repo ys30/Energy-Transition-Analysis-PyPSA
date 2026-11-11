@@ -1,0 +1,108 @@
+name: Paper S ReEDS2022 official county CF 2012 original-source intake
+'on':
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/paper-s-reeds2022-county-hdf5-source.yml'
+      - 'src/energy_transition/reeds2022_county_original_extract.py'
+      - 'src/energy_transition/reeds2022_county_state_resources.py'
+permissions:
+  contents: read
+jobs:
+  authenticate-county-hdf5:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tech: wind
+            record: '18422200'
+            h5: cf_wind-ons_reference_county.h5
+            supply: sc_wind-ons_reference_county.csv
+            h5_md5: 0670813d0a18b688d698ca24cf67fb92
+            supply_md5: 49ab4e41dc386453b5fd32e5810774d4
+          - tech: pv
+            record: '18407660'
+            h5: cf_upv_reference_county.h5
+            supply: sc_upv_reference_county.csv
+            h5_md5: aba834ea4c592023bca47de2ba79e7ec
+            supply_md5: e10b1a64f3a67d163e739b735938eb78
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install original HDF5 validation dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10'
+      - name: Download original publisher county HDF5 and capacity table
+        env:
+          TECH: ${{ matrix.tech }}
+          RECORD: ${{ matrix.record }}
+          H5: ${{ matrix.h5 }}
+          SUPPLY: ${{ matrix.supply }}
+          H5_MD5: ${{ matrix.h5_md5 }}
+          SUPPLY_MD5: ${{ matrix.supply_md5 }}
+        run: |
+          mkdir -p /tmp/reeds outputs
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3300 \
+            "https://zenodo.org/records/${RECORD}/files/${H5}?download=1" -o "/tmp/reeds/${H5}"
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 180 \
+            "https://zenodo.org/records/${RECORD}/files/${SUPPLY}?download=1" -o "/tmp/reeds/${SUPPLY}"
+          echo "${H5_MD5}  /tmp/reeds/${H5}" | md5sum --check
+          echo "${SUPPLY_MD5}  /tmp/reeds/${SUPPLY}" | md5sum --check
+      - name: Audit actual source HDF5 dtype, schema, 2012 clock and all source keys
+        env:
+          TECH: ${{ matrix.tech }}
+          H5: ${{ matrix.h5 }}
+          SUPPLY: ${{ matrix.supply }}
+        run: |
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          import h5py,numpy as np,pandas as pd
+          from energy_transition.reeds2022_county_state_resources import parse_county_columns
+          from energy_transition.reeds2022_real_resource_intake import inspect_weather_index,decode
+          p=Path('/tmp/reeds')/os.environ['H5']
+          sc=pd.read_csv(Path('/tmp/reeds')/os.environ['SUPPLY'],dtype=str)
+          assert list(sc.columns)==['class|region','MW']
+          assert not sc['class|region'].duplicated().any()
+          assert (pd.to_numeric(sc.MW,errors='raise')>=0).all()
+          with h5py.File(p,'r') as f:
+              assert {'data','columns','index_0'}.issubset(f.keys())
+              names=decode(f['columns'][:])
+              table=parse_county_columns(names)
+              assert set(names)==set(sc['class|region'])
+              rows,clock=inspect_weather_index(f['index_0'][:])
+              data=f['data']
+              assert len(data.shape)==2
+              assert data.shape==(clock['index_rows_total'],len(names))
+              sample=np.asarray(data[rows[:8],:])
+              assert np.isfinite(sample).all()
+              report={
+                  'tech':os.environ['TECH'],'status':'SOURCE_HDF5_MD5_AND_SCHEMA_VERIFIED',
+                  'original_dtype':str(data.dtype),'original_shape':list(data.shape),
+                  'cf_encoding_scale_authenticated':False,
+                  'source_cf_preview_min':float(sample.min()),
+                  'source_cf_preview_max':float(sample.max()),
+                  '2012_source_clock':clock,
+                  'source_key_count':len(names),'matched_supply_keys':len(sc),
+                  'four_state_class_keys':{
+                      s:int(table.state_fips.eq(code).sum())
+                      for s,code in {'AZ':'04','CO':'08','ID':'16','WY':'56'}.items()},
+                  'state_installed_mw_assumed':False,
+                  'physical_hour_energy_equivalence_verified':False,
+                  'LP_completed':False,
+              }
+          out=Path('outputs')
+          (out/f'{os.environ["TECH"]}_county_official_hdf5_source_audit.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          PY
+        env:
+          PYTHONPATH: src
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-reeds2022-original-2012-county-${{ matrix.tech }}-hdf5-source-audit
+          path: outputs/*.json
+          if-no-files-found: warn
