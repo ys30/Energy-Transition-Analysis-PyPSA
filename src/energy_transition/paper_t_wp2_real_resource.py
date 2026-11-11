@@ -92,9 +92,9 @@ def main():
   for r in group:
    r["peak_delta_mw"]=r["net_peak_mw"]-ref["net_peak_mw"]
    r["peak_delta_pct"]=100*(r["net_peak_mw"]/ref["net_peak_mw"]-1)
-   r["overlap_delta_pp"]=100*(r["overlap_fraction"]-ref["overlap_fraction"])
+   r["overlap_delta_pp"]=100*(r["overlap_fraction"]-ref["overlap_fraction"])\n   r["demand_support_delta_pct"]=100*(r["demand_mwh"]/ref["demand_mwh"]-1)
    assert abs(r["solar_proxy_mwh"]-ref["solar_proxy_mwh"])<1e-5
-   assert abs(r["demand_mwh"]-ref["demand_mwh"])<1e-5
+   # Nonwrapping index shifts change which edge demand hours are sampled; record, do not hide, this difference.
  with (out/"azps_power_2018_15_scenarios.csv").open("w",newline="") as f:
   w=csv.DictWriter(f,fieldnames=list(results[0]));w.writeheader();w.writerows(results)
  (out/"source_evidence.json").write_text(json.dumps({
@@ -105,7 +105,7 @@ def main():
   "source_urls":[LOAD_URL,POWER_URL],"sha256":[lhash,phash],
   "n_load_2018":len(loads),"n_ghi_2018":len(power),"matched_intervals":len(rows),
   "capacity_proxy_mw":SCALES_MW,"lags":LAGS,
-  "common_nonwrap_support":"2018 UTC calendar indices 3..8756; 8754 hours for each scenario",
+  "common_nonwrap_support":"2018 UTC calendar indices 3..8756; 8754 hours for each scenario",\n  "caution":"Nonwrapping shifts hold target UTC/resource times fixed but move load into/out of comparison edges, so comparison-window demand energy can vary; full-year source records are unmodified.",
   "independent_review_required":True},indent=2)+"\n")
  print(json.dumps(results,indent=2))
 if __name__=="__main__":main()
