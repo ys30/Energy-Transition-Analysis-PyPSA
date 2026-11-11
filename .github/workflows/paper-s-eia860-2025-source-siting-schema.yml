@@ -1,0 +1,48 @@
+name: Paper S official EIA860 2025 county fleet schema preflight
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/eia860_2025_plant_generator_schema_probe.py'
+      - '.github/workflows/paper-s-eia860-2025-source-siting-schema.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  eia860-original-annual-release-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install EIA workbook inspection
+        run: python -m pip install 'openpyxl>=3.1'
+      - name: Fetch official EIA 2025 Form 860 detailed generator archive
+        run: |
+          mkdir -p /tmp/eia outputs
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 600 \
+            'https://www.eia.gov/electricity/data/eia860/xls/eia8602025.zip' \
+            -o /tmp/eia/eia8602025.zip
+          unzip -t /tmp/eia/eia8602025.zip | tail -n 1
+          sha256sum /tmp/eia/eia8602025.zip
+      - name: Explicitly inspect original 2025 plant and operable generator workbook sheets
+        run: |
+          PYTHONPATH=src python -m energy_transition.eia860_2025_plant_generator_schema_probe \
+            --zip /tmp/eia/eia8602025.zip --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('outputs/paper_s_eia860_2025_plant_generator_schema_probe.json').read_text())
+          assert len(d['candidate_workbooks'])==2
+          assert not d['EIA_2025_fleet_county_weights_extracted']
+          assert not d['2025_is_observed_2030_fleet']
+          assert d['official_release'].endswith('/eia8602025.zip')
+          print('EIA_2025_SOURCE_SCHEMA_NOT_ASSUMED_FLEET_WEIGHTS_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-official-eia860-2025-plant-generator-schema-audit
+          path: outputs/
+          if-no-files-found: warn
