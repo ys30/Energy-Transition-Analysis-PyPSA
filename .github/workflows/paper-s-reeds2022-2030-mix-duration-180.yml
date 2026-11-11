@@ -1,0 +1,77 @@
+name: Paper S ReEDS2022 2030 180 power-duration-wind-mix LP sensitivity
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_county_storage_mix_duration_2030.py'
+      - 'tests/test_reeds2022_county_storage_mix_duration_2030.py'
+      - '.github/workflows/paper-s-reeds2022-2030-mix-duration-180.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  original-source-180-scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install LP and HDF5 dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+      - name: Check experiment design and annuity units
+        run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_county_storage_mix_duration_2030.py
+      - name: Retrieve original authenticated county 2012 renewable profiles
+        run: |
+          mkdir -p /tmp/reeds/wind /tmp/reeds/pv outputs
+          gh run download 42962740548 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit \
+            --dir /tmp/reeds/wind
+          gh run download 42962740548 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit \
+            --dir /tmp/reeds/pv
+      - name: Authenticate publisher ReEDS2022 EFS reference demand
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Run 180 LPs, verify all solver balances, export 144 power-duration-mix annuity pairs
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_county_storage_mix_duration_2030 \
+            --demand-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --wind-csv /tmp/reeds/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-csv /tmp/reeds/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          import pandas as pd
+          from pathlib import Path
+          a=pd.read_csv('outputs/paper_s_reeds2022_2030_180_mix_power_duration_LPs.csv')
+          b=pd.read_csv('outputs/paper_s_reeds2022_2030_144_storage_annuity_hurdles.csv')
+          m=json.loads(Path('outputs/paper_s_reeds2022_2030_180_mix_power_duration_manifest.json').read_text())
+          assert len(a)==180 and len(b)==144
+          assert a.solver_status.eq('optimal').all()
+          assert a.max_equality_residual_mwh.max() < 1e-5
+          assert b.operating_savings_usd_per_reference_year.min()>=-.1
+          # Independently reconcile base 0.9, wind mix .5, 4h .25 power
+          # against published 2030 scenario after source transformations.
+          anchor=b[(b.state=='AZ')&(b.renewable_peak_ratio==.9)&
+                   (b.wind_share_installed_mw==.5)&(b.battery_duration_h==4)&
+                   (b.battery_power_peak_ratio==.25)]
+          assert len(anchor)==1
+          assert abs(float(anchor.operating_savings_usd_per_reference_year.iloc[0])-
+                     25125374.792839)<.10
+          assert m['break_even_values_are_upper_bounds_not_actual_IRR']
+          assert not m['physical_grid_or_reliability_estimate']
+          print('REEDS2022_COUNTY_2030_180_LP_144_PAIR_AND_FROZEN_AZ_ANCHOR_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-reeds2022-2030-county-180-storage-dimensions-and-hurdles
+          path: outputs/
+          if-no-files-found: warn
