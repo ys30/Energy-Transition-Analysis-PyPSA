@@ -6,6 +6,8 @@ time-zone territory. ReEDS2022 EFS_REFERENCE remains BLOCK_PHYSICAL_JOIN.
 import argparse, hashlib, json, urllib.request
 from pathlib import Path
 import pandas as pd
+import h5py
+import numpy as np
 
 URL="https://data.openei.org/files/8562/historic_load_hourly_2016_2023_county.h5"
 SEVEN={"p16009":"Benewah","p16017":"Bonner","p16021":"Boundary",
@@ -55,12 +57,23 @@ def main():
             if getattr(st,"is_table",False):
                 chunked=store.select(key,chunksize=168)
             else:
-                # Fixed-format stores cannot push down column selection; large
-                # blocks are intentionally rejected rather than OOMing runner.
-                shape=getattr(st,"shape",None)
-                if shape and len(shape)>=2 and shape[0]*shape[1]>20_000_000:
-                    raise ValueError(f"Fixed-format large HDF: {key} shape {shape}; requires h5py block reader")
-                chunked=[store.get(key)]
+                # pandas fixed-format HDF5: read *only* Idaho columns using h5py;
+                # never materialize all 3109 nationwide county series in RAM.
+                with h5py.File(a.source,"r") as hf:
+                    root=hf[key.lstrip("/")]
+                    datasets={name:root[name] for name in root if isinstance(root[name],h5py.Dataset)}
+                    print("Fixed HDF datasets:",{n:list(d.shape) for n,d in datasets.items()},flush=True)
+                    if not {"axis0","axis1","block0_items","block0_values"}.issubset(datasets):
+                        raise ValueError("Unknown fixed HDF structure; inspect schema")
+                    items=[v.decode() if isinstance(v,bytes) else str(v) for v in datasets["block0_items"][:]]
+                    chosen=sorted((i,v) for i,v in enumerate(items) if v.startswith(STATE_PREFIX) and len(v)==6 and v[1:].isdigit())
+                    if len(chosen)!=44:raise ValueError(f"Expected 44 Idaho county columns; got {len(chosen)}")
+                    indexes=[i for i,v in chosen]
+                    values=datasets["block0_values"][:,indexes]
+                    index_raw=datasets["axis1"][:]
+                    timestamps=pd.to_datetime(index_raw,utc=True)
+                    frame=pd.DataFrame(values,index=timestamps,columns=[v for i,v in chosen])
+                    chunked=[frame]
             for chunk in chunked:
                 if isinstance(chunk.index,pd.MultiIndex):raise ValueError("Unexpected multi-index")
                 ix=pd.to_datetime(chunk.index,utc=True,errors="coerce")
