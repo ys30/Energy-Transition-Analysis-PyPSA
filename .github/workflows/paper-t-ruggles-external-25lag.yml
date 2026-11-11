@@ -1,0 +1,42 @@
+name: Paper T WP1 - observed EIA-930 versus cleaned Ruggles release
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-ruggles-external-25lag.yml'
+      - 'src/energy_transition/paper_t_ruggles_external_case.py'
+permissions:
+  contents: read
+jobs:
+  three-ba-external-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Audit three BAs from pinned archived raw/cleaned data
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_t_ruggles_external_case --outdir outputs/paper_t_wp1_ruggles
+      - name: Check result shape and source manifest
+        run: |
+          python - <<'PY'
+          import csv,json
+          from pathlib import Path
+          d=Path('outputs/paper_t_wp1_ruggles')
+          rows=list(csv.DictReader((d/'three_ba_all_75_lag_points.csv').open()))
+          summ=list(csv.DictReader((d/'three_ba_summary.csv').open()))
+          prov=json.loads((d/'source_hashes.json').read_text())
+          assert len(rows)==75 and len(summ)==3 and len(prov['files'])==6
+          assert all(int(r['best_lag_h'])==0 for r in summ)
+          assert set(r['ba'] for r in summ)=={'IPCO','AZPS','BPAT'}
+          assert all(float(r['unchanged_numeric_fraction'])>.99 for r in summ)
+          print('PASS: three original-to-cleaned BA pairs; 75 observed-data candidate lags')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-wp1-eia930-ruggles-three-ba-75-lags
+          path: outputs/paper_t_wp1_ruggles
+          retention-days: 90
