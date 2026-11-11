@@ -1,0 +1,43 @@
+name: Paper T all-state HDF5 precision and control tails
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-all-state-precision.yml'
+      - 'src/energy_transition/paper_t_all_state_precision.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit-all-states:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10'
+      - name: Retrieve authenticated EFS 2020 state-hours
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/efs /tmp/reeds outputs
+          gh run download 41262154939 -R "${{ github.repository }}" -n pypsa-usa-efs-source-evidence -D /tmp/efs
+          test -s /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+      - name: Download authenticated ReEDS 2022 HDF5
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Independently audit all arrays and control tails
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_t_all_state_precision \
+            --efs-hourly /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --reeds-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --out-dir outputs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-all-state-precision-original-evidence
+          path: outputs/
+          if-no-files-found: error
