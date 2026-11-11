@@ -26,7 +26,7 @@ def parse_load(data):
  out={}
  for r in rows:
   stamp=dt.datetime.strptime(r["date_time"],"%Y-%m-%d %H:%M:%S").replace(tzinfo=dt.timezone.utc)
-  if not START<=stamp<END:continue
+  if not START<stamp<=END:continue
   if stamp in out:raise ValueError("Non-unique load end-UTC")
   out[stamp]=(float(r["cleaned demand (MW)"]),r["category"])
  if len(out)!=8760:raise ValueError(f"Expected 8760 AZPS 2018 UTC timestamps, got {len(out)}")
