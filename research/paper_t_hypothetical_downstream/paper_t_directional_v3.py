@@ -16,11 +16,11 @@ def run():
          r=calculate(demand,solar,lag)
          rows.append(dict(solar_scale=scale,evening_peak_hour=peak,
           solar_phase_shift_h=phase,demand_shift_h=lag,
-          net_peak_mw=r['net_peak_mw'],net_peak_hour=r['net_peak_clock_hour'],
+          net_peak_mw=r['net_peak_mw'],net_peak_hour=r['net_peak_hour'],
           peak_delta_mw=round(r['net_peak_mw']-baseline['net_peak_mw'],6),
           peak_delta_pct=round(100*(r['net_peak_mw']/baseline['net_peak_mw']-1),6),
-          solar_overlap_pct=round(100*r['solar_overlap_fraction'],6),
-          overlap_delta_pp=round(100*(r['solar_overlap_fraction']-baseline['solar_overlap_fraction']),6),
+          solar_overlap_pct=round(100*(r['overlap_pct']/100),6),
+          overlap_delta_pp=round(100*((r['overlap_pct']/100)-(baseline['overlap_pct']/100)),6),
           solar_surplus_mwh=r['solar_surplus_mwh'],
           demand_energy_mwh=r['demand_energy_mwh'],solar_energy_mwh=r['solar_energy_mwh']))
     return rows
