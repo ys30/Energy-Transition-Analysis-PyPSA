@@ -12,10 +12,14 @@ import numpy as np
 URL="https://data.openei.org/files/8562/historic_load_hourly_2016_2023_county.h5"
 SEVEN={"p16009":"Benewah","p16017":"Bonner","p16021":"Boundary",
        "p16035":"Clearwater","p16055":"Kootenai","p16057":"Latah","p16079":"Shoshone"}
+P14={"p16009":"Benewah","p16017":"Bonner","p16021":"Boundary","p16055":"Kootenai","p16057":"Latah","p16061":"Lewis","p16069":"Nez Perce"}
 NINE={**SEVEN,"p16061":"Lewis","p16069":"Nez Perce"}
+assert len(P14)==7 and len(NINE)==9 and len(set(P14)^set(SEVEN))==4
 PARTIAL_COUNTY="p16049" # Idaho County is crossed by federal boundary; do not count entire county as Pacific
 STATE_PREFIX="p16"
-MODEL_PACIFIC_PROXY=1-0.834425
+MODEL_PACIFIC_PROXY=1-0.834425  # contemporaneous fitted, NOT frozen
+FROZEN_PACIFIC_PROXY=1-0.827385
+POP_P14_2020=325198
 POP_SEVEN_2020=301478
 POP_STATE_2020=1839106
 POP_NINE_2020=347101
@@ -34,7 +38,7 @@ def download(path):
 def prepare(frame):
     if isinstance(frame,pd.Series):raise ValueError("Expected hourly county columns")
     frame.columns=[str(c) for c in frame.columns]
-    if not set(SEVEN).issubset(frame.columns):raise ValueError("Seven county FIPS fields missing")
+    if not set(P14).issubset(frame.columns):raise ValueError("ReEDS p14 FIPS fields missing")
     state=[c for c in frame.columns if c.startswith(STATE_PREFIX) and len(c)==6 and c[1:].isdigit()]
     if len(state)!=44:raise ValueError(f"Idaho should have 44 county columns, got {len(state)}: {state}")
     frame=frame[state].apply(pd.to_numeric,errors="raise")
@@ -87,9 +91,10 @@ def main():
                     if not m.any():continue
                     vals=chunk.loc[m]
                     if (vals<0).any().any():raise ValueError("Negative demand observations")
-                    ent=results.setdefault(year,{"hours":0,"north_mwh":0.0,"nine_full_pacific_mwh":0.0,"idaho_county_mwh":0.0,"state_mwh":0.0})
+                    ent=results.setdefault(year,{"hours":0,"north_mwh":0.0,"p14_mwh":0.0,"nine_full_pacific_mwh":0.0,"idaho_county_mwh":0.0,"state_mwh":0.0})
                     ent["hours"]+=len(vals)
                     ent["north_mwh"]+=float(vals[list(SEVEN)].to_numpy().sum())
+                    ent["p14_mwh"]+=float(vals[list(P14)].to_numpy().sum())
                     ent["nine_full_pacific_mwh"]+=float(vals[list(NINE)].to_numpy().sum())
                     ent["idaho_county_mwh"]+=float(vals[PARTIAL_COUNTY].sum())
                     ent["state_mwh"]+=float(vals.to_numpy().sum())
@@ -101,17 +106,23 @@ def main():
         share=r["north_mwh"]/r["state_mwh"]
         years.append({"year":y,**r,"north_share_pct":100*share,
                       "difference_from_idaho_fit_pp":100*(share-MODEL_PACIFIC_PROXY),
+                      "p14_share_pct":100*r["p14_mwh"]/r["state_mwh"],
+                      "p14_minus_same_year_fit_pp":100*(r["p14_mwh"]/r["state_mwh"]-MODEL_PACIFIC_PROXY),
+                      "p14_minus_frozen_fit_pp":100*(r["p14_mwh"]/r["state_mwh"]-FROZEN_PACIFIC_PROXY),
                       "nine_full_pacific_share_pct":100*r["nine_full_pacific_mwh"]/r["state_mwh"],
                       "nine_plus_all_idaho_county_upper_pct":100*(r["nine_full_pacific_mwh"]+r["idaho_county_mwh"])/r["state_mwh"]})
     out={"source":URL,"sha256":sha.hexdigest(),"years":years,
-         "seven_proxy_counties":SEVEN,"nine_full_pacific_counties":NINE,
+         "seven_proxy_counties":SEVEN,"reeds_p14_counties":P14,"nine_full_pacific_counties":NINE,
          "idaho_county_partially_pacific":PARTIAL_COUNTY,
-         "population_2020": {"north_seven":POP_SEVEN_2020,"idaho":POP_STATE_2020,
+         "population_2020": {"north_seven":POP_SEVEN_2020,"reeds_p14_seven":POP_P14_2020,
+                             "reeds_p14_share_pct":100*POP_P14_2020/POP_STATE_2020,"idaho":POP_STATE_2020,
                              "share_pct":100*POP_SEVEN_2020/POP_STATE_2020,
                              "nine_full_pacific_counties":POP_NINE_2020,
                              "nine_full_pacific_share_pct":100*POP_NINE_2020/POP_STATE_2020},
+         "same_year_fitted_idaho_component_pct":100*MODEL_PACIFIC_PROXY,
+         "frozen_idaho_component_pct":100*FROZEN_PACIFIC_PROXY,
          "fitted_idaho_northern_share_pct":100*MODEL_PACIFIC_PROXY,
-         "scope_warning":"7-county population/load proxy only; not the legally complete Pacific-time territory, which includes other counties/part of Idaho County.",
+         "scope_warning":"ReEDS p14 seven counties differ from prior erroneous seven-county proxy and from nine full Pacific-time counties. Full Pacific territory also includes part of Idaho County. ReEDS p14 excludes Clearwater and Shoshone.",
          "lineage_warning":"The 2026 county model is not source-independent of all EIA/ReEDS inputs, and cannot certify EER 2022 time-zone splitting.",
          "physical_hour_join":"BLOCK_PHYSICAL_JOIN"}
     a.output.write_text(json.dumps(out,indent=2)+"\n")
