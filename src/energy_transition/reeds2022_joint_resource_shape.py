@@ -19,7 +19,7 @@ def read_native(path,tech):
     required=["source_instantaneous_CST",*STATES]
     if list(x.columns)!=required or len(x)!=N:
         raise ValueError(f"{tech} source state CF requires 8760 rows and exact columns")
-    idx=pd.to_datetime(x["source_instantaneous_CST"],utc=True)
+    idx=pd.DatetimeIndex(pd.to_datetime(x["source_instantaneous_CST"],utc=True))
     expected=pd.date_range(FIRST,periods=N,freq="h").tz_convert("UTC")
     if not pd.DatetimeIndex(idx).equals(expected):
         raise ValueError(f"{tech} CST timestamp validation failed")
