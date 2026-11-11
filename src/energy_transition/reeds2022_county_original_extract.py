@@ -70,6 +70,7 @@ def audit_and_extract(*, tech, h5_path, supply_path, capacity_key_col,
         names=decode(h["columns"][:])
         rows,clock=inspect_weather_index(h["index_0"][:])
         data=h["data"]
+        data_dtype=str(data.dtype)
         if data.ndim!=2 or data.shape!=(clock["index_rows_total"],len(names)):
             raise ValueError("Original HDF5 data matrix dimensions invalid")
         if not np.array_equal(rows,np.arange(rows[0],rows[-1]+1)):
@@ -111,7 +112,7 @@ def audit_and_extract(*, tech, h5_path, supply_path, capacity_key_col,
         "weather_adjusted_LP_completed":False,
         "source_h5_md5":h5_digest,
         "source_supply_curve_md5":sc_digest,
-        "original_hdf5_dtype":str(data.dtype),
+        "original_hdf5_dtype":data_dtype,
         "original_2012_native_raw_min":minima,
         "original_2012_native_raw_max":maxima,
         "capacity_csv_columns":list(supply.columns),
