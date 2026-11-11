@@ -1,5 +1,8 @@
 name: Paper S ReEDS2022 county renewable capacity schema probe
 'on':
+  pull_request:
+    paths:
+      - '.github/workflows/paper-s-reeds2022-county-capacity-probe.yml'
   push:
     branches: [paper-s-reeds2022-hourly-join-gates]
     paths:
@@ -16,6 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install CSV parser
+        run: python -m pip install 'pandas>=2,<3'
       - name: Download small official county capacity tables
         run: |
           mkdir -p /tmp/source outputs
