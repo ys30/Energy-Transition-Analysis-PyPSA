@@ -44,6 +44,40 @@ jobs:
                 'row_count':int(len(d)), 'columns':list(d.columns),
                 'first_two_rows':d.head(2).fillna('').to_dict('records'),
                 'null_counts':{k:int(v) for k,v in d.isna().sum().items()}}
+          # Authenticate geographic source rows and derive available-resource MW.
+          zones=pd.read_csv('/tmp/source/county2zone.csv',dtype=str)
+          assert zones['FIPS'].str.fullmatch(r'\\d{5}').all()
+          assert not zones['FIPS'].duplicated().any()
+          assert set(zones['state'].dropna()).issuperset({'AZ','CO','ID','WY'})
+          state_by_fips=zones.set_index('FIPS')['state']
+          state_audit={}
+          for kind in ['wind','pv']:
+              src=pd.read_csv('/tmp/source/'+kind+'.csv',dtype={'class|region':str})
+              assert list(src.columns)==['class|region','MW']
+              assert src['class|region'].str.fullmatch(r'[^|]+\\|p\\d{5}').all()
+              assert not src['class|region'].duplicated().any()
+              src['county_fips']=src['class|region'].str.rsplit('p',n=1).str[-1]
+              src['state']=src['county_fips'].map(state_by_fips)
+              missing=src.loc[src.state.isna(),'county_fips'].nunique()
+              # No silent geographic fallback even for non-target source counties.
+              assert missing==0, f'{kind}: unmapped county source FIPS count={missing}'
+              mw=pd.to_numeric(src.MW,errors='raise')
+              assert mw.notna().all() and (mw>=0).all()
+              src['available_mw']=mw
+              state_audit[kind]={
+                  'source_rows':len(src),
+                  'all_counties_mapped':True,
+                  'source_unit':'available resource MW; not installed capacity',
+                  'source_MW_AC_or_DC_basis':'UNVERIFIED',
+                  'four_state':{
+                      st:{
+                          'resource_class_count':int(src.loc[src.state.eq(st),'class|region'].str.split('|',regex=False).str[0].nunique()),
+                          'source_count':int(src.state.eq(st).sum()),
+                          'available_mw':float(src.loc[src.state.eq(st),'available_mw'].sum()),
+                      } for st in ['AZ','CO','ID','WY']
+                  },
+              }
+          out['four_state_resource_capacity_audit']=state_audit
           Path('outputs/county_source_schema_probe.json').write_text(json.dumps(out,indent=2))
           print(json.dumps(out,indent=2))
           PY
