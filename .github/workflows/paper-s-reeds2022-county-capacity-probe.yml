@@ -46,7 +46,7 @@ jobs:
                 'null_counts':{k:int(v) for k,v in d.isna().sum().items()}}
           # Authenticate geographic source rows and derive available-resource MW.
           zones=pd.read_csv('/tmp/source/county2zone.csv',dtype=str)
-          assert zones['FIPS'].str.fullmatch(r'\\d{5}').all()
+          assert zones['FIPS'].str.fullmatch(r'\d{5}').all()
           assert not zones['FIPS'].duplicated().any()
           assert set(zones['state'].dropna()).issuperset({'AZ','CO','ID','WY'})
           state_by_fips=zones.set_index('FIPS')['state']
@@ -54,7 +54,7 @@ jobs:
           for kind in ['wind','pv']:
               src=pd.read_csv('/tmp/source/'+kind+'.csv',dtype={'class|region':str})
               assert list(src.columns)==['class|region','MW']
-              assert src['class|region'].str.fullmatch(r'[^|]+\\|p\\d{5}').all()
+              assert src['class|region'].str.fullmatch(r'[^|]+\|p\d{5}').all()
               assert not src['class|region'].duplicated().any()
               src['county_fips']=src['class|region'].str.rsplit('p',n=1).str[-1]
               src['state']=src['county_fips'].map(state_by_fips)
