@@ -48,11 +48,11 @@ def inspect_weather_index(raw):
  target=pd.date_range("2012-01-01",periods=HOURS,freq="h")
  native=pd.DatetimeIndex(index[choices])
  if native.tz is None:
-  if not native.equals(target):raise ValueError("CST naive 2012 CF calendar mismatch")
+  if not native.equals(target):raise ValueError("CST naive 2012 CF calendar mismatch; actual_first="+str(native[0])+" expected_first="+str(target[0])+" actual_last="+str(native[-1])+" expected_last="+str(target[-1]))
   time_note="Publisher-defined fixed CST (UTC-06:00), native labels are timezone-naive"
  else:
   target=target.tz_localize("Etc/GMT+6")
-  if not native.equals(target):raise ValueError("CST aware 2012 CF calendar mismatch")
+  if not native.equals(target):raise ValueError("CST aware 2012 CF calendar mismatch; actual_first="+str(native[0])+" expected_first="+str(target[0])+" actual_last="+str(native[-1])+" expected_last="+str(target[-1])+" actual_timezone="+str(native.tz))
   time_note="Publisher-defined fixed CST (UTC-06:00), native labels offset-aware"
  return choices,{"index_rows_total":len(labels),"index_first":labels[0],
   "index_last":labels[-1],"2012_first":labels[choices[0]],
