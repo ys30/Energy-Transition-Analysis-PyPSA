@@ -40,7 +40,6 @@ def summarize(frame):
         values=["objective_illustrative_variable_usd","storage_capacity_mwh"])
     if len(groups)!=72 or groups.isna().any().any():
         raise ValueError("Must have 72 complete 0/4/8h triplets")
-    pair=groups.reset_index()[[(*[KEYS,"hour_approximation"],)] ] if False else None
     rec=[]
     for key,sub in frame.groupby([*KEYS,"hour_approximation"],sort=True):
         if len(sub)!=3 or set(sub.battery_duration_h)!=set(DURATIONS):
@@ -123,7 +122,7 @@ def run(demand_h5,wind_csv,pv_csv,reference_ac_180,out):
     df=pd.DataFrame(rows)
     paired,difference=summarize(df)
     base=pd.read_csv(reference_ac_180)
-    target=base[base.battery_power_peak_ratio.eq(BATTERY_POWER_PEAK)]
+    target=base[base.battery_power_peak_ratio.eq(BATTERY_POWER_PEAK) | base.battery_duration_h.eq(0)]
     ref=target.set_index(["state","renewable_peak_ratio","wind_share_installed_mw","battery_duration_h"])
     now=df[df.hour_approximation.eq(MODES[1])].set_index(
         ["state","renewable_peak_ratio","wind_share_installed_mw","battery_duration_h"])
