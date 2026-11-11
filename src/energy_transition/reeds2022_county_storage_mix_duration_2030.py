@@ -145,7 +145,7 @@ def run(demand_h5,wind_csv,pv_csv,out,*,states=STATES):
                  (pairs.battery_duration_h==4)&
                  (pairs.battery_power_peak_ratio==.25)]
     print(subset[["state","operating_savings_usd_per_reference_year",
-                   "battery_power_mw","battery_capacity_mwh",
+                   "storage_power_mw","storage_capacity_mwh",
                    "break_even_power_only_usd_per_kw_year"]].to_string(index=False))
     print("REEDS2022_180_SOURCE_LP_STORAGE_MIX_DURATION_SENSITIVITY_PASSED")
     return frame,pairs
