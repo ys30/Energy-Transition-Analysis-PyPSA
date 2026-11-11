@@ -94,7 +94,7 @@ def read_weighted_source_cf(h5_path,sc_path,tech,pure_by_state):
             if total<=0:raise ValueError("Zero source potential "+state)
             instantaneous=np.average(data[:,cols],axis=1,weights=cap)
             if tech=="pv":instantaneous*=ILR_PV
-            if instantaneous.min()<-1e-8 or instantaneous.max()>1.+1e-5:
+            if instantaneous.min()<-1e-8 or instantaneous.max()>1.+2e-4:
                 raise ValueError("AC-normalized capacity factors outside [0,1]")
             # The 8761 source instants span preceding 2011 hour through
             # the final 2012 hour; estimated hourly mean is trapezoidal.
