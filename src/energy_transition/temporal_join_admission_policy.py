@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 GATES={
-    "source_integrity": "Independent original file authenticity, hashes and scenario identity verified",
+    "source_integrity": "Original-file integrity and published scenario labels recorded; derivation equivalence is not certified",
     "native_calendar": "Native hour-ending/start, calendar, leap handling, DST and physical timezone explicitly documented for BOTH inputs",
     "physical_crosswalk": "Authoritative reversible source-hour to common physical timestamp mapping verified for BOTH inputs",
     "weather_year": "Representative weather or chronological year semantics compatible and independently documented",
@@ -19,7 +19,7 @@ GATES={
 DEFAULT_PASSPORT={
     "source_pair":"Original EFS2020 Reference/Moderate vs published ReEDS2022 EFS_REFERENCE",
     "evidence":{
-        "source_integrity":{"passed":True,"basis":"Original source archive and ReEDS HDF5 publisher MD5 audited"},
+        "source_integrity":{"passed":True,"basis":"EFS source archive SHA-256 and publisher ReEDS HDF5 MD5 checked; EFS Reference/Moderate and ReEDS EFS_REFERENCE labels documented, but common generation scenario/lineage not authenticated"},
         "native_calendar":{"passed":False,"basis":"ReEDS2022 2012 CST reference known; original EFS2020 physical LocalHourID unresolved"},
         "physical_crosswalk":{"passed":False,"basis":"Fitted -2/-3 index shifts are numeric optimizers, not publisher-certified timestamps"},
         "weather_year":{"passed":False,"basis":"Original EFS2020 weather-year mapping not authenticated"},
