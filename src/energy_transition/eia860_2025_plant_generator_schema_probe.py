@@ -12,8 +12,8 @@ import openpyxl
 YEAR=2025
 PUBLISHER_URL="https://www.eia.gov/electricity/data/eia860/xls/eia8602025.zip"
 REQUIRED_CATEGORIES={
- "plant":r"(?i)(?:^|/)2_+Plant2025\.(?:xlsx|xlsm)$",
- "generator":r"(?i)(?:^|/)3_1_Generator2025\.(?:xlsx|xlsm)$",
+ "plant":r"(?i)(?:^|/)[^/]*Plant[^/]*2025\.(?:xlsx|xlsm)$",
+ "generator":r"(?i)(?:^|/)[^/]*3[_ ]*1[_ ]*Generator[^/]*2025\.(?:xlsx|xlsm)$",
 }
 EXPECTED_STATE_LABELS=("AZ","CO","ID","WY")
 
