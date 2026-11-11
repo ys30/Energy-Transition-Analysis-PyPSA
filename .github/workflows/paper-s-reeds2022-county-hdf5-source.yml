@@ -56,6 +56,7 @@ jobs:
           TECH: ${{ matrix.tech }}
           H5: ${{ matrix.h5 }}
           SUPPLY: ${{ matrix.supply }}
+          PYTHONPATH: src
         run: |
           python - <<'PY'
           import json,os
@@ -98,8 +99,6 @@ jobs:
           (out/f'{os.environ["TECH"]}_county_official_hdf5_source_audit.json').write_text(json.dumps(report,indent=2)+'\n')
           print(json.dumps(report,indent=2))
           PY
-        env:
-          PYTHONPATH: src
       - uses: actions/upload-artifact@v4
         if: always()
         with:
