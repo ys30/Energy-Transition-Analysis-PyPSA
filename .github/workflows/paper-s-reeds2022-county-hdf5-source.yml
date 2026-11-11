@@ -99,9 +99,44 @@ jobs:
           (out/f'{os.environ["TECH"]}_county_official_hdf5_source_audit.json').write_text(json.dumps(report,indent=2)+'\n')
           print(json.dumps(report,indent=2))
           PY
+      - name: Extract complete 2012 state instantaneous CF using verified county source
+        env:
+          TECH: ${{ matrix.tech }}
+          H5: ${{ matrix.h5 }}
+          SUPPLY: ${{ matrix.supply }}
+          PYTHONPATH: src
+        run: |
+          # ReEDS UPV supply-curve capacity is MW_DC per official ReEDS source docs;
+          # UPV CF is MW_AC_grid/MW_DC_array, so do NOT multiply by ILR 1.34.
+          if [ "${TECH}" = "pv" ]; then BASIS=dc; else BASIS=ac; fi
+          python -m energy_transition.reeds2022_county_original_extract \
+            --technology "${TECH}" \
+            --h5 "/tmp/reeds/${H5}" \
+            --capacity-csv "/tmp/reeds/${SUPPLY}" \
+            --capacity-key-col 'class|region' \
+            --capacity-mw-col MW \
+            --capacity-basis "${BASIS}" \
+            --out outputs
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          import pandas as pd
+          tech=os.environ['TECH']
+          p=Path(f'outputs/reeds2022_{tech}_2012_four_state_instantaneous_cf.csv')
+          x=pd.read_csv(p)
+          assert len(x)==8760
+          assert set(x.columns)=={'source_instantaneous_CST','AZ','CO','ID','WY'}
+          assert x[['AZ','CO','ID','WY']].notna().all().all()
+          m=json.loads(Path(f'outputs/reeds2022_{tech}_2012_state_cf_source_manifest.json').read_text())
+          assert m['empirical_hour_energy_join_admitted'] is False
+          assert m['weather_adjusted_LP_completed'] is False
+          print('SOURCE_VERIFIED_2012_STATE_INSTANTANEOUS_CF_NOT_HOURLY_ENERGY',tech)
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: paper-s-reeds2022-original-2012-county-${{ matrix.tech }}-hdf5-source-audit
-          path: outputs/*.json
+          path: |
+            outputs/*.json
+            outputs/*four_state_instantaneous_cf.csv
           if-no-files-found: warn
