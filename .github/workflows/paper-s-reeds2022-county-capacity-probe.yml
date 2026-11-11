@@ -1,0 +1,49 @@
+name: Paper S ReEDS2022 county renewable capacity schema probe
+'on':
+  push:
+    branches: [paper-s-reeds2022-hourly-join-gates]
+    paths:
+      - '.github/workflows/paper-s-reeds2022-county-capacity-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-source-county-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download small official county capacity tables
+        run: |
+          mkdir -p /tmp/source outputs
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 180 'https://zenodo.org/records/18422200/files/sc_wind-ons_reference_county.csv?download=1' -o /tmp/source/wind.csv
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 180 'https://zenodo.org/records/18407660/files/sc_upv_reference_county.csv?download=1' -o /tmp/source/pv.csv
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 180 'https://zenodo.org/records/18407660/files/county2zone.csv?download=1' -o /tmp/source/county2zone.csv
+          echo '49ab4e41dc386453b5fd32e5810774d4  /tmp/source/wind.csv' | md5sum --check
+          echo 'e10b1a64f3a67d163e739b735938eb78  /tmp/source/pv.csv' | md5sum --check
+          echo 'f269adef29b6d96317a845f6129b5ad9  /tmp/source/county2zone.csv' | md5sum --check
+      - name: Publish source-only schema and cardinality, no redistributed input rows
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          import pandas as pd
+          out={}
+          for kind in ['wind','pv','county2zone']:
+              p=Path('/tmp/source')/(kind+'.csv')
+              d=pd.read_csv(p,dtype=str)
+              out[kind]={'publisher_md5':hashlib.md5(p.read_bytes()).hexdigest(),
+                'row_count':int(len(d)), 'columns':list(d.columns),
+                'first_two_rows':d.head(2).fillna('').to_dict('records'),
+                'null_counts':{k:int(v) for k,v in d.isna().sum().items()}}
+          Path('outputs/county_source_schema_probe.json').write_text(json.dumps(out,indent=2))
+          print(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-official-county-capacity-csv-schema
+          path: outputs/
+          if-no-files-found: error
