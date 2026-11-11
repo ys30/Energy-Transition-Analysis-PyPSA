@@ -31,6 +31,12 @@ jobs:
             --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit --dir /tmp/reeds/wind
           gh run download 42962740548 --repo "${{ github.repository }}" \
             --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit --dir /tmp/reeds/pv
+      - name: Retrieve canonical 0.9x baseline for numerical regression check
+        run: |
+          mkdir -p /tmp/reeds/baseline
+          gh run download 42965036275 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-county-native-48-LP-real-source-hypothetical-capacity \
+            --dir /tmp/reeds/baseline
       - name: Authenticate original 2022 demand
         run: |
           curl -fLsS --retry 3 --connect-timeout 30 --max-time 900 \
@@ -53,6 +59,13 @@ jobs:
           assert len(a)==144 and len(b)==72 and m['LP_count']==144
           assert set(a.renewable_peak_ratio.round(6))=={0.9,1.5,2.0}
           assert a.solver_status.eq('optimal').all()
+          baseline=pd.read_csv('/tmp/reeds/baseline/paper_s_reeds2022_county_full_state_2012_weather_48_LP.csv')
+          scope=['state','demand_model_year','hour_approximation','battery_duration_h']
+          previous=baseline.set_index(scope)['objective_illustrative_variable_usd'].sort_index()
+          current=a.loc[a.renewable_peak_ratio.round(6).eq(.9)].set_index(scope)['objective_illustrative_variable_usd'].sort_index()
+          assert len(current)==len(previous)==48
+          assert current.index.equals(previous.index)
+          assert (current-previous).abs().max() <= 0.05, '0.9x cannot reproduce frozen source LP'
           assert not m['storage_capex_included'] and not m['real_network_or_reliability_estimate']
           print('REEDS2022_COUNTY_144_LP_AND_72_PAIRS_ARTIFACT_PASS')
           PY
