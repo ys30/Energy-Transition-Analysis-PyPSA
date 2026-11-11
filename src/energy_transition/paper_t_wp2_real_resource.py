@@ -108,7 +108,6 @@ def main():
   "capacity_proxy_mw":SCALES_MW,"lags":LAGS,
   "common_nonwrap_support":"2018 UTC calendar indices 3..8756; 8754 hours for each scenario",
   "caution":"Nonwrapping shifts hold target UTC/resource times fixed but move load into/out of comparison edges, so comparison-window demand energy can vary; full-year source records are unmodified.",
-  "independent_review_required":True},indent=2)+"
-")
+  "independent_review_required":True},indent=2)+chr(10))
  print(json.dumps(results,indent=2))
 if __name__=="__main__":main()
