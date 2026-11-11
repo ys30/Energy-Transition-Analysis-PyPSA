@@ -1,0 +1,42 @@
+name: Paper T WP1 - Ruggles 2019 vs 2020 published release pair
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-ruggles-release-pair-ci.yml'
+      - 'src/energy_transition/paper_t_ruggles_release_pair.py'
+permissions:
+  contents: read
+jobs:
+  independent-release-pair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Obtain pinned 2019/2020 release files and calculate 75 real-data lag scores
+        run: PYTHONPATH=src python -m energy_transition.paper_t_ruggles_release_pair --outdir outputs/paper_t_wp1_release_pair
+      - name: Validate full output and zero-lag controls
+        run: |
+          python - <<'PY'
+          import csv,json
+          from pathlib import Path
+          d=Path('outputs/paper_t_wp1_release_pair')
+          rows=list(csv.DictReader((d/'release_pair_75_lags.csv').open()))
+          summ=list(csv.DictReader((d/'release_pair_summary.csv').open()))
+          source=json.loads((d/'source_manifest.json').read_text())
+          assert len(rows)==75 and len(summ)==3 and len(source['release_files'])==6
+          assert {r['ba'] for r in summ}=={'IPCO','AZPS','BPAT'}
+          assert all(int(r['lag_best_h'])==0 for r in summ)
+          assert all(int(r['shared_hours'])==35064 for r in summ)
+          assert all(float(r['runnerup_mae_mw'])>float(r['best_mae_mw']) for r in summ)
+          print('PASS: 3 release pairs, 75 nonwrapping lags, all UTC-label best lags 0')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-wp1-ruggles-2019-2020-three-ba-75-lags
+          path: outputs/paper_t_wp1_release_pair
+          retention-days: 90
