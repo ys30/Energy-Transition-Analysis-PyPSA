@@ -6,13 +6,17 @@ name: ReEDS2022 authentic wind and PV CST 2012 source verification
     paths:
       - 'src/energy_transition/reeds2022_real_resource_intake.py'
       - 'tests/test_reeds2022_real_resource_intake.py'
+      - 'src/energy_transition/reeds2022_real_wind_pv_state_storage_lp.py'
+      - 'tests/test_reeds2022_real_wind_pv_state_storage_lp.py'
+      - 'src/energy_transition/reeds2022_real_resource_final_window_envelope.py'
+      - 'tests/test_reeds2022_real_resource_final_window_envelope.py'
       - '.github/workflows/paper-s-reeds2022-wind-pv-source-intake.yml'
 permissions:
   contents: read
 jobs:
   authentic-renewable-inputs:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 115
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,8 +24,8 @@ jobs:
           python-version: '3.11'
       - name: Test calendar and invalid-source rejection
         run: |
-          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
-          PYTHONPATH=src python -m pytest -q tests/test_reeds2022_real_resource_intake.py
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'scipy>=1.11,<2' 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_reeds2022_real_resource_intake.py tests/test_reeds2022_real_wind_pv_state_storage_lp.py tests/test_reeds2022_real_resource_final_window_envelope.py
       - name: Download publisher land-based wind v1 CST resource data
         run: |
           mkdir -p /tmp/reeds2022 outputs
@@ -67,8 +71,63 @@ jobs:
               assert m['weather_adjusted_LP_completed'] is False
               print(tech,'SOURCE_ORIGINAL_MD5_AND_CST_2012_CALENDAR_PASS')
           PY
+      - name: Authenticate independent ReEDS2022 EFS reference hourly demand
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 300 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds2022/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds2022/demand_EFS_REFERENCE.h5' | md5sum --check --status
+      - name: Solve strict 2012 authentic-resource subset storage pilots with both interval assumptions
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.reeds2022_real_wind_pv_state_storage_lp \
+            --demand-h5 /tmp/reeds2022/demand_EFS_REFERENCE.h5 \
+            --wind-h5 /tmp/reeds2022/cf_wind-ons_reference_ba.h5 \
+            --pv-h5 /tmp/reeds2022/cf_upv_reference_ba.h5 \
+            --wind-sc /tmp/reeds2022/sc_wind-ons_reference_ba.csv \
+            --pv-sc /tmp/reeds2022/sc_upv_reference_ba.csv \
+            --county2zone /tmp/reeds2022/county2zone.csv \
+            --out outputs
+          test -s outputs/paper_s_reeds2022_real_resource_2030_lp_16_scenarios.csv
+          test -s outputs/paper_s_reeds2022_pure_state_BA_coverage.csv
+          python - <<'PY'
+          import pandas as pd,json
+          from pathlib import Path
+          x=pd.read_csv('outputs/paper_s_reeds2022_real_resource_2030_lp_16_scenarios.csv')
+          m=json.loads(Path('outputs/paper_s_reeds2022_real_source_model_boundary.json').read_text())
+          assert len(x)==16 and x.source_hours.eq(8760).all()
+          assert x.cyclic_SOC_0_to_0_verified.all()
+          assert set(x.hour_approximation)=={'trapezoidal_previous_instant','instantaneous_end_label'}
+          assert m['whole_state_resource_fleet_calibrated'] is False
+          assert m['physical_network_or_reliability_estimate'] is False
+          print('AUTHENTIC_2012_WEATHER_SOURCE_REEDS2022_DEMAND_CONDITIONAL_LP_VALIDATED')
+          PY
+      - name: Source-certify annual versus frozen 168h window near-optimal discharge for four 2030 states
+        run: |
+          /usr/bin/time -v env PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+            python -m energy_transition.reeds2022_real_resource_final_window_envelope \
+            --demand-h5 /tmp/reeds2022/demand_EFS_REFERENCE.h5 \
+            --wind-h5 /tmp/reeds2022/cf_wind-ons_reference_ba.h5 \
+            --pv-h5 /tmp/reeds2022/cf_upv_reference_ba.h5 \
+            --wind-sc /tmp/reeds2022/sc_wind-ons_reference_ba.csv \
+            --pv-sc /tmp/reeds2022/sc_upv_reference_ba.csv \
+            --county2zone /tmp/reeds2022/county2zone.csv \
+            --pilot-csv outputs/paper_s_reeds2022_real_resource_2030_lp_16_scenarios.csv \
+            --out outputs
+          python - <<'PY'
+          import pandas as pd
+          x=pd.read_csv('outputs/paper_s_reeds2022_real_resource_four_state_annual_vs_window_envelopes.csv')
+          y=pd.read_csv('outputs/paper_s_reeds2022_real_resource_twenty_source_LP_schedules.csv')
+          assert len(x)==4 and len(y)==20
+          assert set(x.state)=={'AZ','CO','ID','WY'}
+          assert x.window_first_hour.eq(4001).all() and x.window_last_hour.eq(4168).all()
+          assert (x.annual_width_mwh>=-.05).all()
+          assert (x.window_width_mwh>=-.05).all()
+          assert x.exact_optimal_face_certified.eq(False).all()
+          print('FOUR_REAL_SOURCE_STATES_ANNUAL_AND_WINDOW_NEAR_OPTIMAL_DISCHARGE_PASS')
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: paper-s-reeds2022-actual-wind-pv-original-source-schema-and-clock
+          name: paper-s-reeds2022-authentic-wind-pv-state-subset-LP-and-source-QA
           path: outputs/
           if-no-files-found: error

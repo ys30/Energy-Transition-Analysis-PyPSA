@@ -1,0 +1,53 @@
+name: Paper T complete 25-lag source MAE
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-25-lag-source-ci.yml'
+      - 'src/energy_transition/paper_t_all_25_lag_mae.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-lag-825:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install original-audit dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
+      - name: Verify original nonwrapping lag implementation
+        run: PYTHONPATH=src python -m pytest -q tests/test_efs2020_reeds2022_nonwrapping_lag.py
+      - name: Restore previously authenticated 11-state EFS hourly data and canonical T_S1 table
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/efs /tmp/canonical
+          gh run download 41262154939 -R "${{ github.repository }}" -n pypsa-usa-efs-source-evidence -D /tmp/efs
+          gh run download 42332230767 -R "${{ github.repository }}" -n paper-t-original-source-supplement-16-files-sha256 -D /tmp/canonical
+          test -s /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz
+          test -s /tmp/canonical/tables/T_S1_nonwrapping_33_state_year_lags.csv
+      - name: Retrieve publisher ReEDS 2022 original HDF5 and verify MD5
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/reeds
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Compute all 825 real-source MAEs and cross-check best, runner-up and zero
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_t_all_25_lag_mae \
+            --efs-hourly /tmp/efs/outputs/efs-core-west-2030-2040-2050-hourly.csv.gz \
+            --reeds-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --canonical /tmp/canonical/tables/T_S1_nonwrapping_33_state_year_lags.csv \
+            --outdir outputs/paper_t_full_25_lag
+      - name: Save source-derived lag curves and validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-all-825-verified-source-lag-mae
+          path: outputs/paper_t_full_25_lag/
+          retention-days: 90

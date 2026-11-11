@@ -7,6 +7,9 @@ def test_real_source_pair_blocks_physical_join():
     assert result["decision"]=="BLOCK_PHYSICAL_JOIN"
     assert result["failed_gates"]==[g for g in GATES if g!="source_integrity"]
     assert result["fitted_source_index_lag_counts_as_authoritative_clock"] is False
+    assert "published scenario labels" in GATES["source_integrity"]
+    assert "not authenticated" in DEFAULT_PASSPORT["evidence"]["source_integrity"]["basis"]
+    assert result["gate_results"]["source_integrity"]["passed"] is True
 
 def test_numerical_alignment_cannot_override_source_clock_evidence():
     passport=copy.deepcopy(DEFAULT_PASSPORT)

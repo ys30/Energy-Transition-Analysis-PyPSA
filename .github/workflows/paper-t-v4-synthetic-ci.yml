@@ -1,0 +1,34 @@
+name: Paper T v4 synthetic-only CI
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-v4-synthetic-ci.yml'
+      - 'research/paper_t_hypothetical_downstream/paper_t_corrected_v4.py'
+      - 'research/paper_t_hypothetical_downstream/test_corrected_v4.py'
+permissions:
+  contents: read
+jobs:
+  check-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned synthetic-audit runtime
+        run: python -m pip install 'numpy==1.26.4'
+      - name: Run v4 regression tests
+        run: |
+          cd research/paper_t_hypothetical_downstream
+          python -m unittest -v test_corrected_v4.py
+      - name: Generate all 300 synthetic cases and 75 diagnostic groups
+        run: python research/paper_t_hypothetical_downstream/paper_t_corrected_v4.py --outdir outputs/paper_t_v4_synthetic
+      - name: Upload v4 synthetic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-v4-corrected-synthetic-300cases
+          path: outputs/paper_t_v4_synthetic/
+          retention-days: 90

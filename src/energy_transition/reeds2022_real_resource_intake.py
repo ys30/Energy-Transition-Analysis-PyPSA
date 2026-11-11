@@ -52,7 +52,10 @@ def inspect_weather_index(raw):
   time_note="Publisher-defined fixed CST (UTC-06:00), native labels are timezone-naive"
  else:
   target=target.tz_localize("Etc/GMT+6")
-  if not native.equals(target):raise ValueError("CST aware 2012 CF calendar mismatch; actual_first="+str(native[0])+" expected_first="+str(target[0])+" actual_last="+str(native[-1])+" expected_last="+str(target[-1])+" actual_timezone="+str(native.tz))
+  if not all(str(label).endswith("-06:00") for label in (labels[i] for i in choices)):
+   raise ValueError("Publisher 2012 capacity factor labels not fixed UTC-06:00")
+  if not native.tz_convert("UTC").equals(target.tz_convert("UTC")):
+   raise ValueError("CST aware 2012 CF UTC instant mismatch; actual_first="+str(native[0])+" expected_first="+str(target[0])+" actual_last="+str(native[-1])+" expected_last="+str(target[-1]))
   time_note="Publisher-defined fixed CST (UTC-06:00), native labels offset-aware"
  return choices,{"index_rows_total":len(labels),"index_first":labels[0],
   "index_last":labels[-1],"2012_first":labels[choices[0]],

@@ -1,0 +1,44 @@
+name: Paper T WP2 UTC-audited measured load and real solar irradiance
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paper-t-wp2-real-resource.yml'
+      - 'src/energy_transition/paper_t_wp2_real_resource.py'
+permissions:
+  contents: read
+jobs:
+  real-resource-clock-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Source-clock-audited 2018 AZPS and NASA POWER GHI sensitivity
+        run: PYTHONPATH=src python -m energy_transition.paper_t_wp2_real_resource --outdir outputs/paper_t_wp2_real_resource
+      - name: Confirm real sources, 15 nonwrapping scenarios and conservation
+        run: |
+          python - <<'PY'
+          import csv,json
+          from pathlib import Path
+          d=Path('outputs/paper_t_wp2_real_resource')
+          v=list(csv.DictReader((d/'azps_power_2018_15_scenarios.csv').open()))
+          p=json.loads((d/'source_evidence.json').read_text())
+          assert len(v)==15 and len({(r['capacity_proxy_mw'],r['lag_h']) for r in v})==15
+          assert p['n_load_2018']==p['n_ghi_2018']==p['matched_intervals']==8760
+          assert all(int(r['compared_hours'])==8754 for r in v)
+          for capacity in {r['capacity_proxy_mw'] for r in v}:
+              sub=[r for r in v if r['capacity_proxy_mw']==capacity]
+              assert all(abs(float(r['demand_support_delta_pct'])) < 1.0 for r in sub)
+              assert len({round(float(r['solar_proxy_mwh']),4) for r in sub})==1
+          assert p['independent_review_required'] is True
+          print('PASS: 8760 UTC-hour matched intervals; 15 nonwrapping shifts; solar totals fixed; load-edge effects quantified.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-wp2-real-2018-azps-phoenix-nasa-power-15cases
+          path: outputs/paper_t_wp2_real_resource
+          retention-days: 90

@@ -1,9 +1,4 @@
-"""Paper T bidirectional sensitivity: fully synthetic, not actual EFS/ReEDS hours.
-
-Contract: robustness.calculate emits net_peak_hour and overlap_pct
-(already in percent units), not legacy net_peak_clock_hour or
-solar_overlap_fraction. No source-clock or empirical join is claimed.
-"""
+"""Paper T bidirectional sensitivity: fully synthetic, not actual EFS/ReEDS hours."""
 import argparse,csv,json
 from pathlib import Path
 from paper_t_robustness import build_scenario,shifted,calculate,SOLAR_SCALES,EVENING_PEAK_HOURS
