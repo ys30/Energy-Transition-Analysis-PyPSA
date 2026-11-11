@@ -70,10 +70,18 @@ def evaluate(rows,capacity,lag):
   timestamps.append(b["end_utc"])
  if not demand:raise ValueError("No comparable hours")
  net=[x-y for x,y in zip(demand,solar)]
+ avg_d=sum(demand)/len(demand);avg_s=sum(solar)/len(solar)
+ variance_d=sum((x-avg_d)**2 for x in demand)
+ variance_s=sum((y-avg_s)**2 for y in solar)
+ denom=math.sqrt(variance_d*variance_s)
+ correlation=sum((x-avg_d)*(y-avg_s) for x,y in zip(demand,solar))/denom if denom else None
+ solar_weighted_load=sum(x*y for x,y in zip(demand,solar))/sum(solar)
  peak=max(net);idx=net.index(peak)
  return {"capacity_proxy_mw":capacity,"lag_h":lag,"compared_hours":len(demand),
    "net_peak_mw":peak,"net_peak_end_utc":timestamps[idx],
    "overlap_fraction":sum(min(x,y) for x,y in zip(demand,solar))/sum(solar),
+   "load_solar_pearson_r":correlation,
+   "solar_weighted_load_mw":solar_weighted_load,
    "potential_surplus_mwh":sum(max(0,y-x) for x,y in zip(demand,solar)),
    "demand_mwh":sum(demand),"solar_proxy_mwh":sum(solar)}
 def main():
@@ -93,6 +101,8 @@ def main():
    r["peak_delta_mw"]=r["net_peak_mw"]-ref["net_peak_mw"]
    r["peak_delta_pct"]=100*(r["net_peak_mw"]/ref["net_peak_mw"]-1)
    r["overlap_delta_pp"]=100*(r["overlap_fraction"]-ref["overlap_fraction"])
+   r["load_solar_correlation_delta"]=r["load_solar_pearson_r"]-ref["load_solar_pearson_r"]
+   r["solar_weighted_load_delta_mw"]=r["solar_weighted_load_mw"]-ref["solar_weighted_load_mw"]
    r["demand_support_delta_pct"]=100*(r["demand_mwh"]/ref["demand_mwh"]-1)
    assert abs(r["solar_proxy_mwh"]-ref["solar_proxy_mwh"])<1e-5
    # Nonwrapping index shifts change which edge demand hours are sampled; record, do not hide, this difference.
@@ -108,6 +118,7 @@ def main():
   "capacity_proxy_mw":SCALES_MW,"lags":LAGS,
   "common_nonwrap_support":"2018 UTC calendar indices 3..8756; 8754 hours for each scenario",
   "caution":"Nonwrapping shifts hold target UTC/resource times fixed but move load into/out of comparison edges, so comparison-window demand energy can vary; full-year source records are unmodified.",
-  "independent_review_required":True},indent=2)+chr(10))
+  "independent_review_required":True,
+  "overlap_caution":"When all proxy irradiance-derived output is below load, min(load,solar)/sum(solar) is identically 100%, so report correlation and irradiance-weighted load as diagnostic alternatives."},indent=2)+chr(10))
  print(json.dumps(results,indent=2))
 if __name__=="__main__":main()
