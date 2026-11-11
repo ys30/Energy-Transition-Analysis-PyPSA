@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install HDF and numeric stack
-        run: python -m pip install "pandas>=2.0,<3" "tables>=3.9"
+        run: python -m pip install "pandas>=2.0,<3" "tables>=3.9" "h5py>=3.10" "numpy>=1.26"
       - name: Run source-hashed, fail-closed Idaho seven-county shares
         run: python src/energy_transition/paper_t_idaho_county_share_audit.py --output results/paper_t/idaho_county_shares_2016_2023.json
       - uses: actions/upload-artifact@v4
