@@ -33,7 +33,7 @@ def probe(zip_path,out):
         names=[n for n in z.namelist() if not n.endswith("/")]
         for typ,pattern in REQUIRED_CATEGORIES.items():
             matches=[n for n in names if re.search(pattern,n)]
-            if len(matches)!=1:raise ValueError(f"Expected exactly one source {typ} workbook, got {matches}")
+            if len(matches)!=1:raise ValueError(f"Expected exactly one source {typ} workbook, got {matches}; actual ZIP filenames={names[:80]}")
             buf=io.BytesIO(z.read(matches[0]))
             book=openpyxl.load_workbook(buf,read_only=True,data_only=True)
             sheets=[]
