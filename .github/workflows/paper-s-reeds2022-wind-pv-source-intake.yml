@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
       - name: Test calendar and invalid-source rejection
         run: |
-          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'scipy>=1.11,<2' 'pytest>=8'
           PYTHONPATH=src python -m pytest -q tests/test_reeds2022_real_resource_intake.py tests/test_reeds2022_real_wind_pv_state_storage_lp.py
       - name: Download publisher land-based wind v1 CST resource data
         run: |
