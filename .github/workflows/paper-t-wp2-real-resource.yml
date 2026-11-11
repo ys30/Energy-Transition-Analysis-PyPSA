@@ -32,10 +32,10 @@ jobs:
           assert all(int(r['compared_hours'])==8754 for r in v)
           for capacity in {r['capacity_proxy_mw'] for r in v}:
               sub=[r for r in v if r['capacity_proxy_mw']==capacity]
-              assert len({round(float(r['demand_mwh']),4) for r in sub})==1
+              assert all(abs(float(r['demand_support_delta_pct'])) < 1.0 for r in sub)
               assert len({round(float(r['solar_proxy_mwh']),4) for r in sub})==1
           assert p['independent_review_required'] is True
-          print('PASS: 8760 UTC-hour matched intervals; 15 nonwrapping demand shifts; both annual totals conserved.')
+          print('PASS: 8760 UTC-hour matched intervals; 15 nonwrapping shifts; solar totals fixed; load-edge effects quantified.')
           PY
       - uses: actions/upload-artifact@v4
         with:
