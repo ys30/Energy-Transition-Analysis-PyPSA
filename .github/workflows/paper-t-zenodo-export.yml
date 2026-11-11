@@ -1,0 +1,45 @@
+name: Paper T Zenodo source snapshot export
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/paper-t-zenodo-export.yml']
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Assemble pinned tracked source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p zenodo-src/src/energy_transition zenodo-src/research zenodo-src/tests zenodo-src/.github/workflows zenodo-src/docs
+          cp -a src/energy_transition/. zenodo-src/src/energy_transition/
+          if [ -d research/paper_t_hypothetical_downstream ]; then cp -a research/paper_t_hypothetical_downstream zenodo-src/research/; fi
+          for p in pyproject.toml README.md; do if [ -f "$p" ]; then cp "$p" zenodo-src/; fi; done
+          find tests -maxdepth 1 -type f \( -iname '*paper_t*' -o -iname '*temporal_join*' \) -exec cp {} zenodo-src/tests/ \;
+          find .github/workflows -maxdepth 1 -type f -name 'paper-t-*.yml' -exec cp {} zenodo-src/.github/workflows/ \;
+          find docs -maxdepth 1 -type f \( -iname 'PAPER_T_*' -o -iname 'paper_t_*' \) -exec cp {} zenodo-src/docs/ \;
+          git rev-parse HEAD > zenodo-src/GITHUB_COMMIT.txt
+          git status --short > zenodo-src/CHECKOUT_STATUS.txt
+          python --version > zenodo-src/PYTHON_VERSION.txt 2>&1
+          python -m pip freeze > zenodo-src/BARE_RUNNER_FREEZE.txt
+          printf '%s\n' 'Subset snapshot exported from checked-out GitHub repository.' 'BARE_RUNNER_FREEZE.txt reflects unmodified runner; not a locked full experiment environment.' 'Original third-party datasets excluded pending publisher licensing and transfer limits.' > zenodo-src/SNAPSHOT_SCOPE.txt
+          find zenodo-src -type f -print0 | sort -z | xargs -0 sha256sum > zenodo-src/SNAPSHOT_SHA256SUMS.txt
+          python - <<'PY'
+          import zipfile, pathlib
+          with zipfile.ZipFile('paper_t_code_snapshot.zip','w',zipfile.ZIP_DEFLATED,compresslevel=7) as z:
+              for p in sorted(pathlib.Path('zenodo-src').rglob('*')):
+                  if p.is_file(): z.write(p,p.relative_to('zenodo-src'))
+          print('Snapshot bytes:',pathlib.Path('paper_t_code_snapshot.zip').stat().st_size)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-t-zenodo-source-snapshot
+          path: paper_t_code_snapshot.zip
+          retention-days: 90
