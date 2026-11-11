@@ -25,7 +25,7 @@ def fetch_source(ba,kind):
     return list(csv.DictReader(io.StringIO(body.decode("utf-8-sig")))),{
         "url":url,"sha256":hashlib.sha256(body).hexdigest(),"bytes":len(body)}
 def value(x):
-    if x is None or str(x).strip().upper() in ("MISSING","NAN",""):
+    if x is None or str(x).strip().upper() in ("MISSING","EMPTY","NAN",""):
         return None
     return float(x)
 def validate_and_merge(raw,clean):
