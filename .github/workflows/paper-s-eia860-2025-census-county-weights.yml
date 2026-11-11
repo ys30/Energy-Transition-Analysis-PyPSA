@@ -1,0 +1,70 @@
+name: Paper S verified EIA860 2025 fleet county weights vs ReEDS 2012 potential
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/eia860_2025_vs_reeds_spatial_weights.py'
+      - 'tests/test_eia860_2025_vs_reeds_spatial_weights.py'
+      - '.github/workflows/paper-s-eia860-2025-census-county-weights.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-eia-fleet-vs-potential:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install EIA census and source auditing requirements
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'openpyxl>=3.1' 'pytest>=8'
+      - name: Verify county identifiers, geography coverage and unit tests
+        run: PYTHONPATH=src python -m pytest -q tests/test_eia860_2025_vs_reeds_spatial_weights.py
+      - name: Download independently published EIA, Census FIPS, ReEDS original potential
+        run: |
+          set -eu
+          mkdir -p /tmp/refs outputs
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 600 \
+            https://www.eia.gov/electricity/data/eia860/xls/eia8602025.zip \
+            -o /tmp/refs/eia8602025.zip
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
+            https://www2.census.gov/geo/docs/reference/codes2020/national_county2020.txt \
+            -o /tmp/refs/national_county2020.txt
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
+            'https://zenodo.org/records/18422200/files/sc_wind-ons_reference_county.csv?download=1' \
+            -o /tmp/refs/sc_wind-ons_reference_county.csv
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
+            'https://zenodo.org/records/18407660/files/sc_upv_reference_county.csv?download=1' \
+            -o /tmp/refs/sc_upv_reference_county.csv
+          echo '49ab4e41dc386453b5fd32e5810774d4  /tmp/refs/sc_wind-ons_reference_county.csv' | md5sum --check
+          echo 'e10b1a64f3a67d163e739b735938eb78  /tmp/refs/sc_upv_reference_county.csv' | md5sum --check
+          sha256sum /tmp/refs/eia8602025.zip /tmp/refs/national_county2020.txt
+      - name: Join official 2025 operating generator and plant site to Census county FIPS
+        run: |
+          PYTHONPATH=src python -m energy_transition.eia860_2025_vs_reeds_spatial_weights \
+            --annual-zip /tmp/refs/eia8602025.zip \
+            --census-file /tmp/refs/national_county2020.txt \
+            --wind-sc /tmp/refs/sc_wind-ons_reference_county.csv \
+            --pv-sc /tmp/refs/sc_upv_reference_county.csv \
+            --out outputs
+          python - <<'PY'
+          from pathlib import Path
+          import json,pandas as pd
+          p=Path('outputs')
+          s=pd.read_csv(p/'paper_s_eia860_2025_vs_reeds_county_spatial_weight_8_summary.csv')
+          x=pd.read_csv(p/'paper_s_eia860_2025_vs_reeds_county_spatial_weights.csv',dtype={'county_fips':str})
+          m=json.loads((p/'paper_s_eia860_2025_vs_reeds_spatial_manifest.json').read_text())
+          assert len(s)==8 and set(s.state)=={'AZ','CO','ID','WY'}
+          assert not x.empty
+          assert m['only_potential_vs_observed_capacity_spatial_weights_compared']
+          assert m['LPs_solved']==0 and not m['2025_source_weather_generation_reproduced']
+          assert m['this_is_2025_not_forecast_2030']
+          print('EIA860_2025_OPERATING_FLEET_VS_REEDS_POTENTIAL_SPATIAL_AUDIT_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-eia860-2025-observed-fleet-versus-reeds-county-potential-weight-comparison
+          path: outputs/
+          if-no-files-found: warn
