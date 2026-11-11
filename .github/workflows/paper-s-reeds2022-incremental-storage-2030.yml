@@ -1,0 +1,56 @@
+name: Paper S ReEDS2022 2030 incremental storage design frontiers
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_incremental_storage_design_2030.py'
+      - 'tests/test_reeds2022_incremental_storage_design_2030.py'
+      - '.github/workflows/paper-s-reeds2022-incremental-storage-2030.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  source-matched-storage-increments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install analysis and tests
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Validate storage comparison dimensions and annualized hurdle units
+        run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_incremental_storage_design_2030.py
+      - name: Retrieve successful original source-weather 180-LP archive
+        run: |
+          mkdir -p /tmp/old outputs
+          gh run download 43051615043 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-2030-county-180-storage-dimensions-and-hurdles \
+            --dir /tmp/old
+      - name: Analyze fixed-power 4h to 8h and fixed-duration 10 to 25 percent peak
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_incremental_storage_design_2030 \
+            --source /tmp/old/paper_s_reeds2022_2030_180_mix_power_duration_LPs.csv \
+            --out outputs
+          python - <<'PY'
+          import json,pandas as pd
+          from pathlib import Path
+          d=pd.read_csv('outputs/paper_s_reeds2022_72_incremental_4h_to_8h_fixed_power.csv')
+          p=pd.read_csv('outputs/paper_s_reeds2022_72_incremental_10_to_25pct_fixed_duration.csv')
+          m=json.loads(Path('outputs/paper_s_reeds2022_144_incremental_storage_design_manifest.json').read_text())
+          assert len(d)==len(p)==72
+          assert d.incremental_power_kw.eq(0).all()
+          assert p.incremental_power_kw.gt(0).all()
+          assert (d.incremental_annual_variable_savings_usd>=-.10).all()
+          assert (p.incremental_annual_variable_savings_usd>=-.10).all()
+          assert m['not_actual_investment_npv']
+          print('SOURCE_180_LP_144_INCREMENTAL_STORAGE_DESIGN_COMPARISONS_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-2030-144-incremental-storage-sizing-hurdles
+          path: outputs/
+          if-no-files-found: error
