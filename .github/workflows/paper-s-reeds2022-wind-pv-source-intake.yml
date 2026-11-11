@@ -1,0 +1,74 @@
+name: ReEDS2022 authentic wind and PV CST 2012 source verification
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/reeds2022_real_resource_intake.py'
+      - 'tests/test_reeds2022_real_resource_intake.py'
+      - '.github/workflows/paper-s-reeds2022-wind-pv-source-intake.yml'
+permissions:
+  contents: read
+jobs:
+  authentic-renewable-inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test calendar and invalid-source rejection
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_reeds2022_real_resource_intake.py
+      - name: Download publisher land-based wind v1 CST resource data
+        run: |
+          mkdir -p /tmp/reeds2022 outputs
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/18422200/files/cf_wind-ons_reference_ba.h5?download=1' \
+            -o /tmp/reeds2022/cf_wind-ons_reference_ba.h5
+          echo '8fd010e1d38f9a8591ba58c9eff1a368  /tmp/reeds2022/cf_wind-ons_reference_ba.h5' | md5sum --check --status
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 120 \
+            'https://zenodo.org/records/18422200/files/sc_wind-ons_reference_ba.csv?download=1' \
+            -o /tmp/reeds2022/sc_wind-ons_reference_ba.csv
+          echo 'f5b5665c7133978bb09c3bb12c77dfba  /tmp/reeds2022/sc_wind-ons_reference_ba.csv' | md5sum --check --status
+      - name: Download publisher utility PV v1 CST resource data and county/BA mapping
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/18407660/files/cf_upv_reference_ba.h5?download=1' \
+            -o /tmp/reeds2022/cf_upv_reference_ba.h5
+          echo '398165a0a7ec5c21d3e891a28162a217  /tmp/reeds2022/cf_upv_reference_ba.h5' | md5sum --check --status
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 120 \
+            'https://zenodo.org/records/18407660/files/sc_upv_reference_ba.csv?download=1' \
+            -o /tmp/reeds2022/sc_upv_reference_ba.csv
+          echo 'd2545544d96ffb1a4645750830856606  /tmp/reeds2022/sc_upv_reference_ba.csv' | md5sum --check --status
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 120 \
+            'https://zenodo.org/records/18407660/files/county2zone.csv?download=1' \
+            -o /tmp/reeds2022/county2zone.csv
+          echo 'f269adef29b6d96317a845f6129b5ad9  /tmp/reeds2022/county2zone.csv' | md5sum --check --status
+      - name: Audit original HDF5 resource data types, CST chronology and capacity/geography schema
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_real_resource_intake \
+            --wind-h5 /tmp/reeds2022/cf_wind-ons_reference_ba.h5 \
+            --pv-h5 /tmp/reeds2022/cf_upv_reference_ba.h5 \
+            --wind-capacity /tmp/reeds2022/sc_wind-ons_reference_ba.csv \
+            --pv-capacity /tmp/reeds2022/sc_upv_reference_ba.csv \
+            --county2zone /tmp/reeds2022/county2zone.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for tech in ('wind','pv'):
+              m=json.loads(Path(f'outputs/reeds2022_{tech}_actual_original_source_intake.json').read_text())
+              assert m['status']=='OFFICIAL_2012_REEDS_CF_SOURCE_INTAKE_AUTHENTICATED'
+              assert m['native_weather_clock']['2012_rows']==8760
+              assert m['official_demand_and_weather_hour_interval_equivalence_verified'] is False
+              assert m['weather_adjusted_LP_completed'] is False
+              print(tech,'SOURCE_ORIGINAL_MD5_AND_CST_2012_CALENDAR_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-actual-wind-pv-original-source-schema-and-clock
+          path: outputs/
+          if-no-files-found: error
