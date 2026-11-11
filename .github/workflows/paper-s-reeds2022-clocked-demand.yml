@@ -1,0 +1,54 @@
+name: Paper S ReEDS2022 explicitly clocked demand replacement source
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/energy_transition/reeds_2022_clocked_demand_branch.py'
+      - 'tests/test_reeds_2022_clocked_demand_branch.py'
+      - '.github/workflows/paper-s-reeds2022-clocked-demand.yml'
+permissions:
+  contents: read
+jobs:
+  original-publisher-input:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install and verify native source-clock logic
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_reeds_2022_clocked_demand_branch.py tests/test_reeds2022_reference_hdf5_clock.py
+      - name: Download original official HDF5 and authenticate MD5
+        run: |
+          mkdir -p /tmp/official outputs
+          curl -fLsS --retry 3 --connect-timeout 25 --max-time 300 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/official/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/official/demand_EFS_REFERENCE.h5' | md5sum --check --status
+      - name: Stage independent 2030 2040 2050 real-source 2012-CST demand
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds_2022_clocked_demand_branch \
+            --source /tmp/official/demand_EFS_REFERENCE.h5 \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          a=pd.read_csv('outputs/reeds2022_replacement_four_states_three_years.csv')
+          m=json.loads(Path('outputs/reeds2022_replacement_source_clock_manifest.json').read_text())
+          assert len(a)==12 and (a.hours==8760).all()
+          assert m['status']=='REEDS2022_PUBLISHER_CLOCKED_DEMAND_VERIFIED'
+          assert m['legacy_EFS2020_LocalHourID_used'] is False
+          assert m['renewable_join_admitted'] is False
+          assert m['real_wind_solar_LP_solved'] is False
+          print('PAPER_S_REEDS2022_NEW_SOURCE_NATIVE_2012_CST_ADMITTED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-independent-source-state-year-clock-validation
+          path: outputs/
+          if-no-files-found: error
