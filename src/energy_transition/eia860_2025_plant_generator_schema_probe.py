@@ -53,6 +53,10 @@ def probe(zip_path,out):
     print("OFFICIAL_EIA860_2025_PLANT_GENERATOR_SCHEMA_PROBE_COMPLETE_NOT_FLEET_CALIBRATED")
     print("plant:",[x["sheet_name"] for x in report["candidate_workbooks"]["plant"]["sheets"]])
     print("generator:",[x["sheet_name"] for x in report["candidate_workbooks"]["generator"]["sheets"]])
+    for kind,item in report["candidate_workbooks"].items():
+        for sheet in item["sheets"]:
+            if kind=="plant" or sheet["sheet_name"]=="Operable":
+                print("EIA860_VERIFIED_HEADER_PREVIEW",kind,sheet["sheet_name"],json.dumps(sheet["first_nonempty_rows_preview"][:4]))
     return report
 
 def main():
