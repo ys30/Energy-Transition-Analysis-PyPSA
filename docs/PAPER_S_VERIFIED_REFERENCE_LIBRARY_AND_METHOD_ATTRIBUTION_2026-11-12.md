@@ -42,3 +42,18 @@ The integrity MD5 checks and source county/instant semantics are part of this pa
 - Methods (source): cite [D1–D3] and original audit outputs. [R5] only supplies a background explanation of the ReEDS *framework*, not the specific 2022 publisher file.
 - Conclusion: numerical county TV, AZ 2012 threshold crossing, cross-year weather effects rely on archived run IDs, **not** on generic peer-reviewed background papers.
 - Final submission reference style needs target journal instructions and final confirmation of the archived source datasets' author/title/license/year metadata.
+
+
+## Publisher landing-page metadata authenticated 2026-11-12 — supersedes previous unverified-DOI note
+
+Source metadata read directly from the **specific frozen Zenodo v1 source records**, not from generic ReEDS model-documentation assumptions:
+
+**[D1a]** Mowers, Matthew; Pinchuk, Pavlo; Igwe, Victor; Mai, Trieu (2026). *ReEDS: Land-based wind profiles*. Zenodo, version v1 (4 February 2026). **https://doi.org/10.5281/zenodo.18422200** . Exact county wind reference HDF5 MD5 `0670813d0a18b688d698ca24cf67fb92`; original source CSV MD5 `49ab4e41dc386453b5fd32e5810774d4`. Direct source: https://zenodo.org/records/18422200 .
+
+**[D1b]** Sergi, Brian; Cole, Wesley; Rivers, Marie; Mowers, Matthew (2026). *ReEDS: Utility-scale PV profiles*. Zenodo, version v1 (4 February 2026). **https://doi.org/10.5281/zenodo.18407660** . Exact original county PV reference HDF5 MD5 `aba834ea4c592023bca47de2ba79e7ec`; source CSV MD5 `e10b1a64f3a67d163e739b735938eb78`. Original source documentation explicitly confirms **PV CF = grid MW AC / array MW DC** and multiplication by **ILR 1.34** to obtain PV-grid MW AC / PV-inverter nameplate MW AC. Direct source: https://zenodo.org/records/18407660 .
+
+**[D1c]** Murphy, Caitlin; Mai, Trieu; Jadun, Paige; Ho, Jonathan; McMillan, Colin; Mayernik, Jack (2026). *ReEDS: Electricity demand profiles 2022*. Zenodo, version v1 (4 February 2026). **https://doi.org/10.5281/zenodo.18461543** . Original `demand_EFS_REFERENCE.h5` MD5 `7b2055d43200744a16a8c4fed68b1a17`. Publisher specifies **gross end-use load** (distributed generation not subtracted), in **hour-ending MWh/h**. Each modeled 2010–2050 load year is on the 2012 weather/calendar/weekday–holiday reference, with last day 31 December excluded to yield 8,760 source hours. Direct source: https://zenodo.org/records/18461543 .
+
+**Publisher-authenticated source time semantics:** Both wind and PV original resource product descriptions explicitly state **hourly resolution, fixed U.S. CST UTC−06:00, instantaneous values on the hour**, weather years **2007–2013 + 2016–2023**, and leap-year **December 31 omission**. Hence point-versus-hour-ending mismatch is documented upstream, not simply suspected. The source does *not* supply an authenticated hourly integrated resource-energy transformation for our custom dispatch approximation. Cite these records in Methods for all three source facts; keep the noncyclic trapezoid assumption and first-hour fallback plainly identified as **our approximate conversion**, not publisher-certified energy observations.
+
+**Version fidelity:** The wind/PV Zenodo pages note that newer versions may exist. The paper deliberately pins **v1 specific record DOI and original binary MD5**, not an automatically redirected latest release. Do not silently change vintage or combine later weather/technology assumptions. Dataset landing-page license text was not explicit in the accessible view; **do not claim an unrestricted license until independently checked**, even though public file download is available.
