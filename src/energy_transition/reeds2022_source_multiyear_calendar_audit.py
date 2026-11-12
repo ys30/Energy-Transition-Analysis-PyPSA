@@ -32,6 +32,7 @@ def calendar_audit(index,tech):
         missing=theoretical.difference(native)
         extraneous=native.difference(theoretical)
         if len(extraneous):raise ValueError("Unexpected out-of-year original source dates")
+        if len(hourly_gaps):raise ValueError(f"Non-hourly gap within source year {y}: {len(hourly_gaps)}")
         result.append({
             "technology":tech,"weather_year":y,
             "source_row_count":observed,
