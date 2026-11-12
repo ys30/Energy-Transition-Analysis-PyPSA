@@ -31,7 +31,7 @@ def test_192_scenario_matching_and_no_artificial_hour_effect():
     assert geo.siting_10usd_screen_status_agrees.all()
 
 def test_missing_one_original_hour_mode_rejected():
-    with pytest.raises(ValueError,match="192"):
+    with pytest.raises(ValueError,match="2 original-source 96-LP modes"):
         summarize_modes(example().iloc[:-1])
 
 def test_mismatched_source_duration_rejected():
