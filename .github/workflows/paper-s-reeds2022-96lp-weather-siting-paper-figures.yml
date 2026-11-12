@@ -1,0 +1,55 @@
+name: Paper S authenticated 96 LP weather x siting final manuscript figures
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_96lp_cross_weather_paper_figures.py'
+      - 'tests/test_reeds2022_96lp_cross_weather_paper_figures.py'
+      - '.github/workflows/paper-s-reeds2022-96lp-weather-siting-paper-figures.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verified-source-96lp-figures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7' 'pytest>=8'
+      - name: Validate source-backed figure input guard unit tests
+        run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_96lp_cross_weather_paper_figures.py
+      - name: Download exact original 96-LP verified archive only
+        run: |
+          mkdir -p /tmp/source outputs
+          gh run download 43281182390 --repo "${{ github.repository }}" \
+            --name paper-s-reeds-4-weather-year-eia2025-siting-96-LP-source-sensitivity \
+            --dir /tmp/source
+      - name: Create main-text figure and difference heatmap with source-value validation
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_96lp_cross_weather_paper_figures \
+            --source /tmp/source/paper_s_2010_2013_weather_year_16_siting_comparisons.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('outputs')
+          for stem in ('paper_s_96lp_weather_x_county_siting_main_figure',
+                       'paper_s_96lp_weather_x_siting_difference_heatmap'):
+              for ext in ('png','pdf'):
+                  assert (p/f'{stem}.{ext}').stat().st_size>5000
+          m=json.loads((p/'paper_s_96lp_weather_x_siting_figures_manifest.json').read_text())
+          assert m['flip_state_weather']==[{'state':'AZ','weather_year':2012}]
+          assert m['source_original_LPs']==96
+          assert m['source_weather_is_not_future_climate_change']
+          print('PAPER_S_96LP_FOUR_WEATHER_YEAR_SITING_MAIN_FIGURES_ACCEPTED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-96lp-cross-weather-year-county-siting-publication-figures
+          path: outputs/
+          if-no-files-found: error
