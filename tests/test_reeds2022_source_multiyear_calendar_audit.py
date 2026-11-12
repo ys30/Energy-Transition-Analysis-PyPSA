@@ -45,5 +45,5 @@ def test_duplicate_source_instants_rejected():
 def test_absent_reference_year_fails():
     a=synthetic_original_index()
     subset=a[~pd.DatetimeIndex(pd.to_datetime(a.astype(str))).year.isin([2012])]
-    with pytest.raises(ValueError,match="missing year"):
+    with pytest.raises(ValueError,match="Missing mandatory frozen 2012"):
         calendar_audit(subset,"wind")
