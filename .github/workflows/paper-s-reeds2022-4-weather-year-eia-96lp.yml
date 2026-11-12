@@ -98,10 +98,10 @@ jobs:
           from pathlib import Path
           import json,pandas as pd
           o=Path('outputs')
-          a=pd.read_csv(o/'paper_s_2011_2014_weather_year_96_geography_duration_LPs.csv')
-          b=pd.read_csv(o/'paper_s_2011_2014_weather_year_32_storage_triplets.csv')
-          c=pd.read_csv(o/'paper_s_2011_2014_weather_year_16_siting_comparisons.csv')
-          m=json.loads((o/'paper_s_2011_2014_weather_96LP_manifest.json').read_text())
+          a=pd.read_csv(o/'paper_s_2010_2013_weather_year_96_geography_duration_LPs.csv')
+          b=pd.read_csv(o/'paper_s_2010_2013_weather_year_32_storage_triplets.csv')
+          c=pd.read_csv(o/'paper_s_2010_2013_weather_year_16_siting_comparisons.csv')
+          m=json.loads((o/'paper_s_2010_2013_weather_96LP_manifest.json').read_text())
           assert len(a)==96 and len(b)==32 and len(c)==16
           assert a.solver_status.eq('optimal').all() and a.max_equality_residual_mwh.max()<1e-5
           assert m['frozen_2012_24_LP_max_objective_delta_usd']<.1
