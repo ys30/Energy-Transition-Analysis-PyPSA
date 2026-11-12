@@ -30,7 +30,7 @@ def test_wrong_hour_and_invalid_cf_fail_closed():
     source=pd.date_range("2011-01-01",periods=8760,freq="h")
     x=np.full(8760,.5)
     bad=source.delete(5).append(pd.DatetimeIndex([source[5]+pd.Timedelta(minutes=30)])).sort_values()
-    with pytest.raises(ValueError,match="Unsupported missing"):
+    with pytest.raises(ValueError,match="exact whole hour"):
         align_weather_year_to_reeds_2012_support(bad,x)
     x[5]=1.5
     with pytest.raises(ValueError,match="within"):
