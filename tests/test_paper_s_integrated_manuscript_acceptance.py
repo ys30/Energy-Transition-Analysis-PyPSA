@@ -21,7 +21,7 @@ def test_integrated_paper_all_primary_sections_and_real_refs():
                     "## 3. Results","## 4. Discussion","## 5. Conclusions",
                     "## Data and code availability","## References and original data sources"):
         assert heading in s,heading
-    for ref in ("R1","R2","R3","R4","R5","D1","D2","D3"):
+    for ref in ("R1","R2","R3","R4","R5","D1a","D1b","D1c","D2","D3"):
         assert re.search(r"\["+ref+r"\]",s),ref
     for doi in ("10.1016/j.euroecorev.2018.07.004","10.1016/j.joule.2018.08.006",
                 "10.1038/s41592-019-0686-2","10.5334/jors.188"):
