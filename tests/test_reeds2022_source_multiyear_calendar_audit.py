@@ -28,7 +28,7 @@ def test_15_year_source_calendar_and_2012_boundary():
 def test_wind_pv_source_clock_mismatch_fails():
     a=synthetic_original_index()
     b=a.copy()
-    b[100]=b"2007-01-05 04:30:00"
+    b[6*8760-1]=b"2012-12-31 00:00:00"
     with pytest.raises(ValueError,match="clocks disagree"):
         compare_indexes(a,b)
 
