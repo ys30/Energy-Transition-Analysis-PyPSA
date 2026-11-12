@@ -82,7 +82,7 @@ def run(wind_h5,pv_h5,out):
     manifest={
       "status":"ORIGINAL_REEDS_WIND_PV_2007_2021_SOURCE_NATIVE_CALENDAR_VERIFIED",
       "source_wind_md5":WIND_COUNTY_MD5,"source_pv_md5":PV_COUNTY_MD5,
-      "native_clocks_identical":True,"audited_weather_years":list(YEARS),
+      "native_clocks_identical":True,"audited_weather_years":ws.weather_year.astype(int).tolist(),
       "wind_pv_calendar_rows":len(df),
       "source_2012_missing_dec31_hours":24,
       "conventional_full_calendar_candidate_years":candidate,
