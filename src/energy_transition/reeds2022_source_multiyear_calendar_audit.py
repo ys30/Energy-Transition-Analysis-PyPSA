@@ -1,4 +1,4 @@
-"""Fail-closed audit of native 2007–2021 ReEDS county wind/PV hourly calendars.
+"""Fail-closed audit of native 15-year ReEDS county wind/PV hourly calendars.
 
 No ordinal year alignment is authorized by this audit. Read original
 publisher HDF5 index_0, validate each year independently and compare
@@ -49,6 +49,8 @@ def calendar_audit(index,tech):
             "native_source_timezone":str(t.tz) if t.tz is not None else "naive (publisher fixed CST)",
             "hour_energy_integral_verified":False,
             "ordinal_8760_join_to_2030_demand_validated":False})
+    if 2012 not in set(t.year):
+        raise ValueError("Missing mandatory frozen 2012 source reference year")
     if len(result)!=PUBLISHER_EXPECTED_WEATHER_COUNT:
         raise ValueError(f"Expected 15 original calendar years, found {len(result)}")
     return t,pd.DataFrame(result)
@@ -74,16 +76,19 @@ def run(wind_h5,pv_h5,out):
         ws,ps=compare_indexes(w["index_0"][:],p["index_0"][:])
     o=Path(out);o.mkdir(parents=True,exist_ok=True)
     df=pd.concat([ws,ps],ignore_index=True)
-    df.to_csv(o/"paper_s_reeds2022_2007_2021_wind_pv_native_calendar_30_audit.csv",index=False)
+    df.to_csv(o/"paper_s_reeds2022_15_source_year_wind_pv_native_calendar_30_audit.csv",index=False)
     source=ws[ws.weather_year.eq(2012)].iloc[0]
     if source.missing_dec31_source_hours!=24 or source.missing_feb29_source_hours!=0:
         raise ValueError("Known 2012 leap year source boundary contract changed")
     candidate=ws[(ws.is_exact_conventional_calendar)&(ws.weather_year!=2012)].weather_year.tolist()
     manifest={
-      "status":"ORIGINAL_REEDS_WIND_PV_2007_2021_SOURCE_NATIVE_CALENDAR_VERIFIED",
+      "status":"ORIGINAL_REEDS_WIND_PV_15_SOURCE_YEARS_NATIVE_CALENDAR_VERIFIED",
       "source_wind_md5":WIND_COUNTY_MD5,"source_pv_md5":PV_COUNTY_MD5,
       "native_clocks_identical":True,"audited_weather_years":ws.weather_year.astype(int).tolist(),
       "wind_pv_calendar_rows":len(df),
+      "publisher_source_first_year":int(ws.weather_year.min()),
+      "publisher_source_last_year":int(ws.weather_year.max()),
+      "source_years_non_contiguous":bool((ws.weather_year.diff().dropna()>1).any()),
       "source_2012_missing_dec31_hours":24,
       "conventional_full_calendar_candidate_years":candidate,
       "publisher_weather_CF_are_instantaneous_not_integrated":True,
@@ -92,7 +97,7 @@ def run(wind_h5,pv_h5,out):
       "LPs_solved":0,
       "weather_year_sensitivity_tested":False,
       "further_step_requires_explicit_calendar_mapping_and_original_class_CFs":True}
-    (o/"paper_s_reeds2022_2007_2021_source_calendar_manifest.json").write_text(json.dumps(manifest,indent=2)+"\n")
+    (o/"paper_s_reeds2022_15_source_year_source_calendar_manifest.json").write_text(json.dumps(manifest,indent=2)+"\n")
     print(df[["technology","weather_year","source_row_count","is_exact_conventional_calendar",
         "missing_conventional_calendar_hours","missing_feb29_source_hours",
         "missing_dec31_source_hours","within_year_nonhourly_gap_count"]].to_string(index=False))
