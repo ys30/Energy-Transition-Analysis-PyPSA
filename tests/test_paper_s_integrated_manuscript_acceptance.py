@@ -76,3 +76,15 @@ def test_exact_publisher_dataset_dois_and_temporal_semantics():
     assert "noncyclic trapezoid" in s.lower()
     assert "not an energy integral authenticated" in s
     assert "1.34" in s
+
+def test_hour_discretization_192lp_sensitivity_is_not_misrepresented():
+    s=text(MANUSCRIPT)
+    assert "### 3.5. Paired source-hour approximation sensitivity" in s
+    assert "192" in s and "43317414772" in s and "13989123990" in s
+    assert "same sign in 15 of 16" in s
+    assert "Arizona 2013" in s
+    assert "−$0.081" in s and "+$0.021" in s
+    assert "$11.900" in s and "$10.876" in s
+    assert "$10.955" in s and "$9.868" in s
+    assert "not robust" in s.lower()
+    assert "Neither point-hold nor trapezoid" in s
