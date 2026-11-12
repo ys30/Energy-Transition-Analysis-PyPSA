@@ -1,4 +1,4 @@
-"""Prespecified 2011–2014 ReEDS source-weather interannual sensitivity, 96 LPs.
+"""Prespecified 2010–2013 ReEDS source-weather interannual sensitivity, 96 LPs.
 
 Source-native county × resource-class wind/PV HDF5, EIA860 2025
 operating plant COUNTY weight, frozen 2030 demand and common AC.
@@ -170,11 +170,11 @@ def run(wind_h5,pv_h5,wind_sc,pv_sc,county_shares,wind_ref,pv_ref,demand_h5,refe
     pairs,delta=summarize(frame)
     o=Path(out);o.mkdir(parents=True,exist_ok=True)
     frame.to_csv(o/"paper_s_2010_2013_weather_year_96_geography_duration_LPs.csv",index=False,float_format="%.12g")
-    pairs.to_csv(o/"paper_s_2011_2014_weather_year_32_storage_triplets.csv",index=False,float_format="%.12g")
-    delta.to_csv(o/"paper_s_2011_2014_weather_year_16_siting_comparisons.csv",index=False,float_format="%.12g")
+    pairs.to_csv(o/"paper_s_2010_2013_weather_year_32_storage_triplets.csv",index=False,float_format="%.12g")
+    delta.to_csv(o/"paper_s_2010_2013_weather_year_16_siting_comparisons.csv",index=False,float_format="%.12g")
     audit=pd.concat([wa,pa],ignore_index=True)
-    audit.to_csv(o/"paper_s_2011_2014_weather_year_64_calendar_mapping_diagnostics.csv",index=False)
-    summary={"status":"REEDS_SOURCE_2011_2014_FOUR_WEATHER_YEAR_96_LP_WITH_EIA2025_SITING",
+    audit.to_csv(o/"paper_s_2010_2013_weather_year_64_calendar_mapping_diagnostics.csv",index=False)
+    summary={"status":"REEDS_SOURCE_2010_2013_FOUR_WEATHER_YEAR_96_LP_WITH_EIA2025_SITING",
       "original_source_HDF5_MD5":{k:SOURCES[k][0] for k in SOURCES},
       "weather_years":list(YEARS),"complete_LPs":len(frame),"duration_triplets":len(pairs),
       "matched_geographical_comparisons":len(delta),
@@ -187,7 +187,7 @@ def run(wind_h5,pv_h5,wind_sc,pv_sc,county_shares,wind_ref,pv_ref,demand_h5,refe
       "hourly_integrated_source_generation_certified":False,
       "calendar_feb29_imputation_is_observed_weather":False,
       "battery_capex_or_real_market_profits_modeled":False}
-    (o/"paper_s_2011_2014_weather_96LP_manifest.json").write_text(json.dumps(summary,indent=2)+"\n")
+    (o/"paper_s_2010_2013_weather_96LP_manifest.json").write_text(json.dumps(summary,indent=2)+"\n")
     print(delta[["weather_year","state","energy_annuity_hurdle_usd_kwh_year_potential",
       "energy_annuity_hurdle_usd_kwh_year_EIA2025_county","spatial_weight_10usd_screen_flips"]].to_string(index=False))
     print(json.dumps(summary,indent=2))
