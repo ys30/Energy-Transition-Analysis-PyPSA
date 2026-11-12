@@ -1,0 +1,56 @@
+name: Paper S ReEDS original 15 weather year source native clock and leap-year audit
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_source_multiyear_calendar_audit.py'
+      - 'tests/test_reeds2022_source_multiyear_calendar_audit.py'
+      - '.github/workflows/paper-s-reeds2022-original-15-weather-year-clock.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-all-native-weather-calendars:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10' 'pytest>=8'
+      - name: Test native 15-year source calendar fail-closed contracts
+        run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_source_multiyear_calendar_audit.py
+      - name: Get original source unmodified HDF5 wind PV and authenticate both MD5
+        run: |
+          mkdir -p /tmp/original outputs
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
+            'https://zenodo.org/records/18422200/files/cf_wind-ons_reference_county.h5?download=1' \
+            -o /tmp/original/wind.h5
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
+            'https://zenodo.org/records/18407660/files/cf_upv_reference_county.h5?download=1' \
+            -o /tmp/original/pv.h5
+          echo '0670813d0a18b688d698ca24cf67fb92  /tmp/original/wind.h5' | md5sum --check
+          echo 'aba834ea4c592023bca47de2ba79e7ec  /tmp/original/pv.h5' | md5sum --check
+      - name: Authenticate all 15 native wind and solar reference-year calendars independently
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_source_multiyear_calendar_audit \
+            --wind-h5 /tmp/original/wind.h5 --pv-h5 /tmp/original/pv.h5 --out outputs
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd,json
+          o=Path('outputs')
+          x=pd.read_csv(o/'paper_s_reeds2022_2007_2021_wind_pv_native_calendar_30_audit.csv')
+          m=json.loads((o/'paper_s_reeds2022_2007_2021_source_calendar_manifest.json').read_text())
+          assert len(x)==30 and x.weather_year.nunique()==15
+          assert m['native_clocks_identical']
+          assert m['source_2012_missing_dec31_hours']==24
+          assert m['LPs_solved']==0 and not m['weather_year_sensitivity_tested']
+          assert m['publisher_weather_CF_are_instantaneous_not_integrated']
+          print('PAPER_S_AUTHENTICATED_ALL_15_YEAR_NATIVE_REEDS_SOURCE_CLOCK_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-original-reeds-15-weather-year-wind-pv-calendar-audit
+          path: outputs/
+          if-no-files-found: warn
