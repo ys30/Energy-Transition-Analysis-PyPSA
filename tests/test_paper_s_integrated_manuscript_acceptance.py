@@ -61,3 +61,18 @@ def test_weather_conditioned_economic_claim_and_figure_admission():
     assert "climate-change" in s
     assert "not a statistical" not in s or "probability" in s
     assert "Main-text figure allocation (four evidence-based panels)" in text(ARCHITECTURE)
+
+def test_exact_publisher_dataset_dois_and_temporal_semantics():
+    s=text(MANUSCRIPT)
+    bib=text(LIBRARY)
+    for doi in ("10.5281/zenodo.18422200",
+                "10.5281/zenodo.18407660",
+                "10.5281/zenodo.18461543"):
+        assert doi in s and doi in bib
+    for dataset_id in ("D1a","D1b","D1c"):
+        assert "["+dataset_id+"]" in s
+    assert "instantaneous" in s.lower()
+    assert "hour-ending" in s
+    assert "noncyclic trapezoid" in s.lower()
+    assert "not an energy integral authenticated" in s
+    assert "1.34" in s
