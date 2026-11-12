@@ -23,6 +23,8 @@ def align_weather_year_to_reeds_2012_support(native_index,source_cf):
         raise ValueError("Native year clock must be unique and single-year")
     if not np.isfinite(v).all() or (v<0).any() or (v>1+1e-8).any():
         raise ValueError("Source weather CF must be finite and within [0,1]")
+    if np.any(t.minute != 0) or np.any(t.second != 0) or np.any(t.microsecond != 0):
+        raise ValueError("Native source timestamp is not on the exact whole hour")
     keys=[(x.month,x.day,x.hour) for x in t]
     if len(set(keys))!=8760:raise ValueError("Duplicated source month-day-hour")
     seen=dict(zip(keys,v))
