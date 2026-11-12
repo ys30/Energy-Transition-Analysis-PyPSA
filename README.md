@@ -1,5 +1,30 @@
 # Western US Energy Transition Modeling | PyPSA + EIA
 
+## Paper T — verified temporal-provenance research (manuscript v20.8.3, 11 Nov 2026)
+
+**Annual agreement does not establish hourly equivalence.** In 11 Western states across 2030/2040/2050 (**289,080 state-hour source values**), the original EFS2020 and ReEDS2022 published demand products agree closely on annual energy yet show **67–3,974 MW** unshifted hourly MAE. A reproducible **nonwrapping** ±12 h screen identifies **−2 h for six Mountain states** and **−3 h for four Pacific states**; all 30 state-years then reach approximately **0.25 MW MAE**, consistent with integer rounding. **Idaho remains anomalous** (17.3–22.1 MW at its best single lag); a half-year-trained **frozen −2/−3 h mixture reduces error 62%**, but leaves 6.5–8.3 MW. This is *numeric source-index comparability*, **not** certified physical UTC time.
+
+![Source-index shifts and Idaho county-share evidence](https://raw.githubusercontent.com/ys30/ys30.github.io/main/assets/figures/paper-t-industrial-provenance.svg)
+
+### Transfer checks, real-data sensitivity and Idaho geographic falsification
+
+| Check | Verified result | Scope and caveat |
+|---|---|---|
+| Original release pair | 825 original-source lag scores; ten states at rounding scale | EFS2020 physical `LocalHourID` still undocumented |
+| Idaho reconstruction | Frozen numerical mixture lowers MAE by **62%** | Not a measured BA demand share or source-clock correction |
+| Ruggles 2019 vs 2020 | **0 h** optimal in all three EIA-930 BA editions, despite **53–4,061 revised hours** | Same observed-source family, not independent clock certification |
+| 2018 AZPS × Phoenix | ±2–3 h shifts change **proxy** peak net load by **−13.3% to +6.3%** at 2,000 MW assumed solar | Phoenix single-point GHI and assumed output, not real BA-wide PV dispatch |
+| **Corrected ReEDS p14** | 2016–2023 estimated annual demand share **18.86–19.08%**, mean **18.98%** | Exact FIPS: **16009, 16017, 16021, 16055, 16057, 16061, 16069** |
+| Civil Pacific nine counties | **20.06–20.30%** estimated county-demand share | p14 omits Clearwater and Shoshone; includes no part of split Idaho County |
+| Fitted vs frozen minority coefficients | **16.5575%** same-year; **17.2615%** frozen | **Neither** is an observed county/BA load share |
+| Physical-hour join policy | G1 source-file and label check **PASS**; G2–G6 **BLOCKED** | **`BLOCK_PHYSICAL_JOIN`**; no automatically certified physical time |
+
+**Reproducibility / evidence:** [825-lag original-source CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43052221098) · [Ruggles transfer CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43058136008) · [AZPS/Phoenix 15 scenarios](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43061405750) · [corrected Idaho p14 county-year audit](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43122305945) · [G1 focused CI](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43080308412) · [full suite: **937 passed**](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43081016573). See the [corrected Idaho source-boundary evidence](docs/PAPER_T_IDAHO_2016_2023_EXTERNAL_COUNTY_SHARES.md) and [WP2 real-resource evidence](docs/PAPER_T_WP2_2018_AZPS_PHOENIX_REAL_RESOURCE_VERIFIED.md). **Note:** the older seven-county convenience proxy in the Idaho note is not ReEDS p14; use the corrected CI above.
+
+**Research stage:** v20.8.3 is a **private, not-yet-submitted manuscript** targeting *Environmental Modelling & Software*. A Zenodo-ready package has been assembled **privately**, but **no new Paper T DOI or released software license** is claimed. The EFS clock and version-matched Idaho p14–p16 generation mechanism await publisher clarification; an inquiry was sent 10 November 2026. Do not use fitted shifts as weather/PV timestamp fixes. Paper S's 540-LP supply cases and the older EIA/PyPSA network engineering track remain distinct from Paper T.
+
+---
+
 ### Verified publication-figure and solver-objective evidence
 
 [Paper T source-derived Figures T2 and T4](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42145896229) **passed**: two SVG/PNG research exhibits from verified original EFS2020/ReEDS2022 nonwrapping lag and Idaho frozen-transport-source archives. [Paper S independent 540-case objective and cyclic energy audit](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/42146086492) **passed**: every original HiGHS case reproduces the exact toy objective `5*(renewable direct + charging input) + 90*firm` with maximum discrepancy **$0.00022221**, plus source demand/supply conservation and strict 90% roundtrip charging energy identity. This is a numerical code/results certificate, **not** authentic electricity market costs, generator wind/solar resource, source 2020 UTC, or a real Western network OPF. [Evidence details, figure captions and reproducibility](docs/PAPERS_T_S_VERIFIED_FIGURES_AND_OBJECTIVE_CERTIFICATE.md).
