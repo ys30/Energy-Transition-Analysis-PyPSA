@@ -49,7 +49,19 @@ def align_weather_year_to_reeds_2012_support(native_index,source_cf):
         raise ValueError("Unaccounted source calendar records")
     if not np.isfinite(out).all() or (out<-1e-8).any() or (out>1+1e-8).any():
         raise ValueError("Aligned source CF outside physical envelope")
+    inserted_cf_sum=float(sum(out[i] for i,key in enumerate(TARGET_KEYS) if key in missing))
+    excluded_cf_sum=float(sum(seen[key] for key in excluded))
+    calendar_change=float(out.sum()-v.sum())
+    if not np.isclose(calendar_change,inserted_cf_sum-excluded_cf_sum,rtol=0,atol=1e-7):
+        raise ValueError("Source calendar CF energy-proxy substitution balance failed")
     info={
+       "native_cf_hour_sum":float(v.sum()),
+       "aligned_cf_hour_sum":float(out.sum()),
+       "synthetic_feb29_cf_hour_sum":inserted_cf_sum,
+       "excluded_dec31_cf_hour_sum":excluded_cf_sum,
+       "calendar_substitution_cf_hour_sum_delta":calendar_change,
+       "calendar_substitution_relative_to_native_CF_sum":(
+           calendar_change/float(v.sum()) if v.sum()>0 else None),
        "native_weather_year":year,"target_reference_calendar":2012,
        "original_native_source_hours":len(t),"target_hours":len(TARGET),
        "interpolated_unobserved_feb29_hours":len(missing),
