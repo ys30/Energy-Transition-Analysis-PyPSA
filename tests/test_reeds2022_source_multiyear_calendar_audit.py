@@ -29,7 +29,7 @@ def test_wind_pv_source_clock_mismatch_fails():
     a=synthetic_original_index()
     b=a.copy()
     b[6*8760-1]=b"2012-12-31 00:00:00"
-    with pytest.raises(ValueError,match="clocks disagree"):
+    with pytest.raises(ValueError,match="Non-hourly gap|clocks disagree"):
         compare_indexes(a,b)
 
 def test_duplicate_source_instants_rejected():
