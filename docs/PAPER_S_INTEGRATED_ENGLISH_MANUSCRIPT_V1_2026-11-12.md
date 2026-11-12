@@ -12,9 +12,9 @@ The value assigned to longer-duration battery storage depends on renewable gener
 
 ## 1. Introduction
 
-Additional battery storage duration can reduce fuel-intensive electricity dispatch by shifting renewable generation to hours of higher residual demand. An operating-cost benefit, however, does not alone establish a bankable project investment: the incremental energy capacity must be compared with appropriate annualized capital, financing, replacement and other costs. Estimates based on stylized generation profiles can be especially sensitive to the hourly correlation of wind, solar and demand.
+Additional battery storage duration can reduce fuel-intensive electricity dispatch by shifting renewable generation to hours of higher residual demand [R1, R2]. An operating-cost benefit, however, does not alone establish a bankable project investment: the incremental energy capacity must be compared with appropriate annualized capital, financing, replacement and other costs. Estimates based on stylized generation profiles can be especially sensitive to the hourly correlation of wind, solar and demand.
 
-A separate modeling issue is where aggregated wind and photovoltaic capacity factors come from. Regional developer-resource datasets provide high-resolution resource-class and geographical availability, but their county potential weights describe feasible resource opportunity, not necessarily the county distribution of existing or subsequently planned generators. These populations differ for economically meaningful reasons such as site development, transmission access and local permitting. Consequently, even when a regional model holds total nominal renewable capacity constant, a potential-weighted regional time series may differ from one based on the geography of observed operating facilities.
+A separate modeling issue is where aggregated wind and photovoltaic capacity factors come from. The ReEDS framework has an established published model history [R5], although that background does not certify the particular hourly semantics of the 2022 data products used here. Regional developer-resource datasets provide high-resolution resource-class and geographical availability, but their county potential weights describe feasible resource opportunity, not necessarily the county distribution of existing or subsequently planned generators. These populations differ for economically meaningful reasons such as site development, transmission access and local permitting. Consequently, even when a regional model holds total nominal renewable capacity constant, a potential-weighted regional time series may differ from one based on the geography of observed operating facilities.
 
 Weather-year choice is a further potential confounder. A threshold crossing observed with one year's meteorological reference may disappear with another year's renewable timing. In contrast, a weather-dependent response in the continuous operating-value difference can be scientifically informative without implying any particular long-term crossing frequency or climate-change projection.
 
@@ -24,7 +24,7 @@ We examine three bounded questions. First, how different are authentic developer
 
 ### 2.1. Geographic and temporal source inputs
 
-We selected Arizona (AZ), Colorado (CO), Idaho (ID) and Wyoming (WY). ReEDS2022 original county-class wind and utility-PV capacity factor HDF5 files and original county resource supply-curve tables were authenticated against archived publisher MD5 digests and exact resource-class × five-digit county FIPS keys. Weather-source HDF5 files contained 15 native reference years with 8,760 source observations each: 2007–2013 and 2016–2023. The source wind and PV time indexes matched exactly. Source leap years 2008, 2012, 2016 and 2020 include February 29 but exclude December 31. Observations are source *instantaneous capacity factors*, not independently verified electricity-energy integrals over their preceding hours.
+We selected Arizona (AZ), Colorado (CO), Idaho (ID) and Wyoming (WY). ReEDS2022 original county-class wind and utility-PV capacity factor HDF5 files and original county resource supply-curve tables [D1] were authenticated against archived publisher MD5 digests and exact resource-class × five-digit county FIPS keys. Weather-source HDF5 files contained 15 native reference years with 8,760 source observations each: 2007–2013 and 2016–2023. The source wind and PV time indexes matched exactly. Source leap years 2008, 2012, 2016 and 2020 include February 29 but exclude December 31. Observations are source *instantaneous capacity factors*, not independently verified electricity-energy integrals over their preceding hours.
 
 A separate official ReEDS2022 2030 reference demand product was used as the fixed 8,760-interval state load. Its native source time labels were audited against the original 2012 reference support in fixed CST (UTC−06:00), with no assumption that matching labels alone certifies real-hour generation integration. We used 2010, 2011, 2012 and 2013 renewable weather references for the controlled interannual sensitivity and maintained the same projected 2030 demand for each.
 
@@ -32,7 +32,7 @@ For nonleap 2010, 2011 and 2013 weather references, source capacity factors were
 
 ### 2.2. Operating generator geographic shares and county potential
 
-EIA's official 2025 annual EIA-860 `Operable` generator records were filtered to operating status `OP` and technology-consistent onshore wind (`WT/WND`) or utility-scale photovoltaic (`PV/SUN`). Exact plant codes were used to join the official Plant county and state fields. County names were independently matched by state to published 2020 Census county FIPS, without fuzzy state-crossing assignment. Capacity mapping coverage was 100% among the operating generator records selected for all eight state–technology cells, but this does not establish completeness for excluded facilities or smaller distributed solar.
+EIA's official 2025 annual EIA-860 `Operable` generator records [D2] were filtered to operating status `OP` and technology-consistent onshore wind (`WT/WND`) or utility-scale photovoltaic (`PV/SUN`). Exact plant codes were used to join the official Plant county and state fields. County names were independently matched by state to published 2020 Census county FIPS, without fuzzy state-crossing assignment. Capacity mapping coverage was 100% among the operating generator records selected for all eight state–technology cells, but this does not establish completeness for excluded facilities or smaller distributed solar.
 
 For state `s`, technology `j`, and county `c`, the two alternative weights were
 \[
@@ -49,7 +49,7 @@ To compare renewable technologies with a shared nameplate denominator, original 
 
 In each state the hypothetical total renewable AC nameplate was set to 1.5 times the projected peak demand, with 50% allocated to wind AC and 50% to PV AC. A battery's charge/discharge power limit equaled 25% of projected peak demand, and its energy capacity was compared at 0, 4 and 8 hours of that power rating. Round-trip efficiency was fixed at 90% (symmetric charge/discharge efficiencies of `sqrt(0.9)`). Renewable and firm variable costs were $5/MWh and $90/MWh, respectively. The state was represented as an uncongested copperplate with no inter-state transfer or transmission constraint.
 
-For each time interval, the LP minimized variable renewable and firm dispatch costs subject to renewable allocation, demand balance, battery power and energy capacity, and storage intertemporal SOC balances. **The implemented initial SOC is zero, and terminal SOC is also constrained to zero**; this is a fixed empty-to-empty annual boundary, sometimes loosely called a cyclic SOC condition, but not a free cyclic inventory state. There are no minimum-generation, ramping or unit-commitment constraints. The no-storage case uses zero battery power/energy. Optimizations were solved with SciPy HiGHS; only optimal solutions passing the specified primal energy-balance residual checks were accepted.
+For each time interval, the LP minimized variable renewable and firm dispatch costs subject to renewable allocation, demand balance, battery power and energy capacity, and storage intertemporal SOC balances. **The implemented initial SOC is zero, and terminal SOC is also constrained to zero**; this is a fixed empty-to-empty annual boundary, sometimes loosely called a cyclic SOC condition, but not a free cyclic inventory state. There are no minimum-generation, ramping or unit-commitment constraints. The no-storage case uses zero battery power/energy. Optimizations were solved with the **custom SciPy `optimize.linprog(method='highs')` formulation** [R3], as implemented in `src/energy_transition/efs_cyclic_storage_lp.py`; the 96 reported LP cases were **not solved as PyPSA networks**. PyPSA [R4] is relevant project/framework background only. Only optimal solutions passing the specified primal energy-balance residual checks were accepted.
 
 Define the annual illustrative objective `C_h` for a battery of duration `h`. The incremental *energy-only* operating-value ceiling of extending 4 h to 8 h is
 \[
@@ -109,6 +109,26 @@ The way renewable capacity is spatially allocated can materially change modeled 
 All public input links and authenticated digests are specified in the repository evidence audit and output manifests. Original county-class ReEDS wind resource file: https://zenodo.org/records/18422200 ; PV: https://zenodo.org/records/18407660 ; reference demand: https://zenodo.org/records/18461543 ; official EIA-860 annual release: https://www.eia.gov/electricity/data/eia860/ ; official Census county codes: https://www2.census.gov/geo/docs/reference/codes2020/national_county2020.txt .
 
 Source code and prespecified data/LP validations are in [GitHub Draft PR #2](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/pull/2). Independently successful original [15-year source calendar workflow 43281182402](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43281182402), [EIA-860 county geographic validation 43124063185](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43124063185), [24 2012 geographic LP 43159121663](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43159121663) and [96 four-weather LP 43281182390](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43281182390) provide immutable run identities and downloadable original CSV/JSON archives. Their GitHub workflow results and source files take precedence over any rounded article table. The 96-LP new main-text figure and heatmap have a separate dedicated source-validating workflow; insert only after success.
+
+## References and original data sources
+
+[R1] Zerrahn, A., Schill, W.-P., & Kemfert, C. (2018). On the economics of electrical storage for variable renewable energy sources. *European Economic Review*, 108, 259–279. https://doi.org/10.1016/j.euroecorev.2018.07.004
+
+[R2] Sepulveda, N. A., Jenkins, J. D., de Sisternes, F. J., & Lester, R. K. (2018). The role of firm low-carbon electricity resources in deep decarbonization of power generation. *Joule*, 2(11), 2403–2420. https://doi.org/10.1016/j.joule.2018.08.006
+
+[R3] Virtanen, P., Gommers, R., Oliphant, T. E., et al. (2020). SciPy 1.0: fundamental algorithms for scientific computing in Python. *Nature Methods*, 17, 261–272. https://doi.org/10.1038/s41592-019-0686-2
+
+[R4] Brown, T., Hörsch, J., & Schlachtberger, D. (2018). PyPSA: Python for Power System Analysis. *Journal of Open Research Software*, 6(1), article 4. https://doi.org/10.5334/jors.188 (framework/software context only; not this study's LP solver).
+
+[R5] Ho, J., Becker, J., Brown, M., et al. (2021). *Regional Energy Deployment System (ReEDS) Model Documentation: Version 2020*. NREL/TP-6A20-78195. https://www.nrel.gov/docs/fy21osti/78195.pdf (general ReEDS framework context; not validation of this study's 2022 data-release interval semantics).
+
+[D1] ReEDS original county-class onshore wind and utility-PV resource HDF5 and county source-capacity files, plus EFS reference demand dataset: https://zenodo.org/records/18422200 ; https://zenodo.org/records/18407660 ; https://zenodo.org/records/18461543 . Full publisher release-author metadata and licenses require source-level final formatting review.
+
+[D2] U.S. Energy Information Administration. Form EIA-860 annual detailed generator data, 2025. https://www.eia.gov/electricity/data/eia860/
+
+[D3] U.S. Census Bureau. 2020 national county FIPS code text file. https://www2.census.gov/geo/docs/reference/codes2020/national_county2020.txt
+
+**Reference provenance:** [verified source/library and method attribution register](./PAPER_S_VERIFIED_REFERENCE_LIBRARY_AND_METHOD_ATTRIBUTION_2026-11-12.md). Source experiment run IDs are cited in the Results and Data and Code Availability sections; literature references do not substitute for those audits.
 
 ## Manuscript completion items (not scientific findings)
 
