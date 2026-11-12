@@ -2,8 +2,10 @@ import numpy as np
 import pandas as pd
 import pytest
 from energy_transition.reeds2022_source_multiyear_calendar_audit import (
-    YEARS,calendar_audit,compare_indexes
+    calendar_audit,compare_indexes
 )
+
+YEARS=tuple(list(range(2007,2014))+list(range(2016,2024)))
 
 def synthetic_original_index():
     pieces=[]
@@ -19,6 +21,8 @@ def test_15_year_source_calendar_and_2012_boundary():
     raw=synthetic_original_index()
     w,p=compare_indexes(raw,raw)
     assert len(w)==15 and len(p)==15
+    assert 2014 not in set(w.weather_year)
+    assert 2023 in set(w.weather_year)
     leap=w[w.weather_year.eq(2012)].iloc[0]
     assert leap.missing_dec31_source_hours==24
     assert leap.missing_feb29_source_hours==0
