@@ -17,6 +17,9 @@ def test_nonleap_year_explicit_feb29_interpolation_and_dec31_discard():
     assert m["dropped_original_dec31_hours"]==24
     assert (y[(TARGET.month==2)&(TARGET.day==29)]==.4).all()
     assert m["calendar_imputation_is_source_observation"] is False
+    assert m["synthetic_feb29_cf_hour_sum"]==pytest.approx(9.6)
+    assert m["excluded_dec31_cf_hour_sum"]==pytest.approx(19.2)
+    assert m["calendar_substitution_cf_hour_sum_delta"]==pytest.approx(-9.6)
 
 def test_exact_2012_native_reference_has_no_imputation():
     source=pd.date_range("2012-01-01",periods=8760,freq="h")
