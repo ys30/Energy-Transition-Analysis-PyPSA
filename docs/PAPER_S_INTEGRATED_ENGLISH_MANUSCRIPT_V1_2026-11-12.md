@@ -35,10 +35,10 @@ For nonleap 2010, 2011 and 2013 weather references, source capacity factors were
 EIA's official 2025 annual EIA-860 `Operable` generator records were filtered to operating status `OP` and technology-consistent onshore wind (`WT/WND`) or utility-scale photovoltaic (`PV/SUN`). Exact plant codes were used to join the official Plant county and state fields. County names were independently matched by state to published 2020 Census county FIPS, without fuzzy state-crossing assignment. Capacity mapping coverage was 100% among the operating generator records selected for all eight state–technology cells, but this does not establish completeness for excluded facilities or smaller distributed solar.
 
 For state `s`, technology `j`, and county `c`, the two alternative weights were
-[
+\[
 w_{c,j,s}^{pot}=\frac{\sum_k M_{c,k,j,s}^{pot}}{\sum_{c,k} M_{c,k,j,s}^{pot}},\qquad
 w_{c,j,s}^{EIA}=\frac{M_{c,j,s}^{OP,2025}}{\sum_c M_{c,j,s}^{OP,2025}},
-]
+\]
 where `k` indexes source meteorological resource classes. Wind source development potential is in MW AC; original solar development potential is in MW DC, whereas EIA generator nameplate is reported on its AC basis. We compare only normalized **within-technology county shares**, not sums of AC and DC physical capacities.
 
 For each county, the source class profile remained weighted by the original ReEDS potential `M^{pot}_{c,k,j,s}`. The aggregated native technology CF was `CF_{j,s,t}=Σ_c w_{c,j,s} Σ_k p(k|c,j,s) CF_{c,k,j,s,t}`, with `p(k|c,j,s)=M^{pot}_{c,k,j,s}/Σ_k M^{pot}_{c,k,j,s}`. Thus the EIA scenario changes county placement fractions alone; it does not identify observed generator vintage, tracker specification, turbine class or actual production at an EIA site.
@@ -52,10 +52,10 @@ In each state the hypothetical total renewable AC nameplate was set to 1.5 times
 For each time interval, the LP minimized variable renewable and firm dispatch costs subject to renewable allocation, demand balance, battery power and energy capacity, and storage intertemporal SOC balances. **The implemented initial SOC is zero, and terminal SOC is also constrained to zero**; this is a fixed empty-to-empty annual boundary, sometimes loosely called a cyclic SOC condition, but not a free cyclic inventory state. There are no minimum-generation, ramping or unit-commitment constraints. The no-storage case uses zero battery power/energy. Optimizations were solved with SciPy HiGHS; only optimal solutions passing the specified primal energy-balance residual checks were accepted.
 
 Define the annual illustrative objective `C_h` for a battery of duration `h`. The incremental *energy-only* operating-value ceiling of extending 4 h to 8 h is
-[
+\[
 V_{4\to8}=\frac{C_4-C_8}{1000(E_8-E_4)}
 \quad\mathrm{USD/(additional\ kWh\,year)},
-]
+\]
 where `C` is measured in USD per modeled reference year and `E` in MWh. It estimates the annual additional energy-capacity cost that the **modeled avoided variable operating cost alone** could cover. It excludes capital expenditures, charging market revenue, financing and net project valuation. A $10/kWh-year incremental energy-capacity-only hypothetical screen was used solely as an interpretable threshold example.
 
 ### 2.4. Source audits and replication gates
@@ -113,3 +113,10 @@ Source code and prespecified data/LP validations are in [GitHub Draft PR #2](htt
 ## Manuscript completion items (not scientific findings)
 
 The reference list must be assembled from verified publisher and peer-reviewed studies; target journal author instructions, final numbering, affiliations, acknowledgments, disclosure and repository release/DOI metadata remain to be finalized. The manuscript must not be described as submitted or accepted. Review sections on physical hour-energy semantics, 2012 calendar support and 2025 siting-vintage mismatch before any final editorial claim of external grid validity.
+
+
+## Verified candidate main-text figure captions (accepted external artifact)
+
+**Figure 4a — County siting–weather interactions in marginal storage duration operating value.** Four state panels display the 4→8 h battery energy-only operating-value ceiling (USD per added kWh-year) for ReEDS original development-potential-weighted renewable counties and 2025 EIA-860 observed operating-generator county-capacity shares, paired within each of four historical original ReEDS source-weather references (2010–2013). The dashed $10/kWh-year line is a deliberately illustrative *incremental storage-energy-only* annual cost screen; the weights straddle this threshold only in Arizona 2012 (source-potential 10.955 vs EIA 9.868). Each combination uses projected 2030 load, original county-class source resource fractions conditional on county, fixed nominal total common-AC wind+PV 1.5× peak, wind 50%, battery power 25% peak, η=0.9, $5/MWh renewable and $90/MWh firm variable costs, with empty initial and empty terminal SOC. The four years are historical reference weather, not future climate projections or independent observations of 2030 generation. Nonleap source years use *synthetic* 24-hour February 29 interpolation and exclude original December 31 to align with the publisher 2012 reference support. Input profiles are point-sampled CF with a numerical approximation to hourly availability, not physically certified integrated hourly generation. Source: verified [original 96-LP run](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43281182390). Reproducible accepted figure: [workflow 43288856607](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43288856607), [PNG and PDF artifact 13976367223](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43288856607/artifacts/13976367223).
+
+**Figure 4b — EIA observed operating county share minus developer potential weighted storage operating-value ceiling.** Signed values (USD per added kWh-year) derive from the same 16 state × original weather-year pairs and 96 LPs. Positive values mean the EIA-2025-county fraction *increases* the modeled 4→8 h incremental annualized operating-cost avoidance relative to source developer-potential geography, not actual profit. Colors express numerical paired differences; no confidence interval, probability or future climate model is implied. Both spatial source schemes hold hypothetical 2030 total wind+PV AC capacity and storage technology parameters constant. Original reference-year calendar alignment, resource-class conditional weights, point-source CF and 2025→2030 observed-siting limitations match Figure 4a. [Accepted original figure and heatmap artifact 13976367223](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43288856607/artifacts/13976367223).
