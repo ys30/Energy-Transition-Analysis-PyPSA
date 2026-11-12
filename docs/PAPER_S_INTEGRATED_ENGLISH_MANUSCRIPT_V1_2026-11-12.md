@@ -24,7 +24,7 @@ We examine three bounded questions. First, how different are authentic developer
 
 ### 2.1. Geographic and temporal source inputs
 
-We selected Arizona (AZ), Colorado (CO), Idaho (ID) and Wyoming (WY). ReEDS2022 original county-class wind and utility-PV capacity factor HDF5 files and original county resource supply-curve tables [D1] were authenticated against archived publisher MD5 digests and exact resource-class × five-digit county FIPS keys. Weather-source HDF5 files contained 15 native reference years with 8,760 source observations each: 2007–2013 and 2016–2023. The source wind and PV time indexes matched exactly. Source leap years 2008, 2012, 2016 and 2020 include February 29 but exclude December 31. Observations are source *instantaneous capacity factors*, not independently verified electricity-energy integrals over their preceding hours.
+We selected Arizona (AZ), Colorado (CO), Idaho (ID) and Wyoming (WY). ReEDS2022 original county-class wind and utility-PV capacity factor HDF5 files and original county resource supply-curve tables [D1a, D1b] were authenticated against archived publisher MD5 digests and exact resource-class × five-digit county FIPS keys. Weather-source HDF5 files contained 15 native reference years with 8,760 source observations each: 2007–2013 and 2016–2023. The source wind and PV time indexes matched exactly. Source leap years 2008, 2012, 2016 and 2020 include February 29 but exclude December 31. Observations are source *instantaneous capacity factors*, not independently verified electricity-energy integrals over their preceding hours.
 
 A separate official ReEDS2022 2030 reference demand product was used as the fixed 8,760-interval state load. Its native source time labels were audited against the original 2012 reference support in fixed CST (UTC−06:00), with no assumption that matching labels alone certifies real-hour generation integration. We used 2010, 2011, 2012 and 2013 renewable weather references for the controlled interannual sensitivity and maintained the same projected 2030 demand for each.
 
@@ -122,7 +122,13 @@ Source code and prespecified data/LP validations are in [GitHub Draft PR #2](htt
 
 [R5] Ho, J., Becker, J., Brown, M., et al. (2021). *Regional Energy Deployment System (ReEDS) Model Documentation: Version 2020*. NREL/TP-6A20-78195. https://www.nrel.gov/docs/fy21osti/78195.pdf (general ReEDS framework context; not validation of this study's 2022 data-release interval semantics).
 
-[D1] ReEDS original county-class onshore wind and utility-PV resource HDF5 and county source-capacity files, plus EFS reference demand dataset: https://zenodo.org/records/18422200 ; https://zenodo.org/records/18407660 ; https://zenodo.org/records/18461543 . Full publisher release-author metadata and licenses require source-level final formatting review.
+[D1a] Mowers, M., Pinchuk, P., Igwe, V., & Mai, T. (2026). *ReEDS: Land-based wind profiles* (v1). Zenodo. https://doi.org/10.5281/zenodo.18422200
+
+[D1b] Sergi, B., Cole, W., Rivers, M., & Mowers, M. (2026). *ReEDS: Utility-scale PV profiles* (v1). Zenodo. https://doi.org/10.5281/zenodo.18407660
+
+[D1c] Murphy, C., Mai, T., Jadun, P., Ho, J., McMillan, C., & Mayernik, J. (2026). *ReEDS: Electricity demand profiles 2022* (v1). Zenodo. https://doi.org/10.5281/zenodo.18461543
+
+*Source time semantics:* The cited original wind and PV profiles are instantaneous fixed-CST points, whereas the original modeled gross end-use demand is hour-ending MWh/h and uses the native 2012 weather/calendar reference across all demand model years. The 4-to-8-hour LP study's point-to-hour noncyclic trapezoid is an **author-imposed numerical approximation**, not an energy integral authenticated by these publishers. Publisher record versions are pinned to v1; their public download does not itself establish unrestricted re-licensing rights.
 
 [D2] U.S. Energy Information Administration. Form EIA-860 annual detailed generator data, 2025. https://www.eia.gov/electricity/data/eia860/
 
