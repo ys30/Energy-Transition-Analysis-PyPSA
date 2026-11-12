@@ -13,7 +13,7 @@ import pandas as pd
 from energy_transition.reeds2022_county_state_resources import WIND_COUNTY_MD5,PV_COUNTY_MD5
 from energy_transition.reeds2022_real_resource_intake import require_md5,decode
 
-YEARS=tuple(range(2007,2022))
+PUBLISHER_EXPECTED_WEATHER_COUNT=15
 HOURS=8760
 
 def calendar_audit(index,tech):
@@ -22,7 +22,7 @@ def calendar_audit(index,tech):
     if t.isna().any() or t.has_duplicates or not t.is_monotonic_increasing:
         raise ValueError("Duplicate, unparseable or unordered original time labels")
     result=[]
-    for y in YEARS:
+    for y in sorted(set(t.year)):
         where=np.flatnonzero(t.year==y)
         if not len(where):raise ValueError(f"Original source missing year {y}")
         native=t[where]
@@ -49,7 +49,8 @@ def calendar_audit(index,tech):
             "native_source_timezone":str(t.tz) if t.tz is not None else "naive (publisher fixed CST)",
             "hour_energy_integral_verified":False,
             "ordinal_8760_join_to_2030_demand_validated":False})
-    if len(result)!=len(YEARS):raise ValueError("Incomplete source calendar audit")
+    if len(result)!=PUBLISHER_EXPECTED_WEATHER_COUNT:
+        raise ValueError(f"Expected 15 original calendar years, found {len(result)}")
     return t,pd.DataFrame(result)
 
 def compare_indexes(wind,pv):
