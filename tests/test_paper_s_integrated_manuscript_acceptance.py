@@ -60,4 +60,4 @@ def test_weather_conditioned_economic_claim_and_figure_admission():
     assert "13976367223" in s
     assert "climate-change" in s
     assert "not a statistical" not in s or "probability" in s
-    assert "four main figures" in text(ARCHITECTURE) or "four primary" in text(ARCHITECTURE).lower()
+    assert "Main-text figure allocation (four evidence-based panels)" in text(ARCHITECTURE)
