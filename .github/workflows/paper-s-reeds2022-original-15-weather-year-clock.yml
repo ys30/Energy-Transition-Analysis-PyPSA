@@ -39,10 +39,13 @@ jobs:
           from pathlib import Path
           import pandas as pd,json
           o=Path('outputs')
-          x=pd.read_csv(o/'paper_s_reeds2022_2007_2021_wind_pv_native_calendar_30_audit.csv')
-          m=json.loads((o/'paper_s_reeds2022_2007_2021_source_calendar_manifest.json').read_text())
+          x=pd.read_csv(o/'paper_s_reeds2022_15_source_year_wind_pv_native_calendar_30_audit.csv')
+          m=json.loads((o/'paper_s_reeds2022_15_source_year_source_calendar_manifest.json').read_text())
           assert len(x)==30 and x.weather_year.nunique()==15
+          assert 2012 in set(x.weather_year)
+          assert set(x.technology)=={'wind','pv'}
           assert m['native_clocks_identical']
+          assert len(m['audited_weather_years'])==15
           assert m['source_2012_missing_dec31_hours']==24
           assert m['LPs_solved']==0 and not m['weather_year_sensitivity_tested']
           assert m['publisher_weather_CF_are_instantaneous_not_integrated']
