@@ -40,7 +40,24 @@ def sheet_from_archive(archive,category,sheet):
     names=[x for x in archive.namelist() if not x.endswith("/")]
     match=[x for x in names if FILES[category].search(x)]
     if len(match)!=1:raise ValueError(f"Exactly one {category} required: {match}; names={names[:40]}")
-    return pd.read_excel(io.BytesIO(archive.read(match[0])),sheet_name=sheet,dtype={"Plant Code":"string","Generator ID":"string"})
+    payload=archive.read(match[0])
+    # EIA annual workbooks can contain title and revision lines above the
+    # first true data header. Find a row containing the verified exact fields.
+    from openpyxl import load_workbook
+    book=load_workbook(io.BytesIO(payload),read_only=True,data_only=True)
+    tab=book[sheet]
+    required=set(FIELDS_PLANT if category=="plant" else FIELDS_GEN)
+    headers=[]
+    for i,row in enumerate(tab.iter_rows(min_row=1,max_row=15,values_only=True)):
+        vals={str(x).strip() for x in row if x is not None}
+        if required.issubset(vals):headers.append(i)
+    book.close()
+    if len(headers)!=1:
+        raise ValueError(f"Cannot uniquely locate verified EIA {sheet} header row; matches={headers}")
+    df=pd.read_excel(io.BytesIO(payload),sheet_name=sheet,header=headers[0],
+                     dtype={"Plant Code":"string","Generator ID":"string"})
+    df.columns=[str(x).strip() for x in df.columns]
+    return df
 
 def census_map(path):
     c=pd.read_csv(path,sep="|",dtype=str)
