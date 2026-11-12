@@ -30,7 +30,7 @@ from energy_transition.reeds2022_county_ac_normalized_2030 import normalized_pv_
 from energy_transition.reeds_2022_clocked_demand_branch import verify_official_file,check_fixed_cst_native_labels
 from energy_transition.efs_cyclic_storage_lp import solve_zone
 
-YEARS=(2011,2012,2013,2014)
+YEARS=(2010,2011,2012,2013)
 SOURCES={"wind":(WIND_COUNTY_MD5,WIND_COUNTY_CAPACITY_MD5),
          "pv":(PV_COUNTY_MD5,PV_COUNTY_CAPACITY_MD5)}
 BASE_RUN=43159121663
@@ -169,7 +169,7 @@ def run(wind_h5,pv_h5,wind_sc,pv_sc,county_shares,wind_ref,pv_ref,demand_h5,refe
     if maxdiff>.1:raise ValueError(f"Frozen 2012 24-LP objective drift {maxdiff}")
     pairs,delta=summarize(frame)
     o=Path(out);o.mkdir(parents=True,exist_ok=True)
-    frame.to_csv(o/"paper_s_2011_2014_weather_year_96_geography_duration_LPs.csv",index=False,float_format="%.12g")
+    frame.to_csv(o/"paper_s_2010_2013_weather_year_96_geography_duration_LPs.csv",index=False,float_format="%.12g")
     pairs.to_csv(o/"paper_s_2011_2014_weather_year_32_storage_triplets.csv",index=False,float_format="%.12g")
     delta.to_csv(o/"paper_s_2011_2014_weather_year_16_siting_comparisons.csv",index=False,float_format="%.12g")
     audit=pd.concat([wa,pa],ignore_index=True)
