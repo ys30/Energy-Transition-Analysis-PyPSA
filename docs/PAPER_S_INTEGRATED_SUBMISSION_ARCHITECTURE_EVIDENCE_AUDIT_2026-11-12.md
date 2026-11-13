@@ -10,7 +10,7 @@ Do not call this a historical causal impact analysis, a projected 2030 realistic
 
 ## One-sentence central claim
 
-Under a controlled state copperplate linear dispatch model with original source-based renewable resource reference weather and projected 2030 demand, **renewable county siting weights affect the marginal modeled operating-value ceiling of 4-to-8-hour battery duration, and a $10/kWh-year conditional screening reversal found for Arizona in 2012 does not hold consistently across historical weather references 2010–2013**.
+Under a controlled state copperplate linear dispatch model with original source-based renewable resource reference weather and projected 2030 demand, **renewable county siting weights affect the modeled 4-to-8-hour storage operating-value ceiling; the signed county effect is consistent across two hourly point-to-interval approximations in 15/16 historical weather-year/state comparisons, whereas an illustrative $10/kWh-year Arizona 2012 screening reversal **fails** the method-robustness check**.
 
 ## Proposed complete submission architecture
 
@@ -28,8 +28,8 @@ Under a controlled state copperplate linear dispatch model with original source-
 |---|---|---|---|
 | Figure 1 | Schematic flow from county-class publisher CF + county available MW to four states; EIA original OP plant/county to independent Census FIPS, then LP designs | Original verified source audit 42962740548; observed 2025 fleet county audit 43124063185 | Diagram only; state assumptions in caption; no fabricated graphic provenance |
 | Figure 2 | Eight AZ/CO/ID/WY wind/PV counties spatial-weight TV / effective county weights | Verified external geographic comparison 43124063185 | QA supported, main-text or supplement depending journal space |
-| Figure 3 | Controlled 2012 source potential vs EIA county weight annual 4→8h annuity | Verified 24 LP 43159121663; figure artifact 13962299804 | **Secondary** to cross-year figure; should not imply AZ screen stable |
-| Figure 4 (recommended lead) | 2010–2013 four-state panels for ReEDS potential and EIA county siting, $10 illustrative screen plus a state×year EIA-minus-potential heatmap | Verified **96 LP 43281182390** and weather calendar audit 43281182402. Publication figure workflow being validated separately. | **Main** scientific result |
+| Figure 3 | Secondary controlled 2012 source potential vs EIA county weight annual 4→8h annuity | Verified 24 LP 43159121663; figure artifact 13962299804 | **Supplementary recommended:** $10 AZ screen disappears with alternate hourly treatment (192 LP verification 43317414772); do not present its crossing as robust |
+| Figure 4 (recommended lead) | 2010–2013 four-state panels for ReEDS potential and EIA county siting, $10 illustrative screen plus a state×year EIA-minus-potential heatmap | Verified **96 LP 43281182390** and weather calendar audit 43281182402. Publication figure workflow **43288856607 succeeded** (source archive artifact 13976367223). Add hour-method 192 LP audit 43317414772, artifact 13989123990. | **Main** continuous sensitivity; Figure 4a–b show trapezoid convention, disclose 15/16 direction agreement and unstable AZ $10 screen in caption |
 
 ## Main-text table allocation (three tables; rest supplement)
 
@@ -58,4 +58,13 @@ Under a controlled state copperplate linear dispatch model with original source-
 
 ## Editorial conclusion
 
-**The highest-value result is the year-varying *continuous* operating-value response to observed county siting fractions.** The AZ 2012 illustrative $10/kWh-year reversal provides an interpretable example, but must not be elevated to a weather-robust economic finding. A full external publication check is still needed; this document makes scope and the remaining tasks explicit rather than artificially certifying submission readiness.
+**The highest-value result is the year-varying *continuous* operating-value response to observed county siting fractions.** The AZ 2012 illustrative $10/kWh-year reversal appears only with trapezoid-mode source CF, **not** endpoint hold; it must not be elevated to a weather-robust **or** hour-discretization-robust economic finding. Verified 192 LP source run 43317414772 found 15/16 state–weather geographical-effect signs agree between methods; AZ 2013 alone has small opposite signs (−0.081 versus +0.021 $/additional kWh-year). A full external publication check is still needed; this document makes scope and the remaining tasks explicit rather than artificially certifying submission readiness.
+
+
+## Editorial revision — verified 192-LP hour-conversion boundary (2026-11-13)
+
+This addendum **supersedes** any earlier description that the AZ 2012 $10/kWh-year crossing is a repeatable result under source-hour treatments. The original wind/PV reference files are *instantaneous* CF samples; projected load is hour-ending. `end_instant_hold` and `trapezoid_with_first_endpoint` are both author-defined approximations, not publisher-certified hourly energy. The [original-source 192-LP matched 2×96 study](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43317414772) succeeded with [eight audited files](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43317414772/artifacts/13989123990). In AZ 2012, endpoint hold gives 11.900281 (resource-potential) versus 10.875999 (EIA county), both above the illustrative $10 screen. Trapezoid gives 10.955400 versus 9.868276 and crosses. **Main text should foreground the continuous 15/16 signed agreement** with the nonrobust threshold as an explicitly labeled example.
+
+**Figure admissions:** The source-validated four-state×four-year [Figure 4a/4b graphics pipeline](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43288856607) succeeded, but the files plot **trapezoid values only**. Captions and editorial panel must always report sensitivity to source-hour approximation, including AZ 2012 crossing nonrobustness. A new 192-LP chart is optional only if it improves narrative clarity; the paired tabular values and main text already document the important result.
+
+**Submission status:** Complete project CI and editorial checks passed at [43323774425](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43323774425). Remaining: figure/caption final layout, exact citations and reproducibility release, independent integrated-hour physical validation or explicit limitation accepted by target journal, and author/journal metadata. No further parameter sweep required by default.
