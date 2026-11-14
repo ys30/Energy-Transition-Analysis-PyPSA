@@ -1,5 +1,11 @@
 name: Paper S all 15 original weather years 720 LP validation
 'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_all_weather_year_720lp.py'
+      - 'src/energy_transition/reeds2022_four_weather_year_siting_lp.py'
+      - 'tests/test_reeds2022_all_weather_year_720lp.py'
+      - '.github/workflows/paper-s-all15-weather-720lp.yml'
   workflow_dispatch:
 permissions:
   contents: read
