@@ -1,0 +1,51 @@
+name: Paper S ReEDS2022 AC-nameplate eight paper candidate heatmaps
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_common_ac_2030_paper_figures.py'
+      - '.github/workflows/paper-s-reeds2022-common-ac-paper-figures.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  reproduce-common-ac-paper-plots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install reproducible plotting dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7'
+      - name: Fetch source-verified common-AC 180 LP original results
+        run: |
+          mkdir -p /tmp/ac outputs
+          gh run download 43058074434 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-2030-common-ac-pv-ilr-180-original-source-lps \
+            --dir /tmp/ac
+      - name: Plot AC-consistent 4-state by 3x3 penetration and wind-mix model comparisons
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_common_ac_2030_paper_figures \
+            --paired /tmp/ac/paper_s_reeds2022_2030_ac_normalized_144_storage_hurdles.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('outputs')
+          a=json.loads((p/'paper_s_2030_common_ac_8_heatmaps_manifest.json').read_text())
+          assert a['figure_count']==8
+          assert len(list(p.glob('paper_s_2030_*_common_ac_*.png')))==8
+          assert len(list(p.glob('paper_s_2030_*_common_ac_*.pdf')))==8
+          assert a['wind_share_mw_basis']=='MW_AC both wind and PV inverter'
+          assert a['capital_cost_in_optimized_objective'] is False
+          print('REEDS_SOURCE_COMMON_AC_2030_8_CANDIDATE_PAPER_FIGURES_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-2030-common-ac-eight-study-figures
+          path: outputs/
+          if-no-files-found: error

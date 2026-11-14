@@ -1,0 +1,114 @@
+name: Paper S integrated source-verified Word manuscript review build
+'on':
+  pull_request:
+    paths:
+      - 'scripts/build_paper_s_review_docx.py'
+      - 'scripts/polish_paper_s_review_docx.py'
+      - '.github/workflows/paper-s-integrated-manuscript-docx.yml'
+      - 'docs/PAPER_S_INTEGRATED_ENGLISH_MANUSCRIPT_V1_2026-11-12.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  generate-source-audited-word-manuscript:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install stable Word manuscript builder and image inspection
+        run: python -m pip install 'python-docx>=1.1,<2' 'Pillow>=10,<13' 'matplotlib>=3.7,<4'
+      - name: Retrieve only verified original four-state weather×siting figure artifact
+        run: |
+          set -eu
+          mkdir -p figures outputs
+          gh run download 43288856607 --repo "${{ github.repository }}" \
+            --name paper-s-96lp-cross-weather-year-county-siting-publication-figures \
+            --dir figures
+          test -s figures/paper_s_96lp_weather_x_county_siting_main_figure.png
+          test -s figures/paper_s_96lp_weather_x_siting_difference_heatmap.png
+      - name: Generate self-contained Word manuscript from audited source narrative and figures
+        run: |
+          python scripts/build_paper_s_review_docx.py \
+            --source docs/PAPER_S_INTEGRATED_ENGLISH_MANUSCRIPT_V1_2026-11-12.md \
+            --figure-dir figures \
+            --out outputs/Paper_S_Integrated_Review_Manuscript_2026-11-13.docx
+          python scripts/polish_paper_s_review_docx.py \
+            --input outputs/Paper_S_Integrated_Review_Manuscript_2026-11-13.docx \
+            --out outputs/Paper_S_Integrated_Review_Manuscript_2026-11-13.docx
+          python - <<'PY'
+          from pathlib import Path
+          from docx import Document
+          p=Path('outputs/Paper_S_Integrated_Review_Manuscript_2026-11-13.docx')
+          assert p.stat().st_size>150000
+          d=Document(p)
+          joined='\n'.join(x.text for x in d.paragraphs)
+          assert len(d.inline_shapes)==5 and len(d.tables)==1
+          for phrase in ('192 LP','10.955','9.868','11.900','10.876',
+                         '15 of 16','References and original data sources','Verified manuscript figures',
+                         'not robust','source-audited'):
+              assert phrase.lower() in joined.lower(),phrase
+          assert not any('Manuscript completion items' in x.text for x in d.paragraphs)
+          assert '\\frac' not in joined
+          assert joined.index('Verified manuscript figures')<joined.index('References and original data sources')
+          assert 'Table 1. Four historical ReEDS weather years' in joined
+          print('PAPER_S_FULL_REVIEW_DOCX_EQUATIONS_TABLE_FIGURES_QA_ACCEPTED',p.stat().st_size)
+          PY
+      - name: Record internal manuscript and verified source figure SHA-256 and reproducibility metadata
+        env:
+          BUILD_SHA: ${{ github.sha }}
+          BUILD_RUN_ID: ${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          docx = Path("outputs/Paper_S_Integrated_Review_Manuscript_2026-11-13.docx")
+          names = [
+              docx,
+              Path("figures/paper_s_96lp_weather_x_county_siting_main_figure.png"),
+              Path("figures/paper_s_96lp_weather_x_siting_difference_heatmap.png"),
+          ]
+          def sha256(p):
+              h=hashlib.sha256()
+              with p.open("rb") as f:
+                  for block in iter(lambda: f.read(1024*1024), b""):
+                      h.update(block)
+              return h.hexdigest()
+          for p in names:
+              assert p.is_file() and p.stat().st_size > 0, p
+          digest_lines = [f"{sha256(p)}  {p.as_posix()}" for p in names]
+          Path("outputs/SHA256SUMS.txt").write_text("\n".join(digest_lines)+"\n",encoding="utf-8")
+          manifest = {
+              "schema_version": 1,
+              "artifact_role": "review_manuscript_not_submission_certified",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "source_commit": os.environ["BUILD_SHA"],
+              "workflow_run_id": os.environ["BUILD_RUN_ID"],
+              "verified_original_figure_run": 43288856607,
+              "original_96_lp_run": 43281182390,
+              "original_192_lp_run": 43317414772,
+              "manuscript_md": "docs/PAPER_S_INTEGRATED_ENGLISH_MANUSCRIPT_V1_2026-11-12.md",
+              "point_cf_hour_energy_physical_validation": "not_established",
+              "files": [{"path":p.as_posix(),"bytes":p.stat().st_size,"sha256":sha256(p)} for p in names],
+          }
+          Path("outputs/BUILD_PROVENANCE.json").write_text(
+              json.dumps(manifest,indent=2,sort_keys=True)+"\n",encoding="utf-8"
+          )
+          assert digest_lines[0].split()[0] == manifest["files"][0]["sha256"]
+          print("PAPER_S_INTERNAL_DOCX_SHA256_MANIFEST_PASS",manifest["files"][0]["sha256"])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-2026-11-13-source-audited-integrated-review-manuscript-docx
+          path: |
+            outputs/Paper_S_Integrated_Review_Manuscript_2026-11-13.docx
+            outputs/SHA256SUMS.txt
+            outputs/BUILD_PROVENANCE.json
+            figures/paper_s_96lp_weather_x_county_siting_main_figure.png
+            figures/paper_s_96lp_weather_x_siting_difference_heatmap.png
+          if-no-files-found: error

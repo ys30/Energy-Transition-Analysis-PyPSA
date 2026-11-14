@@ -1,0 +1,69 @@
+name: Paper S ReEDS2022 common AC wind PV 180 LP source comparison
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_county_ac_normalized_2030.py'
+      - 'tests/test_reeds2022_county_ac_normalized_2030.py'
+      - '.github/workflows/paper-s-reeds2022-ac-normalized-2030.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  compare-pv-dc-and-ac-source-denominators:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install isolated original-source solver and test dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+      - name: Verify common AC normalization, source rounding and match contract
+        run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_county_ac_normalized_2030.py
+      - name: Reuse independently MD5-authenticated original source artifacts and prior LP
+        run: |
+          mkdir -p /tmp/reeds/wind /tmp/reeds/pv /tmp/reeds/original outputs
+          gh run download 42962740548 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit --dir /tmp/reeds/wind
+          gh run download 42962740548 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit --dir /tmp/reeds/pv
+          gh run download 43051615043 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-2030-county-180-storage-dimensions-and-hurdles --dir /tmp/reeds/original
+      - name: Authenticate publisher 2030 demand file bytes
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Run 180 common-AC LP and exact 180 legacy-denominator comparisons
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_county_ac_normalized_2030 \
+            --demand-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --wind-csv /tmp/reeds/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-csv /tmp/reeds/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --original-180-csv /tmp/reeds/original/paper_s_reeds2022_2030_180_mix_power_duration_LPs.csv \
+            --out outputs
+          python - <<'PY'
+          import pandas as pd,json
+          from pathlib import Path
+          r=Path('outputs')
+          a=pd.read_csv(r/'paper_s_reeds2022_2030_ac_normalized_180_LP.csv')
+          b=pd.read_csv(r/'paper_s_reeds2022_2030_ac_normalized_144_storage_hurdles.csv')
+          c=pd.read_csv(r/'paper_s_reeds2022_2030_ac_vs_original_180_matched_scenarios.csv')
+          m=json.loads((r/'paper_s_reeds2022_2030_ac_normalized_manifest.json').read_text())
+          assert len(a)==180 and len(b)==144 and len(c)==180
+          assert a.solver_status.eq('optimal').all() and a.max_equality_residual_mwh.max()<1e-5
+          assert m['pv_ac_normalization_done_once'] and not m['electric_network_reliability_certified']
+          assert not m['installed_capacity_real_fleet']
+          print('AC_CONSISTENT_180_ORIGINAL_SOURCE_LPS_144_BATTERY_PAIRS_AND_180_MATCHES_PASSED')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-reeds2022-2030-common-ac-pv-ilr-180-original-source-lps
+          path: outputs/
+          if-no-files-found: warn

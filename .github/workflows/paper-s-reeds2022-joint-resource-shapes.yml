@@ -1,0 +1,53 @@
+name: Paper S ReEDS2022 joint wind PV authenticated 2012 state CF diagnostics
+'on':
+  pull_request:
+    paths:
+      - '.github/workflows/paper-s-reeds2022-joint-resource-shapes.yml'
+      - 'src/energy_transition/reeds2022_joint_resource_shape.py'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  archived-source-derived-shapes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install analysis libraries
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3'
+      - name: Retrieve authenticated source-derived state CF artifacts
+        run: |
+          mkdir -p /tmp/state_wind /tmp/state_pv outputs
+          gh run download 42962740548 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit \
+            --dir /tmp/state_wind
+          gh run download 42962740548 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit \
+            --dir /tmp/state_pv
+      - name: Exact label join and source-instantaneous hourly state CF analysis
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_joint_resource_shape \
+            --wind /tmp/state_wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv /tmp/state_pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('outputs/reeds2022_2012_wind_pv_instantaneous_state_shape_diagnostic.json').read_text())
+          assert r['status']=='AUTHENTICATED_RESOURCE_INSTANTANEOUS_SHAPE_DIAGNOSTIC'
+          assert r['hour_count']==8760 and len(r['states'])==4
+          assert r['demand_hour_ending_join_admitted'] is False
+          assert r['LP_solved'] is False
+          print('SOURCE_INSTANTANEOUS_WIND_PV_2012_SHAPES_AUDITED_NO_LP')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-authenticated-joint-wind-pv-state-shape-diagnostics
+          path: outputs/
+          if-no-files-found: error
