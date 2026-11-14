@@ -82,7 +82,7 @@ jobs:
           for p in names:
               assert p.is_file() and p.stat().st_size > 0, p
           digest_lines = [f"{sha256(p)}  {p.as_posix()}" for p in names]
-          Path("outputs/SHA256SUMS.txt").write_text("\\n".join(digest_lines)+"\\n",encoding="utf-8")
+          Path("outputs/SHA256SUMS.txt").write_text("\n".join(digest_lines)+"\n",encoding="utf-8")
           manifest = {
               "schema_version": 1,
               "artifact_role": "review_manuscript_not_submission_certified",
@@ -97,7 +97,7 @@ jobs:
               "files": [{"path":p.as_posix(),"bytes":p.stat().st_size,"sha256":sha256(p)} for p in names],
           }
           Path("outputs/BUILD_PROVENANCE.json").write_text(
-              json.dumps(manifest,indent=2,sort_keys=True)+"\\n",encoding="utf-8"
+              json.dumps(manifest,indent=2,sort_keys=True)+"\n",encoding="utf-8"
           )
           assert digest_lines[0].split()[0] == manifest["files"][0]["sha256"]
           print("PAPER_S_INTERNAL_DOCX_SHA256_MANIFEST_PASS",manifest["files"][0]["sha256"])
