@@ -103,7 +103,28 @@ def polish(original,out):
             in_references=True
             continue
         if in_references and paragraph.text.startswith("["):
-            paragraph.paragraph_format.space_after=Pt(4)
+            # Journal-neutral hanging indent keeps source identifiers visible.
+            paragraph.paragraph_format.left_indent=Inches(.22)
+            paragraph.paragraph_format.first_line_indent=Inches(-.22)
+            paragraph.paragraph_format.space_before=Pt(0)
+            paragraph.paragraph_format.space_after=Pt(3)
+            paragraph.paragraph_format.line_spacing=1.04
+            paragraph.paragraph_format.keep_together=True
+            for run in paragraph.runs:run.font.size=Pt(9)
+        if in_references and paragraph.text.startswith("Source time semantics:"):
+            paragraph.paragraph_format.space_before=Pt(5)
+            paragraph.paragraph_format.space_after=Pt(5)
+            paragraph.paragraph_format.keep_together=True
+            for run in paragraph.runs:run.font.size=Pt(9)
+        if in_references and paragraph.text.startswith("Reference provenance:"):
+            relative="./PAPER_S_VERIFIED_REFERENCE_LIBRARY_AND_METHOD_ATTRIBUTION_2026-11-12.md"
+            if relative not in paragraph.text:
+                raise ValueError("Expected relative source-register link to replace")
+            full=("https://github.com/ys30/Energy-Transition-Analysis-PyPSA/"
+                  "blob/paper-s-reeds2022-hourly-join-gates/docs/"
+                  "PAPER_S_VERIFIED_REFERENCE_LIBRARY_AND_METHOD_ATTRIBUTION_2026-11-12.md")
+            paragraph.text=paragraph.text.replace(relative,full)
+            paragraph.paragraph_format.space_after=Pt(3)
             for run in paragraph.runs:run.font.size=Pt(9)
     doc.save(out)
     d=Document(out)
