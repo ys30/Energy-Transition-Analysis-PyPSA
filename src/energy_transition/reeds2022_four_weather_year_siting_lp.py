@@ -35,7 +35,10 @@ SOURCES={"wind":(WIND_COUNTY_MD5,WIND_COUNTY_CAPACITY_MD5),
          "pv":(PV_COUNTY_MD5,PV_COUNTY_CAPACITY_MD5)}
 BASE_RUN=43159121663
 
-def reaggregate_years(h5,sc,tech,county_shares,original_2012_csv):
+def reaggregate_years(h5,sc,tech,county_shares,original_2012_csv,years=YEARS):
+    years=tuple(int(y) for y in years)
+    if not years or len(years)!=len(set(years)) or 2012 not in years:
+        raise ValueError('Distinct source years including frozen 2012 anchor required')
     original,clock=read_native(original_2012_csv,tech)
     h_md5,c_md5=SOURCES[tech]
     require_md5(h5,h_md5)
@@ -53,7 +56,7 @@ def reaggregate_years(h5,sc,tech,county_shares,original_2012_csv):
         if names!=table.column.tolist() or not np.issubdtype(f["data"].dtype,np.floating):
             raise ValueError("Original HDF5 resource key ordering/float dtype mismatch")
         weights={st:county_tech_weights(table,shares,tech,st) for st in STATES}
-        for year in YEARS:
+        for year in years:
             idx=np.flatnonzero(native.year==year)
             if len(idx)!=HOURS or not np.array_equal(idx,np.arange(idx[0],idx[0]+HOURS)):
                 raise ValueError(f"Source year {year} not original contiguous 8760")
@@ -79,7 +82,7 @@ def reaggregate_years(h5,sc,tech,county_shares,original_2012_csv):
                         "original_instantaneous_mean_CF":float(original_cf.mean()),
                         "aligned_instantaneous_mean_CF":float(mapped.mean()),
                         **calendar})
-    if len(output)!=len(YEARS)*len(DESIGNS)*len(STATES):
+    if len(output)!=len(years)*len(DESIGNS)*len(STATES):
         raise ValueError("Incomplete original source multi-year profiles")
     return output,pd.DataFrame(audits),clock
 
