@@ -88,3 +88,17 @@ def test_hour_discretization_192lp_sensitivity_is_not_misrepresented():
     assert "$10.955" in s and "$9.868" in s
     assert "not robust" in s.lower()
     assert "Neither point-hold nor trapezoid" in s
+
+
+def test_main_figure_numbers_match_reproducible_docx_builder():
+    """Prevent stale Figure 4a/4b numbering from returning to the two-figure review DOCX."""
+    manuscript=text(MANUSCRIPT)
+    builder=text(ROOT/"scripts/build_paper_s_review_docx.py")
+    assert "**Figure 1 — County siting–weather interactions" in manuscript
+    assert "**Figure 2 — EIA observed operating county share" in manuscript
+    assert "Figure 1 presents the full four-state" in manuscript
+    assert "**Figure 4a" not in manuscript and "**Figure 4b" not in manuscript
+    assert '"Figure 1. Historical weather' in builder
+    assert '"Figure 2. Difference between EIA' in builder
+    assert "disappears under endpoint hold" in builder
+    assert "trapezoid" in builder.lower()
