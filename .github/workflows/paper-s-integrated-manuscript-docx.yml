@@ -109,4 +109,6 @@ jobs:
             outputs/Paper_S_Integrated_Review_Manuscript_2026-11-13.docx
             outputs/SHA256SUMS.txt
             outputs/BUILD_PROVENANCE.json
+            figures/paper_s_96lp_weather_x_county_siting_main_figure.png
+            figures/paper_s_96lp_weather_x_siting_difference_heatmap.png
           if-no-files-found: error
