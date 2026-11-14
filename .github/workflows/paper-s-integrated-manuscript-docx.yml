@@ -50,7 +50,7 @@ jobs:
           joined='\n'.join(x.text for x in d.paragraphs)
           assert len(d.inline_shapes)==5 and len(d.tables)==1
           for phrase in ('192 LP','10.955','9.868','11.900','10.876',
-                         '15 of 16','References and original data sources','Reviewer-facing scope note',
+                         '15 of 16','References and original data sources','Verified manuscript figures',
                          'not robust','source-audited'):
               assert phrase.lower() in joined.lower(),phrase
           assert not any('Manuscript completion items' in x.text for x in d.paragraphs)
