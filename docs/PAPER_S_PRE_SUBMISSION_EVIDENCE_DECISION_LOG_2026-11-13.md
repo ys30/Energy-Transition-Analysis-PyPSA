@@ -20,7 +20,7 @@
 | Grid network / adequacy / financing | Custom SciPy HiGHS copperplate LP with firm 1.2× peak, zero SOC endpoints, no battery CAPEX/NPV and no nodal/line constraints | **Scope limitation**; not PyPSA network simulation |
 | Final article layout | Main figure panels verified via 43288856607; integrated article text and captions exist, but final DOCX/PDF layout, journal-specific references/metadata not built | **OPEN** |
 | Full repository CI for prior reviewed 192-LP manuscript | Workflow 43323774425 succeeded | **PASS for that prior commit** |
-| Full CI for 2026-11-13 editorial refresh | Recheck GitHub Actions at current branch HEAD | **PENDING until actually completed** |
+| Full CI for 2026-11-13 editorial refresh and Word build | [full CI 43549340607](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43549340607) and [Word build 43549340624](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43549340624) both have completed jobs with **success** | **PASS for checked commit `0310462972fa0ac8e66f3bc8014ee974551878b2`**; new commits need their own CI |
 
 ### Recommended final manuscript logic
 
@@ -42,7 +42,7 @@
 
 ### Remaining recommended path, in order
 
-1. Complete latest CI on the consolidated manuscript. Resolve only factual/test failures; do not alter frozen LP CSVs.
+1. Latest reviewed CI and reproducible Word-generation workflow passed at `0310462`; inspect the generated DOCX from [run 43549340624](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43549340624) and preserve frozen LP CSVs.
 2. Audit metadata and bibliographic style for target journal and archive one precise Git release/Zenodo source snapshot so runs are recoverable beyond ephemeral Actions retention.
 3. Create final polished Figure 1 provenance schematic and determine whether Fig 2 belongs in Supplement.
 4. Create journal-appropriate complete manuscript DOCX/PDF with numbered equations, bibliography, scientific figure captions, editable tables and source/hypothesis labels; perform visual review.
@@ -50,3 +50,10 @@
 6. Resolve author contribution, data/software licenses, conflicts and funding disclosure. Do not make prior EFS2020 synthetic profiles primary results.
 
 **Recommendation:** Stop broad sweeps unless a precise scientific or reviewer request arises. The paper's central result is a **model sensitivity and data-provenance contribution**, not demonstrated 2030 storage investment profitability.
+
+## 2026-11-13 final workflow resolution (checked after previous pending note)
+
+- GitHub Actions [manuscript DOCX build 43549340624](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43549340624): `generate-source-audited-word-manuscript` completed successfully.
+- GitHub Actions [full CI 43549340607](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43549340607): `analyze` completed successfully.
+- This closes the *previously pending build/test gates*, not the scientific interpretation gates. The reproducible editable Word draft has equations as high-resolution display graphics rather than editable Word mathematics. Final journal style, publisher-certified hourly integrated CF, fleet class/vintage, and physical network/economic inference remain unresolved.
+- All results from original 24/96/192 LP runs are frozen. Do not market the AZ 2012 USD 10/kWh-year crossing as hour-method robust.
