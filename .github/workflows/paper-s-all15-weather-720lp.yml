@@ -1,0 +1,110 @@
+name: Paper S all 15 original weather years 720 LP validation
+'on':
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  original-weather-720-lp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install original source HDF5 and optimization packages
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+      - name: Validate 720-case keys, frozen regression and native calendar
+        run: |
+          PYTHONPATH=src python -m pytest -q \
+            tests/test_reeds2022_explicit_weather_year_alignment.py \
+            tests/test_reeds2022_all_weather_year_720lp.py \
+            tests/test_reeds2022_source_multiyear_calendar_audit.py
+      - name: Re-download two publisher authentic 15-weather-year source county HDF5s
+        run: |
+          set -eu
+          mkdir -p /tmp/reeds /tmp/reeds/wind /tmp/reeds/pv /tmp/reeds/eia /tmp/reeds/anchor outputs
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
+            'https://zenodo.org/records/18422200/files/cf_wind-ons_reference_county.h5?download=1' \
+            -o /tmp/reeds/wind.h5
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
+            'https://zenodo.org/records/18407660/files/cf_upv_reference_county.h5?download=1' \
+            -o /tmp/reeds/pv.h5
+          echo '0670813d0a18b688d698ca24cf67fb92  /tmp/reeds/wind.h5' | md5sum --check
+          echo 'aba834ea4c592023bca47de2ba79e7ec  /tmp/reeds/pv.h5' | md5sum --check
+      - name: Fetch verified original source capacities and 2012 reference profiles
+        run: |
+          set -eu
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
+            'https://zenodo.org/records/18422200/files/sc_wind-ons_reference_county.csv?download=1' -o /tmp/reeds/wind_sc.csv
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
+            'https://zenodo.org/records/18407660/files/sc_upv_reference_county.csv?download=1' -o /tmp/reeds/pv_sc.csv
+          echo '49ab4e41dc386453b5fd32e5810774d4  /tmp/reeds/wind_sc.csv' | md5sum --check
+          echo 'e10b1a64f3a67d163e739b735938eb78  /tmp/reeds/pv_sc.csv' | md5sum --check
+          for tech in wind pv; do
+            for trial in 1 2 3; do
+              gh run download 42962740548 --repo "${{ github.repository }}" \
+                --name "paper-s-reeds2022-original-2012-county-${tech}-hdf5-source-audit" \
+                --dir "/tmp/reeds/${tech}" && break
+              if [ "$trial" -eq 3 ]; then exit 1; fi
+              sleep 10
+            done
+          done
+      - name: Fetch independently verified EIA county shares and frozen 192 LP source
+        run: |
+          set -eu
+          for trial in 1 2 3; do
+            gh run download 43124063185 --repo "${{ github.repository }}" \
+              --name paper-s-eia860-2025-observed-fleet-versus-reeds-county-potential-weight-comparison \
+              --dir /tmp/reeds/eia && break
+            if [ "$trial" -eq 3 ]; then exit 1; fi
+            sleep 10
+          done
+          for trial in 1 2 3; do
+            gh run download 43317414772 --repo "${{ github.repository }}" \
+              --name paper-s-reeds-2010-2013-source-192-lp-hour-sample-method-sensitivity \
+              --dir /tmp/reeds/anchor && break
+            if [ "$trial" -eq 3 ]; then exit 1; fi
+            sleep 10
+          done
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds/demand.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand.h5' | md5sum --check
+      - name: Solve all 720 LPs and reproduce each original 192 LP objective
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_all_weather_year_720lp \
+            --wind-h5 /tmp/reeds/wind.h5 --pv-h5 /tmp/reeds/pv.h5 \
+            --wind-sc /tmp/reeds/wind_sc.csv --pv-sc /tmp/reeds/pv_sc.csv \
+            --county-shares /tmp/reeds/eia/paper_s_eia860_2025_vs_reeds_county_spatial_weights.csv \
+            --wind-ref /tmp/reeds/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-ref /tmp/reeds/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --demand-h5 /tmp/reeds/demand.h5 \
+            --frozen-192-lps /tmp/reeds/anchor/paper_s_2010_2013_two_hour_approximations_192_LP.csv \
+            --out outputs
+          python - <<'PY'
+          from pathlib import Path
+          import json,pandas as pd
+          out=Path("outputs")
+          m=json.loads((out/"paper_s_all15_manifest.json").read_text())
+          assert m["LPs"]==720
+          assert m["duration_triplets"]==240
+          assert m["siting_comparisons"]==120
+          assert m["hour_mode_comparisons"]==60
+          assert m["frozen_192_max_objective_drift_usd"]<0.1
+          assert m["2030_demand_weather_year_fixed_to_2012"]
+          assert m["source_CF_is_instantaneous_not_integrated"]
+          assert len(pd.read_csv(out/"paper_s_all15_calendar_audit.csv"))==240
+          print("PAPER_S_ALL15_SOURCE_LP_ADMISSION_PASS")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-all15-720lp-fixed2030demand-source-validated
+          path: outputs/
+          if-no-files-found: warn
