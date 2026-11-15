@@ -41,10 +41,20 @@ def decode_values(values):
     return [v.decode("utf-8") if isinstance(v,bytes) else str(v) for v in values]
 
 
+def parse_native_fixed_cst(index):
+    """Keep the source's explicit fixed UTC-06 clock; reject DST or naive labels."""
+    labels=decode_values(index)
+    if not labels or not all(x.endswith("-06:00") for x in labels):
+        raise ValueError("Historical source timestamps must specify fixed UTC-06:00")
+    utc=pd.DatetimeIndex(pd.to_datetime(labels,utc=True,errors="raise"))
+    if utc.isna().any() or utc.has_duplicates:
+        raise ValueError("Historical source UTC labels invalid")
+    return utc.tz_convert("Etc/GMT+6").tz_localize(None)
+
+
 def validate_native_year(index,year):
-    """The source's original 8760 hourly timestamps are not silently remapped."""
-    t=pd.DatetimeIndex(pd.to_datetime(decode_values(index),errors="raise"))
-    if t.tz is not None:raise ValueError("Historical source index must be naive fixed CST")
+    """Verify one publisher year on the original fixed-CST civil clock."""
+    t=parse_native_fixed_cst(index)
     if len(t)!=HOURS or t.has_duplicates or t.isna().any():
         raise ValueError("Historical year must have 8760 unique native labels")
     if not (t.year==year).all() or not (t.minute==0).all() or not (t.second==0).all():
@@ -67,7 +77,8 @@ def audit(historic,projection):
         if len(state_cols)!=len(set(state_cols)) or any(st not in state_cols for st in STATES):
             raise ValueError("Missing/duplicate official historical state columns")
         table=f["data"]
-        native=pd.DatetimeIndex(pd.to_datetime(decode_values(f["index_0"][:]),errors="raise"))
+        native_raw=f["index_0"][:]
+        native=parse_native_fixed_cst(native_raw)
         if table.ndim!=2 or table.shape!=(len(WEATHER_YEARS)*HOURS,len(state_cols)):
             raise ValueError("Unexpected historical demand dimensions")
         if len(native)!=len(WEATHER_YEARS)*HOURS or native.has_duplicates:
@@ -75,7 +86,7 @@ def audit(historic,projection):
         for i,year in enumerate(WEATHER_YEARS):
             lo=i*HOURS
             hi=lo+HOURS
-            clock=validate_native_year(native[lo:hi],year)
+            clock=validate_native_year(native_raw[lo:hi],year)
             year_counts[str(year)]=len(clock)
             indices=[state_cols.index(st) for st in STATES]
             panel=np.asarray(table[lo:hi,indices],dtype=float)
