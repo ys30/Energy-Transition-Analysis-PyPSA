@@ -5,7 +5,7 @@ as state-level validation of ReEDS county source CF. The API results may
 include negative net-generation values; preserve them without clipping.
 """
 from __future__ import annotations
-import argparse, hashlib,json,urllib.parse,urllib.request,time
+import argparse, hashlib,json,urllib.parse,urllib.request,time,os
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -81,6 +81,9 @@ def main():
     p.add_argument("--end",default="2023-07-07T23")
     p.add_argument("--api-key",default=None)
     a=p.parse_args()
+    a.api_key=a.api_key or os.environ.get("EIA_API_KEY")
+    if not a.api_key:
+        raise ValueError("EIA API key is required: set EIA_API_KEY as repository secret or use the key-free archived EIA-930 historical flat files. Do not publish keys.")
     a.out.mkdir(parents=True,exist_ok=True)
     outputs=[];diagnostics=[]
     expected_hours=pd.date_range(a.start,a.end,freq="h",tz="UTC")
