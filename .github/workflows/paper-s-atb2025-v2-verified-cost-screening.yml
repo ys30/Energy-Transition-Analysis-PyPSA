@@ -1,0 +1,63 @@
+name: Paper S authentic ATB2025 v2 cost versus 15-year matched LP screening
+'on':
+  pull_request:
+    paths:
+      - 'data/paper_s_atb2025_v2_2030_bess_4h_8h_source_cells.csv'
+      - 'src/energy_transition/paper_s_atb2025_v2_verified_results.py'
+      - '.github/workflows/paper-s-atb2025-v2-verified-cost-screening.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-pinned-2030-cost-screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install cost and data-checking dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Assert algebra and reject mixed ATB records
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_s_atb_2030_storage_extension_cost.py
+      - name: Get immutable previously-verified original-source historical load LPs
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/papers/matched outputs
+          gh run download 43665299980 --repo "${{ github.repository }}" \
+            --name paper-s-15-year-matched-historical-load-720-lp \
+            --dir /tmp/papers/matched
+      - name: Screen 120 independent 15-year LP values with official 2030 ATB v2 source-cell cost inputs
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_atb2025_v2_verified_results \
+            --source-cells data/paper_s_atb2025_v2_2030_bess_4h_8h_source_cells.csv \
+            --verified-lp-triplets /tmp/papers/matched/paper_s_same_weather_240_duration_triplets.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          out=Path('outputs')
+          m=json.loads((out/'paper_s_official_atb2025_v2_screening_manifest.json').read_text())
+          costs=pd.read_csv(out/'paper_s_official_atb2025_v2_18_cost_hurdles.csv')
+          cases=pd.read_csv(out/'paper_s_official_atb2025_v2_2160_lp_cost_comparisons.csv')
+          summary=pd.read_csv(out/'paper_s_official_atb2025_v2_18_screening_summaries.csv')
+          assert (len(costs),len(cases),len(summary))==(18,2160,18)
+          assert set(costs.source_variant)=={'R&D','Expand'}
+          assert set(costs.scenario)=={'Advanced','Moderate','Conservative'}
+          assert m['cash_flow_or_market_profit_established'] is False
+          assert summary.total_lp_cases.eq(120).all()
+          assert summary.meeting_threshold.eq(0).all()
+          print("PAPER_S_ATB2025_V2_2160_AUTHENTIC_LP_COST_SCREEN_PASS")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-atb2025-v2-2030-2160-cost-screening
+          path: outputs/
+          if-no-files-found: warn
