@@ -74,17 +74,28 @@ def inspect(src):
         inventory={}
         terms=re.compile(r"2030|4.hour|8.hour|battery|storage|advanced|moderate|conservative|capex|FOM|OCC",re.I)
         for name in TARGET_SHEETS:
-            selected=[];found=0;row_count=0
+            headers=[];focus=[];other=[];found=0;row_count=0
             for number,cells in read_rows(z,paths[name],strings):
                 row_count+=1
                 values=" ".join(str(c["cached_value"] or "") for c in cells)
-                if number<=60 or terms.search(values):
-                    found+=1
-                    if len(selected)<180:
-                        selected.append({"row":number,"cells":cells[:42],
-                                         "cell_count":len(cells)})
+                match=bool(terms.search(values))
+                is_2030=any(str(c["cached_value"]).strip() in ("2030","2030.0")
+                            for c in cells)
+                record={"row":number,"cells":cells[:55],
+                        "cell_count":len(cells)}
+                if number<=35:
+                    headers.append(record)
+                elif is_2030 or ("2030" in values and len(focus)<180):
+                    if len(focus)<180:focus.append(record)
+                elif match and len(other)<100:
+                    other.append(record)
+                if number<=60 or match:found+=1
+            selected=headers+focus+other
             inventory[name]={"source_xml_path":paths[name],
-                             "nonempty_rows":row_count,"selected_rows_total":found,
+                             "nonempty_rows":row_count,"candidate_rows_total":found,
+                             "header_rows":len(headers),
+                             "2030_rows_exported":len(focus),
+                             "other_candidate_rows_exported":len(other),
                              "selected_rows_exported":len(selected),
                              "selected_rows":selected}
     return {"status":"ATB2025_V2_BATTERY_CELL_LAYOUT_SOURCE_VERIFIED",
