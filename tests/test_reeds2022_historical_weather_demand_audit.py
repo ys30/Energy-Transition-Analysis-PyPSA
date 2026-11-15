@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from energy_transition.reeds2022_historical_weather_demand_audit import (
-    validate_native_year,HOURS,WEATHER_YEARS,STATES,
+    validate_native_year,parse_native_fixed_cst,HOURS,WEATHER_YEARS,STATES,
 )
 
 
@@ -16,9 +16,10 @@ def test_15_authentic_weather_years_and_no_missing_year_insertion():
 
 @pytest.mark.parametrize("year",[2007,2012,2016,2020,2023])
 def test_native_year_clock_and_leap_cutoff(year):
-    labels=pd.date_range(f"{year}-01-01",periods=HOURS,freq="h")
-    got=validate_native_year(labels,year)
-    assert got.equals(labels)
+    expected=pd.date_range(f"{year}-01-01",periods=HOURS,freq="h")
+    labels=pd.date_range(f"{year}-01-01 00:00:00-06:00",periods=HOURS,freq="h")
+    got=validate_native_year(labels.astype(str),year)
+    assert got.equals(expected)
     assert len(got)==8760
     if year in (2008,2012,2016,2020):
         assert got[-1].month==12 and got[-1].day==30
@@ -27,11 +28,15 @@ def test_native_year_clock_and_leap_cutoff(year):
 
 
 def test_clock_fail_closed_missing_and_shifted_hours():
-    labels=pd.date_range("2012-01-01",periods=HOURS,freq="h")
+    labels=pd.date_range("2012-01-01 00:00:00-06:00",periods=HOURS,freq="h")
     with pytest.raises(ValueError):
-        validate_native_year(labels[1:],2012)
+        validate_native_year(labels[1:].astype(str),2012)
     shifted=labels+pd.Timedelta(hours=1)
     with pytest.raises(ValueError,match="continuous"):
-        validate_native_year(shifted,2012)
+        validate_native_year(shifted.astype(str),2012)
     with pytest.raises(ValueError,match="weather year"):
-        validate_native_year(labels,2013)
+        validate_native_year(labels.astype(str),2013)
+    with pytest.raises(ValueError,match="fixed UTC-06"):
+        validate_native_year(labels.tz_localize(None).astype(str),2012)
+    with pytest.raises(ValueError,match="fixed UTC-06"):
+        validate_native_year(labels.tz_convert("America/Denver").astype(str),2012)
