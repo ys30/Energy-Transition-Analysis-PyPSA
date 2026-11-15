@@ -1,0 +1,46 @@
+name: Paper S official EIA930 2023 observed BA wind solar pilot
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia930_observed_ba_pilot.py'
+      - 'tests/test_paper_s_eia930_observed_ba_pilot.py'
+      - '.github/workflows/paper-s-eia930-observed-BA-pilot.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-EIA930-BA-only-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install EIA source parsing and test dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Reject unverified source faceting or mixed BA observation rows
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_s_eia930_observed_ba_pilot.py
+      - name: Fetch actual EIA hourly BA wind solar observations with pinned UTC period
+        run: |
+          mkdir -p outputs
+          PYTHONPATH=src python -m energy_transition.paper_s_eia930_observed_ba_pilot \
+            --start 2023-07-01T00 --end 2023-07-07T23 --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          m=json.loads(Path('outputs/paper_s_EIA930_BA_pilot_manifest.json').read_text())
+          o=pd.read_csv('outputs/paper_s_EIA930_2023_BA_wind_solar_hourly_pilot.csv')
+          assert not m['BA_eq_state_assumed']
+          assert not m['observed_to_ReEDS_state_hourly_validated']
+          assert len(o)==m['records'] and len(o)>0
+          assert set(o.fuel)=={'wind','solar'}
+          print('PAPER_S_EIA930_2023_OBSERVED_BA_SOURCE_PILOT_PASS',len(o))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-eia930-2023-observed-ba-wind-solar-pilot
+          path: outputs/
+          if-no-files-found: warn
