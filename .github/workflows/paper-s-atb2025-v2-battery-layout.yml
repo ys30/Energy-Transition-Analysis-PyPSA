@@ -16,6 +16,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Validate workbook source-cell reader and no invented cost data
+        run: |
+          python -m pip install 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_atb2025_v2_battery_sheet_layout.py
       - name: Download exact successful-audit ATB2025 revised v2 workbook
         run: |
           set -euo pipefail
