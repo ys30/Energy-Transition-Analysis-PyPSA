@@ -1,0 +1,46 @@
+name: Paper S updated ATB2025 v2 2030 battery CAPEX FOM cell inventory
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_atb2025_v2_battery_sheet_layout.py'
+      - '.github/workflows/paper-s-atb2025-v2-battery-layout.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect-v2-workbook-battery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download exact successful-audit ATB2025 revised v2 workbook
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/atb outputs
+          curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 30 --max-time 900 \
+            'https://data.openei.org/files/8759/2025_v2_Workbook_11-11-2026.xlsx' \
+            -o /tmp/atb/2025_v2_Workbook_11-11-2026.xlsx
+          echo 'c3cece683ecbc943ac7170cbe668e4efdc5367731fe0bce83ee34bb359970b56  /tmp/atb/2025_v2_Workbook_11-11-2026.xlsx' | sha256sum --check
+      - name: Inventory original source cells without inferred ATB economic claims
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_atb2025_v2_battery_sheet_layout \
+            --workbook /tmp/atb/2025_v2_Workbook_11-11-2026.xlsx \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          j=json.loads(Path("outputs/paper_s_ATB2025_v2_battery_cell_layout.json").read_text())
+          assert len(j["sheets"])==4
+          assert j["official_2030_storage_costs_extracted_and_validated"] is False
+          print("PAPER_S_ATB_V2_BATTERY_SOURCE_CELL_INVENTORY_PASS")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-atb2025-v2-battery-cells-inventory
+          path: outputs/
+          if-no-files-found: warn
