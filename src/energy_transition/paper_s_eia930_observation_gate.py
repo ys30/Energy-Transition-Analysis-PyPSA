@@ -34,6 +34,9 @@ def validate_observations(frame):
         raise ValueError(f"Missing EIA-930 observation fields: {sorted(REQUIRED_OBS-set(frame.columns))}")
     f=frame.copy()
     if f.empty:raise ValueError("No EIA-930 observation records")
+    raw=f.utc_hour_end.astype(str).str.strip()
+    if not raw.str.contains(r"(?:Z|[+-]00:00)$",regex=True,case=False).all():
+        raise ValueError("EIA-930 normalized UTC hour-ending values require explicit UTC offset")
     ts=pd.to_datetime(f.utc_hour_end,utc=True,errors="raise")
     if ts.isna().any() or ((ts.dt.minute!=0)|(ts.dt.second!=0)).any():
         raise ValueError("EIA-930 UTC hour-ending timestamps invalid")
