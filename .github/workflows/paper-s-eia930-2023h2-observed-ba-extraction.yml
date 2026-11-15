@@ -1,0 +1,57 @@
+name: Paper S observed EIA930 BA wind solar source extract July 2023
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia930_2023h2_ba_observed_extract.py'
+      - 'tests/test_paper_s_eia930_2023h2_ba_observed_extract.py'
+      - '.github/workflows/paper-s-eia930-2023h2-observed-ba-extraction.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  extract-source-mw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install parsing dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Source semantics tests
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_s_eia930_2023h2_ba_observed_extract.py
+      - name: Download checksum-pinned EIA930 historical archive
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/eia930 outputs
+          curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 30 --max-time 600 \
+            'https://zenodo.org/records/22856870/files/eia930-2023half2.zip?download=1' \
+            -o /tmp/eia930/eia930-2023half2.zip
+          echo '1de4e47693426671123bb08ec0d33995  /tmp/eia930/eia930-2023half2.zip' | md5sum --check
+      - name: Extract observed BA wind solar MW and missing-hour audit
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_eia930_2023h2_ba_observed_extract \
+            --archive /tmp/eia930/eia930-2023half2.zip --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          p=Path('outputs')
+          m=json.loads((p/'paper_s_eia930_2023_ba_observed_source_manifest.json').read_text())
+          d=pd.read_csv(p/'paper_s_eia930_2023_07_01_to_07_07_ba_wind_solar_reported_mw.csv')
+          q=pd.read_csv(p/'paper_s_eia930_2023_07_01_to_07_07_ba_coverage.csv')
+          assert len(d)==m['source_rows'] and len(q)==8
+          assert set(d.fuel)=={'wind','solar'}
+          assert not m['BA_equals_state_assumed']
+          assert not m['EIA_to_ReEDS_weather_cf_comparison_completed']
+          assert m['source_column_unit']=='MW'
+          print('PAPER_S_EIA930_BA_OBSERVED_MW_SOURCE_PASS',len(d))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-eia930-2023-july-first-week-observed-ba-wind-solar-mw
+          path: outputs/
+          if-no-files-found: warn
