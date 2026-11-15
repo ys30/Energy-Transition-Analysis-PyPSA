@@ -83,13 +83,24 @@ def main():
     a=p.parse_args()
     a.out.mkdir(parents=True,exist_ok=True)
     outputs=[];diagnostics=[]
+    expected_hours=pd.date_range(a.start,a.end,freq="h",tz="UTC")
+    if not 0<len(expected_hours)<=5000:
+        raise ValueError("Pilot requires 1..5000 exact hourly timestamps")
     for ba in BA_CODES:
         for fuel in CODES:
             url=url_for(ba,fuel,a.start,a.end,a.api_key)
             raw=fetch(url)
             df=parse_payload(raw,ba,fuel)
             outputs.append(df)
+            actual=pd.DatetimeIndex(pd.to_datetime(df.utc_hour_end,utc=True))
+            missing=expected_hours.difference(actual)
+            extra=actual.difference(expected_hours)
+            if len(extra):
+                raise ValueError(f"Official API returned {len(extra)} out-of-range hours for {ba}/{fuel}")
             diagnostics.append({
+                "expected_hours":len(expected_hours),
+                "missing_hours":len(missing),
+                "missing_hours_sample_utc":[str(t) for t in missing[:10]],
                 "ba_code":ba,"fuel":fuel,"records":len(df),
                 "period_start":df.utc_hour_end.min(),"period_end":df.utc_hour_end.max(),
                 "negative_hours":int((df.net_generation_mwh<0).sum()),
@@ -97,12 +108,16 @@ def main():
                 "data_source_endpoint":URL,
             })
     frame=pd.concat(outputs,ignore_index=True)
+    incomplete_groups=sum(x["missing_hours"]>0 for x in diagnostics)
     if frame.duplicated(["utc_hour_end","ba_code","fuel"]).any():
         raise ValueError("Duplicate BA/fuel/hour in combined source")
     frame.to_csv(a.out/"paper_s_EIA930_2023_BA_wind_solar_hourly_pilot.csv",index=False)
     pd.DataFrame(diagnostics).to_csv(a.out/"paper_s_EIA930_BA_pilot_coverage.csv",index=False)
     manifest={"status":"OBSERVED_EIA930_BA_SOURCE_PILOT_ONLY",
         "records":len(frame),"source_url":SOURCE,"source_endpoint":URL,
+        "expected_hours_per_ba_fuel":len(expected_hours),
+        "ba_fuel_groups_with_missing_hours":incomplete_groups,
+        "complete_hourly_BA_pilot":incomplete_groups==0,
         "BA_codes":list(BA_CODES),"fuels":list(CODES),
         "source_period_start":a.start,"source_period_end":a.end,
         "BA_eq_state_assumed":False,
