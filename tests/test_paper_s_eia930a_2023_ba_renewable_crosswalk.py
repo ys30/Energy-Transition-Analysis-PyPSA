@@ -6,7 +6,8 @@ def generator(ba="PNM",fuel="wind",state="NM",sheet="SCH 2",plant="1",gen="A",mw
     return dict(sheet=sheet,ba_code=ba,fuel=fuel,
         state_for_geography=state,EIA_plant_id=plant,EIA_generator_id=gen,
         EIA930A_plant_id="",EIA930A_generator_id="",
-        operating_by_july_2023_candidate=when,candidate_capacity_mw=mw)
+        operating_by_july_2023_candidate=when,candidate_capacity_mw=mw,
+        original_excel_row=2)
 
 def test_annual_source_not_pretended_hourly_and_schedule4_excluded():
     source=[
