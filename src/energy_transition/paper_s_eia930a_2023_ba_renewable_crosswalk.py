@@ -175,6 +175,44 @@ def aggregate(rows):
                 for (s,ba,fuel),v in sorted(audit.items())]
     return table,audit_rows
 
+def audit_generator_overlap(rows):
+    """Detect cross-BA assignments without arbitrarily de-duplicating BA data.
+
+    Plant/generator IDs may appear in Schedule 2 for more than one BA; those
+    observations require evidence review before using capacity totals.
+    """
+    from collections import defaultdict
+    seen=defaultdict(lambda:{"bas":set(),"source_rows":[],"fuel":set(),"states":set()})
+    missing_ids=[]
+    for r in rows:
+        if r["sheet"]!="SCH 2" or not r["operating_by_july_2023_candidate"]:
+            continue
+        plant=r["EIA_plant_id"] or r["EIA930A_plant_id"]
+        gen=r["EIA_generator_id"] or r["EIA930A_generator_id"]
+        if not plant or not gen:
+            missing_ids.append({"BA":r["ba_code"],"source_row":r["original_excel_row"],
+                                "fuel":r["fuel"],"state":r["state_for_geography"]})
+            continue
+        key=(str(plant),str(gen))
+        obj=seen[key]
+        obj["bas"].add(r["ba_code"])
+        obj["source_rows"].append(f'{r["sheet"]}!{r["original_excel_row"]}')
+        obj["fuel"].add(r["fuel"])
+        obj["states"].add(r["state_for_geography"] or "UNRESOLVED")
+    overlaps=[]
+    for (plant,gen),v in sorted(seen.items()):
+        if len(v["bas"])>1:
+            overlaps.append({
+                "EIA_or_EIA930A_plant_id":plant,"generator_id":gen,
+                "reporting_BAs":";".join(sorted(v["bas"])),
+                "fuel_labels":";".join(sorted(v["fuel"])),
+                "generator_states":";".join(sorted(v["states"])),
+                "source_excel_rows":";".join(v["source_rows"]),
+                "requires_cross_BA_accounting_review":True,
+            })
+    return overlaps,missing_ids
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--file",type=Path,required=True)
@@ -182,12 +220,15 @@ def main():
     a=p.parse_args()
     rows,headers=collect(a.file)
     caps,audit=aggregate(rows)
+    overlaps,unresolved_ids=audit_generator_overlap(rows)
     a.out.mkdir(parents=True,exist_ok=True)
     import csv
     for name,data in [
         ("eia930a_2023_four_BA_wind_solar_generator_evidence.csv",rows),
         ("eia930a_2023_four_BA_SCH2_renewable_state_capacity_candidates.csv",caps),
-        ("eia930a_2023_four_BA_schedule4_pseudotie_audit_counts.csv",audit)]:
+        ("eia930a_2023_four_BA_schedule4_pseudotie_audit_counts.csv",audit),
+        ("eia930a_2023_cross_BA_generator_duplicate_candidates.csv",overlaps),
+        ("eia930a_2023_missing_generator_ids.csv",unresolved_ids)]:
         if not data:continue
         with (a.out/name).open("w",newline="") as f:
             w=csv.DictWriter(f,fieldnames=data[0].keys());w.writeheader();w.writerows(data)
@@ -197,6 +238,9 @@ def main():
         "source_workbook_sheets":list(headers),
         "BA_codes":list(BAS),"generator_evidence_rows":len(rows),
         "SCH2_state_capacity_candidates":len(caps),
+        "cross_BA_generator_overlap_candidates":len(overlaps),
+        "generator_rows_without_verified_ids":len(unresolved_ids),
+        "cross_BA_overlaps_not_deduplicated_or_apportioned":True,
         "SCH4_relationship_only_not_added_to_denominator":True,
         "candidate_not_confirmed_in_service_2023_July_hourly":True,
         "capacity_unit":"MW (nameplate)","EIA930_generation_unit":"MW (net reported)",
