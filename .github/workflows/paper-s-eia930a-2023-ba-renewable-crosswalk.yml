@@ -1,0 +1,57 @@
+name: Paper S verified EIA930A 2023 BA-state renewable generator candidate crosswalk
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia930a_2023_ba_renewable_crosswalk.py'
+      - 'tests/test_paper_s_eia930a_2023_ba_renewable_crosswalk.py'
+      - '.github/workflows/paper-s-eia930a-2023-ba-renewable-crosswalk.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-generator-crosswalk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run candidate capacity aggregation safeguards
+        run: |
+          python -m pip install 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_eia930a_2023_ba_renewable_crosswalk.py
+      - name: Download official EIA930A 2023 workbook
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/eia930a outputs
+          curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 30 --max-time 300 \
+            'https://www.eia.gov/electricity/930-content/EIA_930A_2023_with%20layout.xlsx' \
+            -o /tmp/eia930a/EIA_930A_2023_with_layout.xlsx
+          printf '%s  %s\n' \
+            ed8008bf4f5cbb0799d5a99b4dbc806e892eb150a9b357a709b582a93e28676f \
+            /tmp/eia930a/EIA_930A_2023_with_layout.xlsx | sha256sum -c -
+      - name: Produce official generator and schedule-4 relationship evidence
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_eia930a_2023_ba_renewable_crosswalk \
+            --file /tmp/eia930a/EIA_930A_2023_with_layout.xlsx --out outputs
+          python - <<'PY'
+          import csv,json
+          from pathlib import Path
+          p=Path('outputs')
+          m=json.loads((p/'eia930a_2023_four_BA_mapping_manifest.json').read_text())
+          with (p/'eia930a_2023_four_BA_SCH2_renewable_state_capacity_candidates.csv').open() as fh:
+              rows=list(csv.DictReader(fh))
+          assert m['SCH4_relationship_only_not_added_to_denominator']
+          assert m['candidate_not_confirmed_in_service_2023_July_hourly']
+          assert m['direct_ReEDS_model_validation'] is False
+          assert len(rows)>0
+          print('EIA930A_CANDIDATE_CROSSWALK_SOURCE_CELLS_PASS',len(rows))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-eia930a-2023-official-BA-state-renewable-candidate-crosswalk
+          path: outputs/
+          if-no-files-found: warn
