@@ -1,6 +1,6 @@
 """No invented BA mapping: inspect synthetic Schedule2/4 source rows only."""
 import pytest
-from energy_transition.paper_s_eia930a_2023_ba_renewable_crosswalk import aggregate
+from energy_transition.paper_s_eia930a_2023_ba_renewable_crosswalk import aggregate, audit_generator_overlap
 
 def generator(ba="PNM",fuel="wind",state="NM",sheet="SCH 2",plant="1",gen="A",mw=100,when=True):
     return dict(sheet=sheet,ba_code=ba,fuel=fuel,
@@ -30,3 +30,18 @@ def test_undefined_capacity_is_counted_not_assumed_zero_installed():
     caps,_=aggregate([generator(mw=None)])
     assert len(caps)==1
     assert caps[0]["rows_with_unresolved_capacity_or_id"]==1
+
+def test_cross_ba_duplicate_generator_assignment_flagged():
+    a=generator(ba="PNM",plant="100",gen="G1")
+    b=generator(ba="PSCO",plant="100",gen="G1")
+    c=generator(ba="WACM",plant="200",gen="G2")
+    overlaps,missing=audit_generator_overlap([a,b,c])
+    assert len(overlaps)==1 and not missing
+    assert overlaps[0]["reporting_BAs"]=="PNM;PSCO"
+    assert overlaps[0]["requires_cross_BA_accounting_review"]
+
+def test_unresolved_ids_retained_as_evidence_gap():
+    a=generator(plant="",gen="")
+    overlaps,missing=audit_generator_overlap([a])
+    assert not overlaps and len(missing)==1
+    assert missing[0]["BA"]=="PNM"
