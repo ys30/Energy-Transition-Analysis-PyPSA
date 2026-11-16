@@ -46,6 +46,6 @@ If any gate fails, stay on Route A; do **not** fabricate a metric.
 
 ## Immediate latest CI dependency
 
-- The enhanced EIA930A cross-BA generator audit previously failed **only** because synthetic fixture lacked `original_excel_row`; correction committed at `e3953285`. Require an actual green run plus an artifact review before marking its extended duplicate-gate validated.
+- **VERIFIED PASS:** enhanced EIA930A cross-BA generator audit [GitHub Actions #43797969795](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/43797969795) succeeded after fixture fix `e3953285`. Downloaded artifact `14196240937` contains 322 wind/solar selected SCH 2+SCH 4 source rows, 12 BA×fuel×state candidate aggregates, exactly one cross-BA duplicate (plant `59975`, generator `CW1`, 150 MW, PSCO/WACM), and **zero source rows lacking generator IDs in the scoped overlap audit**. Duplicate identification and QA closed; **dispatch attribution and 2023-July hourly capacity remain unresolved**.
 - Existing source extraction (#43795452473), 160-hour observed BA diagnostics (#43755967483) and EIA930A schema (#43755968031) passed previously.
 - PR #2 remains Draft. **Do not merge before final release validation.**
