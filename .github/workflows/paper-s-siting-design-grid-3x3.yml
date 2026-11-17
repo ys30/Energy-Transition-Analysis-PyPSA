@@ -33,18 +33,37 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/paper-s/wind /tmp/paper-s/pv /tmp/paper-s/eia /tmp/paper-s/frozen outputs
-          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
-            'https://zenodo.org/records/18422200/files/cf_wind-ons_reference_county.h5?download=1' -o /tmp/paper-s/wind.h5
-          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
-            'https://zenodo.org/records/18407660/files/cf_upv_reference_county.h5?download=1' -o /tmp/paper-s/pv.h5
-          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
-            'https://zenodo.org/records/18422200/files/sc_wind-ons_reference_county.csv?download=1' -o /tmp/paper-s/wind_sc.csv
-          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
-            'https://zenodo.org/records/18407660/files/sc_upv_reference_county.csv?download=1' -o /tmp/paper-s/pv_sc.csv
-          echo '0670813d0a18b688d698ca24cf67fb92  /tmp/paper-s/wind.h5' | md5sum --check
-          echo 'aba834ea4c592023bca47de2ba79e7ec  /tmp/paper-s/pv.h5' | md5sum --check
-          echo '49ab4e41dc386453b5fd32e5810774d4  /tmp/paper-s/wind_sc.csv' | md5sum --check
-          echo 'e10b1a64f3a67d163e739b735938eb78  /tmp/paper-s/pv_sc.csv' | md5sum --check
+          download_zenodo_verified() {
+            local record="$1" filename="$2" destination="$3" expected="$4"
+            local url attempt
+            for attempt in 1 2 3 4; do
+              for url in \
+                "https://zenodo.org/records/${record}/files/${filename}?download=1" \
+                "https://zenodo.org/api/records/${record}/files/${filename}/content"; do
+                rm -f "$destination"
+                echo "Zenodo verified download: ${filename}, outer attempt ${attempt}"
+                if curl -fL --show-error --silent --retry 2 --retry-all-errors \
+                  --retry-delay 15 --connect-timeout 30 --max-time 3600 \
+                  "$url" -o "$destination"; then
+                  if printf '%s  %s\\n' "$expected" "$destination" | md5sum --check; then
+                    return 0
+                  fi
+                  echo "Digest check failed, rejecting downloaded content"
+                fi
+              done
+              sleep 45
+            done
+            echo "::error::Publisher source unavailable or MD5 mismatch: ${filename}"
+            return 1
+          }
+          download_zenodo_verified 18422200 cf_wind-ons_reference_county.h5 \
+            /tmp/paper-s/wind.h5 0670813d0a18b688d698ca24cf67fb92
+          download_zenodo_verified 18407660 cf_upv_reference_county.h5 \
+            /tmp/paper-s/pv.h5 aba834ea4c592023bca47de2ba79e7ec
+          download_zenodo_verified 18422200 sc_wind-ons_reference_county.csv \
+            /tmp/paper-s/wind_sc.csv 49ab4e41dc386453b5fd32e5810774d4
+          download_zenodo_verified 18407660 sc_upv_reference_county.csv \
+            /tmp/paper-s/pv_sc.csv e10b1a64f3a67d163e739b735938eb78
       - name: Retrieve previously validated EIA county weights and frozen fixed-2030 LP data
         run: |
           set -euo pipefail
@@ -61,10 +80,17 @@ jobs:
             --name paper-s-all15-720lp-fixed2030demand-source-validated \
             --dir /tmp/paper-s/frozen
           test -s /tmp/paper-s/frozen/paper_s_all15_720_lp.csv
-          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 900 \
-            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
-            -o /tmp/paper-s/demand.h5
-          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/paper-s/demand.h5' | md5sum --check
+          for attempt in 1 2 3 4; do
+            if curl -fL --show-error --silent --retry 3 --retry-all-errors \
+              --retry-delay 20 --connect-timeout 30 --max-time 900 \
+              'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+              -o /tmp/paper-s/demand.h5 \
+              && echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/paper-s/demand.h5' | md5sum --check; then
+              break
+            fi
+            if [ "$attempt" -eq 4 ]; then exit 1; fi
+            sleep 45
+          done
       - name: Solve 2880 new LP cases across all nine design points
         run: |
           PYTHONPATH=src python -m energy_transition.paper_s_siting_design_grid_3x3_2880lp \
