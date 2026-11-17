@@ -1,0 +1,104 @@
+name: Paper S 3x3 renewable ratio wind-share design sensitivity (2880 new LP)
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_siting_design_grid_3x3_2880lp.py'
+      - 'tests/test_paper_s_siting_design_grid_3x3_2880lp.py'
+      - '.github/workflows/paper-s-siting-design-grid-3x3.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  full-nine-design-point-grid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install scientific dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+      - name: Validate nine-design-point counting, frozen LP anchors and objective monotonicity
+        run: |
+          PYTHONPATH=src python -m pytest -q \
+            tests/test_paper_s_siting_design_grid_3x3_2880lp.py \
+            tests/test_reeds2022_explicit_weather_year_alignment.py
+      - name: Download 15-year ReEDS wind and PV with publisher hash authentication
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/paper-s/wind /tmp/paper-s/pv /tmp/paper-s/eia /tmp/paper-s/frozen outputs
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
+            'https://zenodo.org/records/18422200/files/cf_wind-ons_reference_county.h5?download=1' -o /tmp/paper-s/wind.h5
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
+            'https://zenodo.org/records/18407660/files/cf_upv_reference_county.h5?download=1' -o /tmp/paper-s/pv.h5
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
+            'https://zenodo.org/records/18422200/files/sc_wind-ons_reference_county.csv?download=1' -o /tmp/paper-s/wind_sc.csv
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
+            'https://zenodo.org/records/18407660/files/sc_upv_reference_county.csv?download=1' -o /tmp/paper-s/pv_sc.csv
+          echo '0670813d0a18b688d698ca24cf67fb92  /tmp/paper-s/wind.h5' | md5sum --check
+          echo 'aba834ea4c592023bca47de2ba79e7ec  /tmp/paper-s/pv.h5' | md5sum --check
+          echo '49ab4e41dc386453b5fd32e5810774d4  /tmp/paper-s/wind_sc.csv' | md5sum --check
+          echo 'e10b1a64f3a67d163e739b735938eb78  /tmp/paper-s/pv_sc.csv' | md5sum --check
+      - name: Retrieve previously validated EIA county weights and frozen fixed-2030 LP data
+        run: |
+          set -euo pipefail
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit \
+            --dir /tmp/paper-s/wind
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit \
+            --dir /tmp/paper-s/pv
+          gh run download 43124063185 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-eia860-2025-observed-fleet-versus-reeds-county-potential-weight-comparison \
+            --dir /tmp/paper-s/eia
+          gh run download 43651682920 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-all15-720lp-fixed2030demand-source-validated \
+            --dir /tmp/paper-s/frozen
+          test -s /tmp/paper-s/frozen/paper_s_all15_720_lp.csv
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/paper-s/demand.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/paper-s/demand.h5' | md5sum --check
+      - name: Solve 2880 new LP cases across all nine design points
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_siting_design_grid_3x3_2880lp \
+            --wind-h5 /tmp/paper-s/wind.h5 --pv-h5 /tmp/paper-s/pv.h5 \
+            --wind-sc /tmp/paper-s/wind_sc.csv --pv-sc /tmp/paper-s/pv_sc.csv \
+            --county-shares /tmp/paper-s/eia/paper_s_eia860_2025_vs_reeds_county_spatial_weights.csv \
+            --wind-ref /tmp/paper-s/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-ref /tmp/paper-s/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --demand-h5 /tmp/paper-s/demand.h5 \
+            --frozen-csv /tmp/paper-s/frozen/paper_s_all15_720_lp.csv \
+            --out outputs
+      - name: Verify complete nine-point grid, duration and siting-cell counts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd,json
+          o=Path('outputs')
+          m=json.loads((o/'paper_s_design_grid_manifest.json').read_text())
+          a=pd.read_csv(o/'paper_s_design_grid_2880_NEW_lp.csv')
+          b=pd.read_csv(o/'paper_s_design_grid_540_paired_siting_effects.csv')
+          c=pd.read_csv(o/'paper_s_design_grid_36_state_grid_summary.csv')
+          assert m['new_lp']==len(a)==2880
+          assert m['frozen_original_lp_reused']==360
+          assert m['total_lp_cells']==3240
+          assert m['duration_triplets']==1080
+          assert len(b)==540 and len(c)==36
+          assert a.solver_status.eq('optimal').all()
+          assert a.max_equality_residual_mwh.max()<1e-5
+          assert c.weather_years.eq(15).all()
+          print('PAPER_S_3X3_GRID_2880_LP_FULL_RESULT_VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-nine-design-point-wind-share-penetration-2880-new-lp-results
+          path: outputs/
+          if-no-files-found: warn
