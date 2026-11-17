@@ -61,7 +61,7 @@ def run(source,out):
                     value=s.values[i,j]
                     ax.text(j,i,f"{value:+.2f}" if key=="median_effect" else f"{int(value)}/15",
                             ha="center",va="center",fontsize=9,color="black")
-            ax.add_patch(plt.Rectangle((.5-.09,1-.09),.18,.18,fill=False,edgecolor="black",lw=2))
+            ax.add_patch(plt.Rectangle((0.5,0.5),1.0,1.0,fill=False,edgecolor="black",lw=2))
         fig.colorbar(im,ax=axes.ravel().tolist(),shrink=.8,label=(
             "Median EIA minus potential storage value, USD/(added kWh-year)"
             if key=="median_effect" else "Weather years with positive siting effect (out of 15)"))
