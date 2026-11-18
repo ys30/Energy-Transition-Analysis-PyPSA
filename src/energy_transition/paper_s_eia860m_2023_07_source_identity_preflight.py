@@ -68,6 +68,7 @@ def manifest_and_rows(workbook,roster,out):
         eligible["id_present"]=eligible.plant_key.ne("")&eligible.gen_key.ne("")
         assert len(eligible)==136
         assert len(eligible.loc[(eligible.ba_code=="WACM")&(~eligible.id_present)])==15
+        df=df.loc[df.plant_key.ne("") & df.gen_key.ne("")].copy()
         if df[["plant_key","gen_key"]].duplicated().any():
             duplicate=df.loc[df[["plant_key","gen_key"]].duplicated(keep=False)]
             duplicate.head(100).to_csv(out/"EIA860M_SOURCE_DUPLICATE_KEY_SAMPLE.csv",index=False)
