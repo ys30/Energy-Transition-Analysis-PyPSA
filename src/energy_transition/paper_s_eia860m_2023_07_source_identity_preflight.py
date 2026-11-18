@@ -32,7 +32,7 @@ def manifest_and_rows(workbook,roster,out):
     # Find exact normalized labels; never guess which column denotes plant/generator.
     candidates=[]
     for sheet in wb:
-        if "operat" not in sheet.title.lower():continue
+        if sheet.title != "Operating":continue
         for n in range(1,min(sheet.max_row,16)+1):
             row=next(sheet.iter_rows(min_row=n,max_row=n,values_only=True))
             cols=[str(v).strip() if v is not None else "" for v in row]
@@ -52,7 +52,7 @@ def manifest_and_rows(workbook,roster,out):
         def cleanplant(x):
             if pd.isna(x):return ""
             s=str(x).strip()
-            return s[:-2] if re.fullmatch(r"\\d+\\.0",s) else s
+            return s[:-2] if s.endswith(".0") and s[:-2].isdigit() else s
         df["plant_key"]=df[pl].map(cleanplant)
         df["gen_key"]=df[gn].fillna("").astype(str).str.strip()
         eligible=pd.read_csv(roster,dtype=str)
@@ -63,8 +63,10 @@ def manifest_and_rows(workbook,roster,out):
         # allowed only if the primary pair is absent.
         eligible=eligible[(eligible.sheet=="SCH 2")&(eligible.fuel=="solar")&
                           (eligible.ba_code.isin(["PSCO","WACM"]))].copy()
-        eligible["plant_key"]=eligible.EIA_plant_id.combine_first(eligible.EIA930A_plant_id).map(cleanplant)
-        eligible["gen_key"]=eligible.EIA_generator_id.combine_first(eligible.EIA930A_generator_id).fillna("").str.strip()
+        eligible["plant_key"]=eligible.EIA_plant_id.replace("",pd.NA).combine_first(
+            eligible.EIA930A_plant_id.replace("",pd.NA)).map(cleanplant)
+        eligible["gen_key"]=eligible.EIA_generator_id.replace("",pd.NA).combine_first(
+            eligible.EIA930A_generator_id.replace("",pd.NA)).fillna("").str.strip()
         eligible["id_present"]=eligible.plant_key.ne("")&eligible.gen_key.ne("")
         assert len(eligible)==136
         assert len(eligible.loc[(eligible.ba_code=="WACM")&(~eligible.id_present)])==15
@@ -77,7 +79,36 @@ def manifest_and_rows(workbook,roster,out):
         matches=eligible.loc[eligible.id_present].merge(
             df,on=["plant_key","gen_key"],how="left",validate="many_to_one",
             indicator="official_EIA860M_key_match",suffixes=("_eia930a","_eia860m"))
+        # Audit actual 2023 source BA membership, fuel and status rather than relying
+        # only on generator identity; discrepancy remains a gate, never a correction.
+        ba=choose_column(df.columns,{"balancing authority code"})
+        state=choose_column(df.columns,{"plant state"})
+        status_col=choose_column(df.columns,{"status"})
+        tech=choose_column(df.columns,{"technology"})
+        month=choose_column(df.columns,{"operating month"})
+        year=choose_column(df.columns,{"operating year"})
+        nameplate=choose_column(df.columns,{"nameplate capacity mw"})
+        matches["eia860m_ba_matches_source_roster"]=(
+            matches["ba_code"].fillna("").eq(matches[ba].fillna("")))
+        matches["eia860m_operating_month"]=pd.to_numeric(matches[month],errors="coerce")
+        matches["eia860m_operating_year"]=pd.to_numeric(matches[year],errors="coerce")
+        matches["eia860m_has_valid_historical_commissioning"]=(
+            matches["eia860m_operating_year"].notna()&
+            ((matches["eia860m_operating_year"]<2023) |
+             ((matches["eia860m_operating_year"]==2023)&
+              (matches["eia860m_operating_month"]<=7))))
+        matches["eia860m_reported_nameplate_mw"]=pd.to_numeric(matches[nameplate],errors="coerce")
+        matches["eia860m_source_status"]=matches[status_col]
+        matches["eia860m_source_technology"]=matches[tech]
+        matches["eia860m_source_state"]=matches[state]
         matches.to_csv(out/"eia860m_2023_07_PSCO_WACM_source_ID_join_candidates.csv",index=False)
+        group=(matches.groupby(["ba_code","official_EIA860M_key_match"],dropna=False)
+               .agg(generator_records=("plant_key","size"),
+                    nameplate_mw_found=("eia860m_reported_nameplate_mw","sum"),
+                    exact_ba_match=("eia860m_ba_matches_source_roster","sum"),
+                    dated_before_aug2023=("eia860m_has_valid_historical_commissioning","sum"))
+               .reset_index())
+        group.to_csv(out/"eia860m_2023_07_PSCO_WACM_exact_id_coverage.csv",index=False)
         status="SOURCE_IDS_JOINED_SCHEMA_AUDIT_ONLY"
     manifest={"status":status,"source_month":"2023-07",
        "source_url":"https://www.eia.gov/electricity/data/eia860m/archive/xls/july_generator2023.xlsx",
@@ -87,7 +118,9 @@ def manifest_and_rows(workbook,roster,out):
        "source_roster_2023_july_active_fleet_confirmed":False,
        "WACM_IDless_15_joined":False,
        "BA_state_measured_capacity_factor_validated":False,
-       "match_rows_if_schema_valid":len(matches)}
+       "match_rows_if_schema_valid":len(matches),
+       "exact_source_id_matches":int(matches["official_EIA860M_key_match"].eq("both").sum()) if len(matches) else 0,
+       "note":"Only Operating mainland sheet; Operating_PR belongs to Puerto Rico and is not eligible"}
     (out/"EIA860M_2023_07_SOURCE_PREFLIGHT_MANIFEST.json").write_text(json.dumps(manifest,indent=2)+"\n")
     print("PAPER_S_EIA860M_2023_07_SOURCE_PREFLIGHT",json.dumps(manifest))
     return manifest
