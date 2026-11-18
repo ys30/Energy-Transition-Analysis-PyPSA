@@ -1,0 +1,63 @@
+name: Paper S official 2023 July EIA860M source identity preflight
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia860m_2023_07_source_identity_preflight.py'
+      - '.github/workflows/paper-s-eia860m-2023-07-source-identity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-roster-identity-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install workbook and data dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'openpyxl>=3.1'
+      - name: Retrieve pinned EIA930A 2023 generator source extraction
+        run: |
+          set -euo pipefail
+          mkdir -p inputs outputs
+          gh run download 43795452473 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-eia930a-2023-official-BA-state-renewable-candidate-crosswalk \
+            --dir inputs
+          test -s inputs/eia930a_2023_four_BA_wind_solar_generator_evidence.csv
+      - name: Download original July 2023 EIA860M monthly generator workbook
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 4 --retry-all-errors --retry-delay 12 \
+            --connect-timeout 30 --max-time 600 \
+            'https://www.eia.gov/electricity/data/eia860m/archive/xls/july_generator2023.xlsx' \
+            -o inputs/EIA860M_July_2023_original.xlsx
+          test -s inputs/EIA860M_July_2023_original.xlsx
+          sha256sum inputs/EIA860M_July_2023_original.xlsx | tee outputs/EIA860M_2023_JULY_SOURCE_SHA256.txt
+      - name: Inspect official sheet schema and join only exact EIA generator IDs
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_eia860m_2023_07_source_identity_preflight \
+            --workbook inputs/EIA860M_July_2023_original.xlsx \
+            --roster inputs/eia930a_2023_four_BA_wind_solar_generator_evidence.csv \
+            --out outputs
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('outputs')
+          m=json.loads((p/'EIA860M_2023_07_SOURCE_PREFLIGHT_MANIFEST.json').read_text())
+          assert not m['WACM_IDless_15_joined']
+          assert not m['BA_state_measured_capacity_factor_validated']
+          assert m['source_month']=='2023-07'
+          print('PAPER_S_2023_JULY_EIA860M_SOURCE_ONLY_NO_FALSE_MATCH')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-2023-july-official-eia860m-generator-source-id-preflight
+          path: outputs/
+          if-no-files-found: warn
