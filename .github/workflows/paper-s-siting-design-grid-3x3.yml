@@ -45,7 +45,7 @@ jobs:
                 if curl -fL --show-error --silent --retry 2 --retry-all-errors \
                   --retry-delay 15 --connect-timeout 30 --max-time 3600 \
                   "$url" -o "$destination"; then
-                  if printf '%s  %s\\n' "$expected" "$destination" | md5sum --check; then
+                  if echo "$expected  $destination" | md5sum --check; then
                     return 0
                   fi
                   echo "Digest check failed, rejecting downloaded content"
