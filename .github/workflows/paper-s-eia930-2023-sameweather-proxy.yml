@@ -1,0 +1,112 @@
+name: Paper S 2023 same-weather EIA930 BA shape proxy diagnostic
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia930_2023_samework_weather_shape_proxy.py'
+      - 'tests/test_paper_s_eia930_2023_samework_weather_shape_proxy.py'
+      - '.github/workflows/paper-s-eia930-2023-sameweather-proxy.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  same-weather-BA-proxy-not-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source and tests dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+      - name: Enforce UTC conversion and 160-hour completeness without BA=state assumption
+        run: |
+          PYTHONPATH=src python -m pytest -q \
+            tests/test_paper_s_eia930_2023_samework_weather_shape_proxy.py \
+            tests/test_paper_s_eia930_160h_ba_diagnostics.py \
+            tests/test_reeds2022_explicit_weather_year_alignment.py
+      - name: Download authenticated source wind/PV HDF5 and supply curves
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/paper-s/wind /tmp/paper-s/pv /tmp/paper-s/eia inputs outputs
+          download_verified() {
+            local record="$1" filename="$2" dest="$3" md5="$4"
+            local attempt url
+            for attempt in 1 2 3 4; do
+              for url in \
+                "https://zenodo.org/records/${record}/files/${filename}?download=1" \
+                "https://zenodo.org/api/records/${record}/files/${filename}/content"; do
+                rm -f "$dest"
+                if curl -fLsS --retry 2 --retry-all-errors --retry-delay 10 \
+                  --connect-timeout 30 --max-time 3600 "$url" -o "$dest"; then
+                  if echo "$md5  $dest" | md5sum --check; then return 0; fi
+                fi
+              done
+              sleep 40
+            done
+            echo "::error::Original publisher file missing/digest mismatch: $filename"
+            return 1
+          }
+          download_verified 18422200 cf_wind-ons_reference_county.h5 /tmp/paper-s/wind.h5 \
+            0670813d0a18b688d698ca24cf67fb92
+          download_verified 18407660 cf_upv_reference_county.h5 /tmp/paper-s/pv.h5 \
+            aba834ea4c592023bca47de2ba79e7ec
+          download_verified 18422200 sc_wind-ons_reference_county.csv /tmp/paper-s/wind_sc.csv \
+            49ab4e41dc386453b5fd32e5810774d4
+          download_verified 18407660 sc_upv_reference_county.csv /tmp/paper-s/pv_sc.csv \
+            e10b1a64f3a67d163e739b735938eb78
+      - name: Retrieve verified county weights, 2012 anchors, and actual observed EIA930 source
+        run: |
+          set -euo pipefail
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit \
+            --dir /tmp/paper-s/wind
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit \
+            --dir /tmp/paper-s/pv
+          gh run download 43124063185 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-eia860-2025-observed-fleet-versus-reeds-county-potential-weight-comparison \
+            --dir /tmp/paper-s/eia
+          gh run download 43682969646 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-eia930-2023-july-first-week-observed-ba-wind-solar-mw \
+            --dir inputs
+          echo '0e72513a99c920391c0fc51a1691e84780ca5da81ba0c34b2fe218ed3fbc2f5a  inputs/paper_s_eia930_2023_07_01_to_07_07_ba_wind_solar_reported_mw.csv' | sha256sum --check
+      - name: Compute 2023 coincident weather 160-hour BA proxy shape contrasts
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_eia930_2023_samework_weather_shape_proxy \
+            --wind-h5 /tmp/paper-s/wind.h5 --pv-h5 /tmp/paper-s/pv.h5 \
+            --wind-sc /tmp/paper-s/wind_sc.csv --pv-sc /tmp/paper-s/pv_sc.csv \
+            --county-shares /tmp/paper-s/eia/paper_s_eia860_2025_vs_reeds_county_spatial_weights.csv \
+            --wind-ref /tmp/paper-s/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-ref /tmp/paper-s/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --observed-csv inputs/paper_s_eia930_2023_07_01_to_07_07_ba_wind_solar_reported_mw.csv \
+            --out outputs
+      - name: Fail closed on missing cohorts or accidental claim of external model validation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,pandas as pd,numpy as np
+          o=Path('outputs')
+          m=json.loads((o/'paper_s_2023_july_proxy_comparison_manifest.json').read_text())
+          d=pd.read_csv(o/'paper_s_2023_july_eia930_160h_BA_state_PROXY_shape_metrics.csv')
+          h=pd.read_csv(o/'paper_s_2023_july_eia930_160h_BA_state_PROXY_hour_pairs.csv')
+          assert m['observational_validation_admitted'] is False
+          assert m['BA_equals_state_assumed'] is False
+          assert len(d)==24 and len(h)==3840
+          assert set(d.source_clock_shift_hours)=={-1,0,1}
+          assert set(d.ba_code)=={'IPCO','PSCO'}
+          assert set(d.fuel)=={'wind','solar'}
+          assert np.isfinite(d.normalized_mae).all()
+          print('PAPER_S_2023_SAME_WEATHER_BA_PROXY_DIAGNOSTIC_NOT_VALIDATION_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-2023-eia930-ipco-psco-sameweather-160h-proxy-shapes
+          path: outputs/
+          if-no-files-found: warn
