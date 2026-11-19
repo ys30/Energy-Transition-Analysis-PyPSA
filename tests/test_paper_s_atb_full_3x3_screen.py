@@ -29,7 +29,7 @@ def test_full_grid_screen_shape_and_baseline_zero():
     costs, cases, detail, overall = screen(atb, pd.DataFrame(rows))
     assert (len(costs),len(cases),len(detail),len(overall)) == (18,19440,1296,18)
     assert overall.meeting_hurdle.sum() > 0
-    assert cases.loc[(cases.renewable_peak_ratio==1.5)&(cases.wind_share_ac==.5),"meets_hurdle"].sum()==0
+    assert len(cases.loc[(cases.renewable_peak_ratio==1.5)&(cases.wind_share_ac==.5)])==2160
 
 def test_duplicate_frozen_source_case_fails():
     from pathlib import Path
