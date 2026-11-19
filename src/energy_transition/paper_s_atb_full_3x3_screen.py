@@ -94,8 +94,8 @@ def screen(source_cells: pd.DataFrame, values: pd.DataFrame):
     if len(overview) != 18 or not overview.total_cases.eq(1080).all():
         raise ValueError("18 full-grid comparisons required")
     baseline = cases[cases.renewable_peak_ratio.eq(1.5) & cases.wind_share_ac.eq(.5)]
-    if len(baseline) != 2160 or baseline.meets_hurdle.any():
-        raise ValueError("Previously verified 0/120 baseline violated")
+    if len(baseline) != 2160:
+        raise ValueError("Expected 120 fixed-2030 design baseline cases per ATB hurdle")
     return hurdles, cases, detail, overview
 
 
@@ -116,7 +116,11 @@ def run(source_cells, values, output):
         "source_weather_years": 15, "states": 4, "siting_schemes": 2,
         "renewable_design_points": 9, "unique_4to8_lp_value_cases": 1080,
         "atb_annual_cost_assumptions": 18, "comparison_rows": 19440,
-        "baseline_comparison_rows": 2160, "baseline_cases_clearing": 0,
+        "fixed_2030_baseline_comparison_rows": 2160,
+        "fixed_2030_baseline_threshold_crossings": int(cases.loc[
+            cases.renewable_peak_ratio.eq(1.5) & cases.wind_share_ac.eq(.5),
+            "meets_hurdle"].sum()),
+        "historical_load_0_of_120_not_same_LP_population": True,
         "total_full_grid_threshold_crossings": int(cases.meets_hurdle.sum()),
         "unique_numeric_cost_hurdles": int(hurdles.annualized_extension_hurdle_usd_kwh_year.round(9).nunique()),
         "lp_values_dollar_basis_verified_to_2023": False,
