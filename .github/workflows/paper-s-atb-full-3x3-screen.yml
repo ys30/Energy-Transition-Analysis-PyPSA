@@ -1,0 +1,62 @@
+name: Paper S full 3x3 economic threshold 19440 comparisons
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_atb_full_3x3_screen.py'
+      - 'tests/test_paper_s_atb_full_3x3_screen.py'
+      - '.github/workflows/paper-s-atb-full-3x3-screen.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-pinned-complete-3x3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+      - name: Unit-test full grid screening contracts
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_s_atb_full_3x3_screen.py
+      - name: Download unchanged successful 2880 new LP original artifact
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/paper-s/3x3 outputs
+          gh run download 44209543001 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-nine-design-point-wind-share-penetration-2880-new-lp-results \
+            --dir /tmp/paper-s/3x3
+          test -s /tmp/paper-s/3x3/paper_s_design_grid_1080_duration_values.csv
+          test -s /tmp/paper-s/3x3/paper_s_design_grid_manifest.json
+      - name: Screen 1080 unique 4h-to-8h LP values against all 18 ATB hurdles
+        run: |
+          set -euo pipefail
+          PYTHONPATH=src python -m energy_transition.paper_s_atb_full_3x3_screen \
+            --source-cells data/paper_s_atb2025_v2_2030_bess_4h_8h_source_cells.csv \
+            --duration-values /tmp/paper-s/3x3/paper_s_design_grid_1080_duration_values.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          o=Path('outputs')
+          m=json.loads((o/'paper_s_3x3_atb_manifest.json').read_text())
+          a=pd.read_csv(o/'paper_s_3x3_atb_18_assumption_summary.csv')
+          b=pd.read_csv(o/'paper_s_3x3_atb_1296_state_design_threshold_summary.csv')
+          c=pd.read_csv(o/'paper_s_3x3_atb_19440_comparisons.csv.gz')
+          assert len(a)==18 and len(b)==1296 and len(c)==19440
+          assert m['baseline_cases_clearing']==0
+          assert a.total_cases.eq(1080).all()
+          assert c.cash_flow_or_market_profit_established.eq(False).all()
+          print('PAPER_S_3X3_19440_SOURCE_AUDITED_SCREEN_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-full-3x3-ATB-19440-economic-screen
+          path: outputs/
+          if-no-files-found: warn
