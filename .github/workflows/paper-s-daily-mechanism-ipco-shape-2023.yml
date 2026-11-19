@@ -92,6 +92,17 @@ jobs:
           i=pd.read_csv(root/'ipco/I1_IPCO_metrics.csv')
           c=pd.read_csv(root/'ipco/I3_IPCO_UTC_shift_placebos.csv')
           assert len(d)==240 and len(p)==120
+          chron=pd.read_csv(root/'daily/C1_chronological_policy_240_cases.csv')
+          paired_chron=pd.read_csv(root/'daily/C4_chronological_policy_120_paired_differences.csv')
+          day_chron=pd.read_csv(root/'daily/C2_chronological_policy_87600_days.csv.gz')
+          assert len(chron)==240 and len(paired_chron)==120 and len(day_chron)==87600
+          assert chron.annual_feasible_policy_4to8_delta_mwh.ge(-1e-5).all()
+          assert day_chron.incremental_eight_minus_four_policy_delivered_mwh.ge(-1e-5).all()
+          source_manifest=json.loads((root/'daily/D0_manifest.json').read_text())
+          assert source_manifest['chronological_policy_hourly_power_soc_feasible']
+          assert source_manifest['chronological_policy_is_NOT_global_optimum']
+          assert source_manifest['chronological_policy_is_NOT_full_year_upper_bound']
+
           assert set(d.state)=={'AZ','CO','ID','WY'}
           assert set(i.fuel)=={'solar','wind'}
           assert set(i.shift_hours)=={0,-1,1,-6,6}
