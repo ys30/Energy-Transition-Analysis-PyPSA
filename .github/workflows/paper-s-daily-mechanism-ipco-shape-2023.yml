@@ -95,7 +95,9 @@ jobs:
           chron=pd.read_csv(root/'daily/C1_chronological_policy_240_cases.csv')
           paired_chron=pd.read_csv(root/'daily/C4_chronological_policy_120_paired_differences.csv')
           day_chron=pd.read_csv(root/'daily/C2_chronological_policy_87600_days.csv.gz')
+          summary_chron=pd.read_csv(root/'daily/C5_chronological_mechanism_8_group_summary.csv')
           assert len(chron)==240 and len(paired_chron)==120 and len(day_chron)==87600
+          assert len(summary_chron)==8 and summary_chron.source_weather_years.eq(15).all()
           assert chron.annual_feasible_policy_4to8_delta_mwh.ge(-1e-5).all()
           assert day_chron.incremental_eight_minus_four_policy_delivered_mwh.ge(-1e-5).all()
           source_manifest=json.loads((root/'daily/D0_manifest.json').read_text())
