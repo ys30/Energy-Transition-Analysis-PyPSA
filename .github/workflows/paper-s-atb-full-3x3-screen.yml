@@ -49,7 +49,8 @@ jobs:
           b=pd.read_csv(o/'paper_s_3x3_atb_1296_state_design_threshold_summary.csv')
           c=pd.read_csv(o/'paper_s_3x3_atb_19440_comparisons.csv.gz')
           assert len(a)==18 and len(b)==1296 and len(c)==19440
-          assert m['baseline_cases_clearing']==0
+          assert m['historical_load_0_of_120_not_same_LP_population']
+          assert m['fixed_2030_baseline_comparison_rows']==2160
           assert a.total_cases.eq(1080).all()
           assert c.cash_flow_or_market_profit_established.eq(False).all()
           print('PAPER_S_3X3_19440_SOURCE_AUDITED_SCREEN_PASS')
