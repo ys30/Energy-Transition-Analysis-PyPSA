@@ -176,6 +176,23 @@ def daily_run(wind_h5,pv_h5,wind_sc,pv_sc,county_shares,wind_ref,pv_ref,demand_h
     paired_chron["value_eia_minus_potential_usd_kwh_year"]=(
         paired_chron["marginal_4to8_usd_added_kwh_year_"+DESIGNS[1]]-
         paired_chron["marginal_4to8_usd_added_kwh_year_"+DESIGNS[0]])
+    summary=[]
+    for (state,ratio),g in paired_chron.groupby(["state","renewable_peak_ratio"],sort=True):
+        a=g.policy_eia_minus_potential_mwh.to_numpy(dtype=float)
+        b=g.value_eia_minus_potential_usd_kwh_year.to_numpy(dtype=float)
+        corr=float(np.corrcoef(a,b)[0,1]) if np.std(a)>1e-10 and np.std(b)>1e-10 else np.nan
+        summary.append({
+            "state":state,"renewable_peak_ratio":ratio,
+            "source_weather_years":len(g),
+            "policy_lp_spatial_effect_correlation":corr,
+            "policy_lp_spatial_effect_sign_agreement_years":int((np.sign(a)==np.sign(b)).sum()),
+            "median_feasible_policy_siting_effect_mwh":float(np.median(a)),
+            "median_actual_lp_siting_effect_usd_kwh_year":float(np.median(b)),
+            "policy_is_globally_optimal":False,
+        })
+    chron_summary=pd.DataFrame(summary)
+    if len(chron_summary)!=8 or not chron_summary.source_weather_years.eq(15).all():
+        raise ValueError("Incomplete eight-group order-aware mechanism summary")
     folder=Path(out);folder.mkdir(parents=True,exist_ok=True)
     for filename,data in (("D1_daily_proxy_cases.csv",x),("D2_daily_proxy_source_days.csv.gz",days),
                           ("D3_daily_proxy_within_year_paired.csv",paired),
@@ -183,7 +200,8 @@ def daily_run(wind_h5,pv_h5,wind_sc,pv_sc,county_shares,wind_ref,pv_ref,demand_h
                           ("C1_chronological_policy_240_cases.csv",chron),
                           ("C2_chronological_policy_87600_days.csv.gz",chronological_day_frame),
                           ("C3_chronological_policy_vs_LP.csv",chron_join),
-                          ("C4_chronological_policy_120_paired_differences.csv",paired_chron)):
+                          ("C4_chronological_policy_120_paired_differences.csv",paired_chron),
+                          ("C5_chronological_mechanism_8_group_summary.csv",chron_summary)):
         data.to_csv(folder/filename,index=False,compression="gzip" if filename.endswith(".gz") else None)
     (folder/"D0_manifest.json").write_text(json.dumps({
         "data_kind":"daily_surplus_deficit_mechanism_proxy_NOT_LP_dispatch",
