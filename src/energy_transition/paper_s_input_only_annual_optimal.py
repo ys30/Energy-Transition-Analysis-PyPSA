@@ -82,7 +82,9 @@ def summarize(cases,lp):
         for h in HORIZONS:
             q=paired[f"{h}_incremental_4to8_mwh"]
             delta=q[DESIGNS[1]]-q[DESIGNS[0]]
-            x[f"{h}_pearson_spatial_effect"]=float(delta.corr(target)) if delta.std()>1e-9 and target.std()>1e-9 else np.nan
+            x[f"{h}_pearson_spatial_effect"]=(
+                float(delta.corr(target))
+                if len(target)>=5 and delta.std()>1e-9 and target.std()>1e-9 else np.nan)
             x[f"{h}_sign_agreement"]=int((np.sign(delta)==np.sign(target)).sum())
             x[f"{h}_median_spatial_effect_mwh"]=float(delta.median())
         out.append(x)
