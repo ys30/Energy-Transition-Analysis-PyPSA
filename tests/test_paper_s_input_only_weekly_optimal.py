@@ -41,3 +41,37 @@ def test_bad_168h_inputs_fail_closed():
         transport(np.ones(24),np.ones(24),25,4)
     with pytest.raises(ValueError):
         report(pd.DataFrame(),pd.DataFrame())
+
+def test_report_selects_120_from_1080_frozen_grid():
+    from energy_transition.reeds2022_all_weather_year_720lp import WEATHER_YEARS
+    from energy_transition.reeds2022_four_weather_year_siting_lp import DESIGNS
+    from energy_transition.paper_s_input_only_weekly_optimal import STUDIES
+    frozen=[]
+    for year in WEATHER_YEARS:
+        for state in ("AZ","CO","ID","WY"):
+            for scheme in DESIGNS:
+                for ratio in (1.0,1.5,2.0):
+                    for wind_share in (.25,.5,.75):
+                        frozen.append(dict(state=state,renewable_peak_ratio=ratio,
+                            weather_year=year,county_weight_scheme=scheme,
+                            wind_share_ac=wind_share,
+                            marginal_4to8_usd_added_kwh_year=4.+year/1000.+
+                                (0.2 if scheme==DESIGNS[1] else 0)))
+    prior=pd.DataFrame(frozen)
+    assert len(prior)==1080
+    cases=[]
+    for state,ratio in STUDIES:
+        for year in WEATHER_YEARS:
+            for scheme in DESIGNS:
+                cases.append(dict(state=state,renewable_peak_ratio=ratio,
+                    weather_year=year,county_weight_scheme=scheme,
+                    daily_incremental_4to8_mwh=100.+year/1000.,
+                    weekly_incremental_4to8_mwh=130.+year/1000.))
+    assert len(cases)==120
+    # The original grid has nine wind-share/ratio design points per state/year/weight.
+    # Restrict to wind 50% to match this experiment's source population.
+    prior=prior[prior.wind_share_ac.eq(.5)].copy()
+    joined, paired, summary=report(pd.DataFrame(cases),prior)
+    assert (len(joined),len(paired),len(summary))==(120,120,4)
+    assert set(summary.state)=={"AZ","CO","ID","WY"}
+    assert summary.weather_years.eq(15).all()
