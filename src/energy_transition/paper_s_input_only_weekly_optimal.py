@@ -16,12 +16,14 @@ from energy_transition.reeds_2022_clocked_demand_branch import verify_official_f
 STUDIES=(("AZ",1.5),("CO",2.),("ID",1.5),("WY",1.5))
 KEY=["state","renewable_peak_ratio","weather_year","county_weight_scheme"]
 
-def transport(surplus,deficit,power,duration,*,daily=False):
+def transport(surplus,deficit,power,duration,*,daily=False,reset_hours=None):
     s=np.asarray(surplus,float);d=np.asarray(deficit,float);n=len(s)
     if (not n or n%24 or s.shape!=d.shape or not np.isfinite(s).all() or not np.isfinite(d).all()
         or (s<0).any() or (d<0).any() or ((s>1e-10)&(d>1e-10)).any()
         or not np.isfinite(power) or not np.isfinite(duration) or power<=0 or duration<=0):
         raise ValueError("Invalid ordered renewable surplus and deficit")
+    if reset_hours is not None and (daily or not isinstance(reset_hours,int) or reset_hours<=0 or reset_hours%24):
+        raise ValueError("reset_hours must be a positive whole-day period, exclusive of daily flag")
     eta=np.sqrt(RTE);cap=power*duration
     rr=[];cc=[];vv=[];bounds=[]
     def add(r,c,v):rr.append(r);cc.append(c);vv.append(v)
@@ -29,7 +31,9 @@ def transport(surplus,deficit,power,duration,*,daily=False):
         add(t,3*t,-eta);add(t,3*t+1,1/eta);add(t,3*t+2,1.)
         if t:add(t,3*(t-1)+2,-1.)
         bounds.extend([(0,min(float(s[t]),power)),(0,min(float(d[t]),power)),(0,cap)])
-    ends=list(range(23,n,24)) if daily else [n-1]
+    ends=(list(range(23,n,24)) if daily else
+          list(range(reset_hours-1,n,reset_hours)) if reset_hours is not None else [])
+    if not ends or ends[-1]!=n-1:ends.append(n-1)
     for i,t in enumerate(ends):add(n+i,3*t+2,1.)
     A=coo_matrix((vv,(rr,cc)),shape=(n+len(ends),3*n)).tocsr()
     c=np.zeros(3*n);c[1::3]=-1.
