@@ -23,7 +23,8 @@ def validate(pair,summary):
         raise ValueError("Each state must contain all 15 weather-year spatial pairs")
     if (pair.groupby("state").size().reindex(STATES)!=15).any():
         raise ValueError("State-level matched years incomplete")
-    vals=pair[list(required)-["state"]].select_dtypes(include="number")
+    numeric_fields=sorted(required-{"state"})
+    vals=pair[numeric_fields].select_dtypes(include="number")
     if not np.isfinite(vals.to_numpy(dtype=float)).all():
         raise ValueError("Nonfinite annual source/LP paired effects")
     expected={"AZ":1.5,"CO":2.,"ID":1.5,"WY":1.5}
