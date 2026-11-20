@@ -1,0 +1,99 @@
+name: Paper S input-only optimal 168h daily vs weekly storage transport
+'on':
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_input_only_weekly_optimal.py'
+      - 'tests/test_paper_s_input_only_weekly_optimal.py'
+      - '.github/workflows/paper-s-input-only-168h-transport.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-backed-weekly-optimal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        start_hour: [0, 4320]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies and source-independent transport tests
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_input_only_weekly_optimal.py
+      - name: Source pin all original 15-weather-year county ReEDS HDF, original curves and 2023 EIA930
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/paper-s/wind /tmp/paper-s/pv /tmp/paper-s/eia /tmp/paper-s/frozen outputs
+          source_auth() {
+            local rec="$1" name="$2" dest="$3" md5="$4" url attempt
+            for attempt in 1 2 3 4; do
+              for url in "https://zenodo.org/records/${rec}/files/${name}?download=1" \
+                "https://zenodo.org/api/records/${rec}/files/${name}/content"; do
+                rm -f "$dest"
+                if curl -fLsS --retry 2 --retry-all-errors --retry-delay 15 \
+                  --connect-timeout 30 --max-time 3600 "$url" -o "$dest" \
+                  && echo "$md5  $dest" | md5sum --check; then return 0; fi
+              done
+              if [ "$attempt" -lt 4 ]; then sleep 45; fi
+            done
+            echo "::error::Publisher source failed pin $name"
+            return 1
+          }
+          source_auth 18422200 cf_wind-ons_reference_county.h5 /tmp/paper-s/wind.h5 0670813d0a18b688d698ca24cf67fb92
+          source_auth 18407660 cf_upv_reference_county.h5 /tmp/paper-s/pv.h5 aba834ea4c592023bca47de2ba79e7ec
+          source_auth 18422200 sc_wind-ons_reference_county.csv /tmp/paper-s/wind_sc.csv 49ab4e41dc386453b5fd32e5810774d4
+          source_auth 18407660 sc_upv_reference_county.csv /tmp/paper-s/pv_sc.csv e10b1a64f3a67d163e739b735938eb78
+          source_auth 18461543 demand_EFS_REFERENCE.h5 /tmp/paper-s/demand.h5 7b2055d43200744a16a8c4fed68b1a17
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit --dir /tmp/paper-s/wind
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit --dir /tmp/paper-s/pv
+          gh run download 43124063185 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-eia860-2025-observed-fleet-versus-reeds-county-potential-weight-comparison --dir /tmp/paper-s/eia
+          gh run download 44209543001 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-nine-design-point-wind-share-penetration-2880-new-lp-results --dir /tmp/paper-s/frozen
+          test -s /tmp/paper-s/frozen/paper_s_design_grid_1080_duration_values.csv
+      - name: Solve source-backed independent maximum MWh delivery per horizon
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_input_only_weekly_optimal \
+            --wind-h5 /tmp/paper-s/wind.h5 --pv-h5 /tmp/paper-s/pv.h5 \
+            --wind-sc /tmp/paper-s/wind_sc.csv --pv-sc /tmp/paper-s/pv_sc.csv \
+            --county-shares /tmp/paper-s/eia/paper_s_eia860_2025_vs_reeds_county_spatial_weights.csv \
+            --wind-ref /tmp/paper-s/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-ref /tmp/paper-s/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --demand-h5 /tmp/paper-s/demand.h5 \
+            --grid /tmp/paper-s/frozen/paper_s_design_grid_1080_duration_values.csv \
+            --start-hour ${{ matrix.start_hour }} --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          o=Path('outputs')
+          x=pd.read_csv(o/'W1_120_source_week_cases.csv')
+          p=pd.read_csv(o/'W2_120_paired_horizon_rows.csv')
+          g=pd.read_csv(o/'W3_four_state_horizon_summary.csv')
+          m=json.loads((o/'W0_manifest.json').read_text())
+          assert len(x)==120 and len(p)==120 and len(g)==4
+          assert x[['daily_equality_residual_mwh','weekly_equality_residual_mwh']].max().max()<1e-5
+          for d in (4,8):
+              assert (x[f'weekly_{d}h_delivered_mwh']+1e-4>=x[f'daily_{d}h_delivered_mwh']).all()
+          assert m['both_horizons_initial_and_terminal_soc_zero']
+          assert not m['full_year_maximum_renewable_delivery_claimed']
+          print('PAPER_S_INPUT_ONLY_WEEKLY_DAILY_120_VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-weekly-vs-daily-input-only-168h-start-${{ matrix.start_hour }}
+          path: outputs/
+          if-no-files-found: warn
