@@ -73,8 +73,11 @@ def report(cases,prior):
     # The frozen design grid contains 1,080 unique cases; this experiment
     # selects 120 of them. Validate uniqueness without requiring identical
     # unfiltered populations or permitting an accidental many-to-many join.
+    if "wind_share_ac" not in prior.columns:
+        raise ValueError("Frozen LP grid missing wind AC share")
+    prior=prior.loc[np.isclose(prior.wind_share_ac.to_numpy(dtype=float),.5)].copy()
     if prior[KEY].duplicated().any():
-        raise ValueError("Duplicate cases in frozen 1,080-row LP grid")
+        raise ValueError("Duplicate cases in selected frozen LP wind-share grid")
     matched=cases[KEY].merge(
         prior[KEY+["marginal_4to8_usd_added_kwh_year"]],
         on=KEY,how="left",validate="one_to_one",indicator=True)
