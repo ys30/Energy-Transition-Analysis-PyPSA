@@ -70,9 +70,20 @@ def report(cases,prior):
         raise ValueError("Expected 120 source scenario cases")
     if not set(KEY+["marginal_4to8_usd_added_kwh_year"]).issubset(prior.columns):
         raise ValueError("Frozen 1080 duration values missing")
-    matched=prior.merge(cases[KEY],on=KEY,validate="one_to_one")
-    if len(matched)!=120:raise ValueError("Missing frozen source matches")
-    joined=cases.merge(matched[KEY+["marginal_4to8_usd_added_kwh_year"]],on=KEY,validate="one_to_one")
+    # The frozen design grid contains 1,080 unique cases; this experiment
+    # selects 120 of them. Validate uniqueness without requiring identical
+    # unfiltered populations or permitting an accidental many-to-many join.
+    if prior[KEY].duplicated().any():
+        raise ValueError("Duplicate cases in frozen 1,080-row LP grid")
+    matched=cases[KEY].merge(
+        prior[KEY+["marginal_4to8_usd_added_kwh_year"]],
+        on=KEY,how="left",validate="one_to_one",indicator=True)
+    if len(matched)!=120 or not matched["_merge"].eq("both").all():
+        raise ValueError("Missing frozen LP source matches")
+    if not np.isfinite(matched.marginal_4to8_usd_added_kwh_year.to_numpy(dtype=float)).all():
+        raise ValueError("Nonfinite frozen LP value in matched subset")
+    joined=cases.merge(
+        matched.drop(columns=["_merge"]),on=KEY,validate="one_to_one")
     rows=[];pair=[]
     for (state,ratio),g in joined.groupby(["state","renewable_peak_ratio"]):
         if (len(g)!=30 or set(g.weather_year)!=set(WEATHER_YEARS)
