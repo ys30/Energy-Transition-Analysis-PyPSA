@@ -1,0 +1,164 @@
+name: Paper S full 15-year input-only annual transport source audit
+'on':
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-year-partition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        state: [AZ, CO, ID, WY]
+        years:
+          - '2007 2008 2009 2010 2011'
+          - '2012 2013 2016 2017 2018'
+          - '2019 2020 2021 2022 2023'
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source and optimizer dependencies
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_input_only_annual_optimal.py tests/test_paper_s_input_only_weekly_optimal.py
+      - name: Source pin all original 15-weather-year county ReEDS HDF, original curves and 2023 EIA930
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/paper-s/wind /tmp/paper-s/pv /tmp/paper-s/eia /tmp/paper-s/frozen outputs
+          source_auth() {
+            local rec="$1" name="$2" dest="$3" md5="$4" url attempt
+            for attempt in 1 2 3 4; do
+              for url in "https://zenodo.org/records/${rec}/files/${name}?download=1" \
+                "https://zenodo.org/api/records/${rec}/files/${name}/content"; do
+                rm -f "$dest"
+                if curl -fLsS --retry 2 --retry-all-errors --retry-delay 15 \
+                  --connect-timeout 30 --max-time 3600 "$url" -o "$dest" \
+                  && echo "$md5  $dest" | md5sum --check; then return 0; fi
+              done
+              if [ "$attempt" -lt 4 ]; then sleep 45; fi
+            done
+            echo "::error::Publisher source failed pin $name"
+            return 1
+          }
+          source_auth 18422200 cf_wind-ons_reference_county.h5 /tmp/paper-s/wind.h5 0670813d0a18b688d698ca24cf67fb92
+          source_auth 18407660 cf_upv_reference_county.h5 /tmp/paper-s/pv.h5 aba834ea4c592023bca47de2ba79e7ec
+          source_auth 18422200 sc_wind-ons_reference_county.csv /tmp/paper-s/wind_sc.csv 49ab4e41dc386453b5fd32e5810774d4
+          source_auth 18407660 sc_upv_reference_county.csv /tmp/paper-s/pv_sc.csv e10b1a64f3a67d163e739b735938eb78
+          source_auth 18461543 demand_EFS_REFERENCE.h5 /tmp/paper-s/demand.h5 7b2055d43200744a16a8c4fed68b1a17
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit --dir /tmp/paper-s/wind
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit --dir /tmp/paper-s/pv
+          gh run download 43124063185 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-eia860-2025-observed-fleet-versus-reeds-county-potential-weight-comparison --dir /tmp/paper-s/eia
+          gh run download 44209543001 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-nine-design-point-wind-share-penetration-2880-new-lp-results --dir /tmp/paper-s/frozen
+          test -s /tmp/paper-s/frozen/paper_s_design_grid_1080_duration_values.csv
+      - name: Run source-backed annual daily weekly and continuous SOC optima
+        env:
+          YEARS: ${{ matrix.years }}
+          STATE: ${{ matrix.state }}
+        run: |
+          set -euo pipefail
+          read -ra YR <<< "$YEARS"
+          PYTHONPATH=src python -m energy_transition.paper_s_input_only_annual_optimal \
+            --wind-h5 /tmp/paper-s/wind.h5 --pv-h5 /tmp/paper-s/pv.h5 \
+            --wind-sc /tmp/paper-s/wind_sc.csv --pv-sc /tmp/paper-s/pv_sc.csv \
+            --county-shares /tmp/paper-s/eia/paper_s_eia860_2025_vs_reeds_county_spatial_weights.csv \
+            --wind-ref /tmp/paper-s/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-ref /tmp/paper-s/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --demand-h5 /tmp/paper-s/demand.h5 \
+            --grid /tmp/paper-s/frozen/paper_s_design_grid_1080_duration_values.csv \
+            --states "$STATE" --years "${YR[@]}" --out outputs
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          a=pd.read_csv(Path('outputs')/'Y1_annual_input_only_case_results.csv')
+          assert len(a)==10 and a.source_hours.eq(8760).all()
+          assert a.filter(like='balance_residual_mwh').max().max()<1e-5
+          for duration in (4,8):
+              assert (a[f'daily_{duration}h_delivered_mwh']<=a[f'weekly_{duration}h_delivered_mwh']+1e-3).all()
+              assert (a[f'weekly_{duration}h_delivered_mwh']<=a[f'annual_{duration}h_delivered_mwh']+1e-3).all()
+          print('PAPER_S_8760H_SOURCE_PARTITION_10_CASES_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: annual-input-only-${{ matrix.state }}-${{ strategy.job-index }}
+          path: outputs/
+          if-no-files-found: error
+  aggregate:
+    needs: source-year-partition
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: annual-input-only-*
+          path: /tmp/partitions
+      - name: Retrieve unchanged full 3x3 LP values
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/frozen outputs
+          gh run download 44209543001 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-nine-design-point-wind-share-penetration-2880-new-lp-results \
+            --dir /tmp/frozen
+      - name: Fail closed on 15-year population and recompute final annual correlations
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np,pandas as pd
+          from energy_transition.paper_s_input_only_annual_optimal import summarize
+          from energy_transition.reeds2022_all_weather_year_720lp import WEATHER_YEARS
+          from energy_transition.paper_s_input_only_weekly_optimal import KEY
+          files=sorted(Path('/tmp/partitions').glob('*/Y1_annual_input_only_case_results.csv'))
+          assert len(files)==12, f"Expected 12 audited batch CSVs, got {len(files)}"
+          rows=pd.concat([pd.read_csv(f) for f in files],ignore_index=True)
+          assert len(rows)==120 and not rows[KEY].duplicated().any()
+          assert set(rows.weather_year)==set(WEATHER_YEARS)
+          assert set(rows.state)=={'AZ','CO','ID','WY'}
+          assert rows.source_hours.eq(8760).all()
+          assert np.isfinite(rows.select_dtypes(include='number').to_numpy()).all()
+          assert rows.filter(like='balance_residual_mwh').max().max()<1e-5
+          for duration in (4,8):
+              assert (rows[f'daily_{duration}h_delivered_mwh']<=rows[f'weekly_{duration}h_delivered_mwh']+1e-3).all()
+              assert (rows[f'weekly_{duration}h_delivered_mwh']<=rows[f'annual_{duration}h_delivered_mwh']+1e-3).all()
+          lp=pd.read_csv('/tmp/frozen/paper_s_design_grid_1080_duration_values.csv')
+          joined,pairs,summary=summarize(rows,lp)
+          assert len(joined)==120 and len(pairs)==60 and len(summary)==4
+          assert summary.n_matched_weather_years.eq(15).all()
+          out=Path('outputs')
+          joined.to_csv(out/'Y1_all15_annual_mechanism_cases.csv',index=False)
+          pairs.to_csv(out/'Y2_all15_paired_mechanism.csv',index=False)
+          summary.to_csv(out/'Y3_all15_four_state_mechanism.csv',index=False)
+          (out/'Y0_verified_full_year_manifest.json').write_text(json.dumps({
+              'status':'ALL15_SOURCE_ANNUAL_MECHANISM_ARTIFACT_CHECK_PASS',
+              'cases':120,'matched_year_pairs':60,'source_weather_years':15,
+              'source_year_8760_hours':True,
+              'daily_weekly_annual_feasible_set_nesting':True,
+              'avoided_cost_or_field_profit_claimed':False,
+              'all_previous_LP_or_Paper_C2_modified':False,
+          },indent=2)+'\n')
+          print('PAPER_S_ALL15_8760H_ANNUAL_MECHANISM_VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-annual-full-15year-120-source-mechanism
+          path: outputs/
+          if-no-files-found: error
