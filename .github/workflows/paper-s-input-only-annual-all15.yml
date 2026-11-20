@@ -156,6 +156,8 @@ jobs:
           },indent=2)+'\n')
           print('PAPER_S_ALL15_8760H_ANNUAL_MECHANISM_VERIFIED')
           PY
+      - name: Test complete-population figure gates before publication rendering
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_s_annual_mechanism_figures.py
       - name: Render publication-grade figures from audited complete annual source results
         run: |
           PYTHONPATH=src python -m energy_transition.paper_s_annual_mechanism_figures \
