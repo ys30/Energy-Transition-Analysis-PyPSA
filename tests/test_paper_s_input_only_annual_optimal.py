@@ -5,8 +5,8 @@ from energy_transition.paper_s_input_only_weekly_optimal import transport
 
 def test_uneven_last_week_is_closed_at_year_end():
     surplus=np.zeros(24*15);deficit=np.zeros(24*15)
-    surplus[24*13+20:24*14]=100.
-    deficit[24*14:24*14+4]=100.
+    surplus[24*12+20:24*13]=100.
+    deficit[24*13:24*13+4]=100.
     daily=transport(surplus,deficit,25,8,reset_hours=24)
     weekly=transport(surplus,deficit,25,8,reset_hours=168)
     annual=transport(surplus,deficit,25,8,reset_hours=360)
