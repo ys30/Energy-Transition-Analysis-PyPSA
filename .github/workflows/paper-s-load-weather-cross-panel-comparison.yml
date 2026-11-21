@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install computation and test dependencies
-        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10,<4' 'scipy>=1.11,<2' 'pytest>=8'
       - name: Test unique-case matching and mode separation
         run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_load_weather_coupling_comparison.py
       - name: Download the two pinned successful authentic-source LP artifacts
