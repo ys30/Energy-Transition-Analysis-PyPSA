@@ -43,3 +43,27 @@ def test_frozen_year_matching_does_not_multiply_siting_pairs():
     joined,pairs,summary=summarize(pd.DataFrame(rows),pd.DataFrame(lp))
     assert (len(joined),len(pairs),len(summary))==(8,4,2)
     assert summary.n_matched_weather_years.eq(2).all()
+
+def test_reaggregate_partitions_preserve_frozen_lp_values():
+    rows=[];source=[]
+    for state,ratio in (("CO",2.),("ID",1.5)):
+        for yr in (2012,2023):
+            for scheme in ("source_potential_2012","eia_2025_operating_county_weight"):
+                record={"state":state,"renewable_peak_ratio":ratio,"weather_year":yr,
+                    "county_weight_scheme":scheme,
+                    **{f"{h}_incremental_4to8_mwh":3.+yr/1000. for h in ("daily","weekly","annual")}}
+                record["marginal_4to8_usd_added_kwh_year"]=4.+yr/1000.
+                rows.append(record)
+                source.append({**{k:record[k] for k in (
+                    "state","renewable_peak_ratio","weather_year","county_weight_scheme")},
+                    "wind_share_ac":.5,
+                    "marginal_4to8_usd_added_kwh_year":record["marginal_4to8_usd_added_kwh_year"]})
+    cases=pd.DataFrame(rows)
+    lp=pd.DataFrame(source)
+    joined,pairs,summary=summarize(cases,lp)
+    assert len(joined)==8 and len(pairs)==4 and len(summary)==2
+    assert "marginal_4to8_usd_added_kwh_year" in joined
+    corrupted=cases.copy()
+    corrupted.loc[0,"marginal_4to8_usd_added_kwh_year"]+=1.
+    with pytest.raises(ValueError,match="differ"):
+        summarize(corrupted,lp)
