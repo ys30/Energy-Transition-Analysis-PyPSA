@@ -58,11 +58,27 @@ def summarize(cases,lp):
     if not set(required).issubset(lp.columns):raise ValueError("Frozen LP fields missing")
     filtered=lp.loc[np.isclose(lp.wind_share_ac,.5),required]
     if filtered[KEY].duplicated().any():raise ValueError("Frozen LP keys not unique")
-    joined=cases.merge(filtered.drop(columns=["wind_share_ac"]),on=KEY,how="left",
-                      validate="one_to_one",indicator=True)
+    # A partition's Y1 output already includes the frozen economic value.
+    # Validate that the repeated number agrees with the immutable source,
+    # then use one authoritative, unsuffixed column in the joined table.
+    value_col="marginal_4to8_usd_added_kwh_year"
+    saved_values=cases[KEY+[value_col]].copy() if value_col in cases.columns else None
+    joined=cases.drop(columns=[value_col],errors="ignore").merge(
+        filtered.drop(columns=["wind_share_ac"]),on=KEY,how="left",
+        validate="one_to_one",indicator=True)
     if not joined._merge.eq("both").all():
         raise ValueError("All input-only rows must have original frozen LP value")
     joined=joined.drop(columns="_merge")
+    if saved_values is not None:
+        compared=saved_values.merge(
+            joined[KEY+[value_col]],on=KEY,validate="one_to_one",suffixes=("_saved","_frozen"))
+        if len(compared)!=len(cases) or not np.allclose(
+            compared[value_col+"_saved"].to_numpy(dtype=float),
+            compared[value_col+"_frozen"].to_numpy(dtype=float),
+            rtol=1e-10,atol=1e-8,equal_nan=False):
+            raise ValueError("Stored partition LP values differ from original frozen LP values")
+    if not np.isfinite(joined[value_col].to_numpy(dtype=float)).all():
+        raise ValueError("Nonfinite frozen LP values")
     metrics=[f"{h}_incremental_4to8_mwh" for h in HORIZONS]
     out=[];pairs=[]
     for (state,ratio),g in joined.groupby(["state","renewable_peak_ratio"]):
