@@ -1,0 +1,63 @@
+name: Paper S ReEDS historical demand 15-year source and 2012 clock audit
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_historical_weather_demand_audit.py'
+      - 'tests/test_reeds2022_historical_weather_demand_audit.py'
+      - '.github/workflows/paper-s-historical-demand-15weather-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-historical-demand-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install HDF5 analysis and tests
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+      - name: Run native-year calendar tests before downloading published sources
+        run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_historical_weather_demand_audit.py
+      - name: Download and checksum original historic and 2030 projected demand
+        run: |
+          set -eu
+          mkdir -p /tmp/reeds outputs
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 1200 \
+            'https://zenodo.org/records/18462671/files/demand_historic.h5?download=1' \
+            -o /tmp/reeds/demand_historic.h5
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 1200 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '06ca6b65088a870afafc25191dcfd6f3  /tmp/reeds/demand_historic.h5' | md5sum --check
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Verify actual HDF5 year clocks and compare historical 2012 to fixed 2030 projection
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_historical_weather_demand_audit \
+            --historical-h5 /tmp/reeds/demand_historic.h5 \
+            --projected-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --out outputs
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import pandas as pd
+          out=Path("outputs")
+          rows=pd.read_csv(out/"paper_s_historical_load_15year_60_state_years.csv")
+          ref=pd.read_csv(out/"paper_s_historical_2012_vs_projected_2030_demand.csv")
+          meta=json.loads((out/"paper_s_historical_load_source_manifest.json").read_text())
+          assert len(rows)==60 and rows.weather_year.nunique()==15
+          assert len(ref)==4 and ref.hourly_pearson_r.between(-1,1).all()
+          assert meta["historical_weather_matched_generation_LP_performed"] is False
+          print("PAPER_S_HISTORIC_DEMAND_SOURCE_AUDIT_ACCEPTED")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-historical-15weather-demand-source-audit
+          path: outputs/
+          if-no-files-found: warn

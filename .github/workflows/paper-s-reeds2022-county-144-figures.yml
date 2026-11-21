@@ -1,0 +1,52 @@
+name: Paper S ReEDS2022 county 144-LP publication figure diagnostics
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_county_144_sweep_figures.py'
+      - '.github/workflows/paper-s-reeds2022-county-144-figures.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  archival-source-figures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install figure and analytics dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7'
+      - name: Reuse successful 144-LP source artifact
+        run: |
+          mkdir -p /tmp/input outputs
+          gh run download 42966023512 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-county-144-ratio-sweep-original-source-2012 \
+            --dir /tmp/input
+      - name: Build twelve deterministic plots and 36 paired time-convention comparisons
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_county_144_sweep_figures \
+            --paired-csv /tmp/input/paper_s_reeds2022_county_native_72_ratio_paired.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          root=Path('outputs')
+          m=json.loads((root/'paper_s_reeds2022_144_lp_figure_manifest.json').read_text())
+          s=pd.read_csv(root/'paper_s_reeds2022_36_time_assumption_sensitivity.csv')
+          assert m['figure_count']==12 and len(s)==36
+          assert len(list(root.glob('paper_s_*_2012_weather.png')))==12
+          assert len(list(root.glob('paper_s_*_2012_weather.pdf')))==12
+          assert not m['battery_capex_included'] and not m['real_grid_dispatch']
+          print('SOURCE_VERIFIED_144_LP_12_FIGURES_36_SENSITIVITY_PAIRS_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-county-144-lp-source-figures-and-time-convention
+          path: outputs/
+          if-no-files-found: error

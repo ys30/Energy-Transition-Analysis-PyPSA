@@ -1,0 +1,48 @@
+name: Paper S official 2023 EIA930A generator inventory schema audit
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia930a_2023_workbook_inventory.py'
+      - '.github/workflows/paper-s-eia930a-2023-generator-schema.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-eia930a-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download official 2023 EIA-930A generator inventory
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/eia930a outputs
+          curl -fL --retry 3 --retry-all-errors --retry-delay 4 \
+            --connect-timeout 30 --max-time 240 \
+            'https://www.eia.gov/electricity/930-content/EIA_930A_2023_with%20layout.xlsx' \
+            -o /tmp/eia930a/EIA_930A_2023_with_layout.xlsx
+          file /tmp/eia930a/EIA_930A_2023_with_layout.xlsx
+      - name: Audit source workbook sheets and column schema
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_eia930a_2023_workbook_inventory \
+            --file /tmp/eia930a/EIA_930A_2023_with_layout.xlsx --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('outputs/eia930a_2023_official_workbook_structure.json')
+          obj=json.loads(p.read_text())
+          assert obj['sheet_count']>=1
+          assert obj['source_url'].endswith('EIA_930A_2023_with%20layout.xlsx')
+          assert obj['BA_generator_crosswalk_authenticated'] is False
+          assert not obj['observed_vs_ReEDS_RMSE_computed']
+          print('OFFICIAL_EIA930A_2023_SCHEMA_AUDIT_OK')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-eia930a-2023-official-generator-population-schema
+          path: outputs/
+          if-no-files-found: warn

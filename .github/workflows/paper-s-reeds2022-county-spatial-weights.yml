@@ -1,0 +1,58 @@
+name: Paper S authenticated county potential spatial weight concentration
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_county_potential_concentration.py'
+      - 'tests/test_reeds2022_county_potential_concentration.py'
+      - '.github/workflows/paper-s-reeds2022-county-spatial-weights.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  county-weights:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Confirm source schema, missing states and weight guards
+        run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_county_potential_concentration.py
+      - name: Retrieve and verify original publisher county supply curves
+        run: |
+          mkdir -p /tmp/reeds outputs
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 180 \
+            'https://zenodo.org/records/18422200/files/sc_wind-ons_reference_county.csv?download=1' \
+            -o /tmp/reeds/sc_wind-ons_reference_county.csv
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 180 \
+            'https://zenodo.org/records/18407660/files/sc_upv_reference_county.csv?download=1' \
+            -o /tmp/reeds/sc_upv_reference_county.csv
+          echo '49ab4e41dc386453b5fd32e5810774d4  /tmp/reeds/sc_wind-ons_reference_county.csv' | md5sum --check
+          echo 'e10b1a64f3a67d163e739b735938eb78  /tmp/reeds/sc_upv_reference_county.csv' | md5sum --check
+      - name: Audit wind AC and PV DC resource-potential county concentration
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_county_potential_concentration \
+            --wind-capacity /tmp/reeds/sc_wind-ons_reference_county.csv \
+            --pv-capacity /tmp/reeds/sc_upv_reference_county.csv \
+            --out outputs
+          python - <<'PY'
+          from pathlib import Path
+          import json,pandas as pd
+          p=Path('outputs')
+          a=pd.read_csv(p/'paper_s_reeds2022_original_2012_county_potential_concentration_8.csv')
+          b=pd.read_csv(p/'paper_s_reeds2022_original_county_potential_weight_contrast.csv')
+          m=json.loads((p/'paper_s_reeds2022_county_potential_concentration_manifest.json').read_text())
+          assert len(a)==8 and len(b)>=8
+          assert (a.effective_potential_weighted_counties <= a.positive_potential_counties+1e-9).all()
+          assert (a.top_five_counties_potential_fraction.between(0,1)).all()
+          assert not m['weights_are_actual_installed_capacity']
+          assert not m['LPs_completed']
+          print('PAPER_S_8_SOURCE_AUTHENTICATED_COUNTY_WEIGHT_CONCENTRATION_AUDITS_PASSED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-original-county-resource-potential-spatial-weight-audit
+          path: outputs/
+          if-no-files-found: error

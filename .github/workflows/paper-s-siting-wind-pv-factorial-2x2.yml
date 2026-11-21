@@ -1,0 +1,95 @@
+name: Paper S 2x2 wind-PV siting mechanism attribution (360 NEW LP)
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_wind_pv_siting_factorial_2x2.py'
+      - 'tests/test_paper_s_wind_pv_siting_factorial_2x2.py'
+      - '.github/workflows/paper-s-siting-wind-pv-factorial-2x2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  attribution-and-curtailment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install scientific dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+      - name: Validate factorial, additive Shapley and source clock gates
+        run: |
+          PYTHONPATH=src python -m pytest -q \
+            tests/test_paper_s_wind_pv_siting_factorial_2x2.py \
+            tests/test_reeds2022_explicit_weather_year_alignment.py
+      - name: Download publisher-verified wind and PV supply inputs
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/paper-s/wind /tmp/paper-s/pv /tmp/paper-s/eia /tmp/paper-s/frozen outputs
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
+            'https://zenodo.org/records/18422200/files/cf_wind-ons_reference_county.h5?download=1' -o /tmp/paper-s/wind.h5
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 3600 \
+            'https://zenodo.org/records/18407660/files/cf_upv_reference_county.h5?download=1' -o /tmp/paper-s/pv.h5
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
+            'https://zenodo.org/records/18422200/files/sc_wind-ons_reference_county.csv?download=1' -o /tmp/paper-s/wind_sc.csv
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 240 \
+            'https://zenodo.org/records/18407660/files/sc_upv_reference_county.csv?download=1' -o /tmp/paper-s/pv_sc.csv
+          echo '0670813d0a18b688d698ca24cf67fb92  /tmp/paper-s/wind.h5' | md5sum --check
+          echo 'aba834ea4c592023bca47de2ba79e7ec  /tmp/paper-s/pv.h5' | md5sum --check
+          echo '49ab4e41dc386453b5fd32e5810774d4  /tmp/paper-s/wind_sc.csv' | md5sum --check
+          echo 'e10b1a64f3a67d163e739b735938eb78  /tmp/paper-s/pv_sc.csv' | md5sum --check
+      - name: Download previously audited county shares, 2012 anchors and frozen 720 LP
+        run: |
+          set -euo pipefail
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit \
+            --dir /tmp/paper-s/wind
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit \
+            --dir /tmp/paper-s/pv
+          gh run download 43124063185 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-eia860-2025-observed-fleet-versus-reeds-county-potential-weight-comparison \
+            --dir /tmp/paper-s/eia
+          gh run download 43651682920 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-all15-720lp-fixed2030demand-source-validated \
+            --dir /tmp/paper-s/frozen
+          test -s /tmp/paper-s/frozen/paper_s_all15_720_lp.csv
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/paper-s/demand.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/paper-s/demand.h5' | md5sum --check
+      - name: Solve wind-only and PV-only 360 LP and attribute value by factor
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_wind_pv_siting_factorial_2x2 \
+            --wind-h5 /tmp/paper-s/wind.h5 --pv-h5 /tmp/paper-s/pv.h5 \
+            --wind-sc /tmp/paper-s/wind_sc.csv --pv-sc /tmp/paper-s/pv_sc.csv \
+            --county-shares /tmp/paper-s/eia/paper_s_eia860_2025_vs_reeds_county_spatial_weights.csv \
+            --wind-ref /tmp/paper-s/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-ref /tmp/paper-s/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --demand-h5 /tmp/paper-s/demand.h5 \
+            --frozen-csv /tmp/paper-s/frozen/paper_s_all15_720_lp.csv \
+            --out outputs
+          python - <<'PY'
+          import pandas as pd,json
+          from pathlib import Path
+          p=Path('outputs')
+          m=json.loads((p/'paper_s_siting_factorial_manifest.json').read_text())
+          a=pd.read_csv(p/'paper_s_siting_factorial_60_shapley_interaction.csv')
+          assert m['new_lp']==360 and m['frozen_lp_reused']==360
+          assert len(a)==60 and a.notna().all().all()
+          assert (a.wind_shapley+a.pv_shapley-a.total_eia_minus_potential).abs().max()<1e-8
+          print('PAPER_S_360_LP_SITING_FACTORIAL_SOURCE_AUDIT_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-wind-pv-independent-siting-weight-360lp-shapley-interaction-results
+          path: outputs/
+          if-no-files-found: warn

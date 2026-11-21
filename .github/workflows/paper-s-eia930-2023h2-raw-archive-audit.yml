@@ -1,0 +1,46 @@
+name: Paper S EIA930 raw 2023H2 Zenodo archive audited no API key
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia930_2023half2_archive_inventory.py'
+      - '.github/workflows/paper-s-eia930-2023h2-raw-archive-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  raw-archive-checksum:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download published EIA-930 H2 2023 source mirror from pinned Zenodo record
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/eia930 outputs
+          curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 30 --max-time 600 \
+            'https://zenodo.org/records/22856870/files/eia930-2023half2.zip?download=1' \
+            -o /tmp/eia930/eia930-2023half2.zip
+          echo '1de4e47693426671123bb08ec0d33995  /tmp/eia930/eia930-2023half2.zip' | md5sum --check
+      - name: Record raw archived file inventory, source headers and checksum
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_eia930_2023half2_archive_inventory \
+            --archive /tmp/eia930/eia930-2023half2.zip --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          j=json.loads(Path('outputs/paper_s_eia930_2023half2_zip_source_inventory.json').read_text())
+          assert j['md5']=='1de4e47693426671123bb08ec0d33995'
+          assert j['file_count']>0
+          assert j['observed_vs_ReEDS_validation_performed'] is False
+          print('PAPER_S_EIA930_SOURCE_ARCHIVE_INVENTORY_VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-eia930-2023h2-raw-archive-source-inventory
+          path: outputs/
+          if-no-files-found: warn

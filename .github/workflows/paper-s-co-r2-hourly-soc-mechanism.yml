@@ -1,0 +1,108 @@
+name: Paper S CO R2 wind40 50 60 hourly SOC and curtailment mechanism
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_CO_R2_40_50_60_hourly_mechanism.py'
+      - '.github/workflows/paper-s-co-r2-hourly-soc-mechanism.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  co-hourly-mechanism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 140
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install exact experiment family numerical dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10'
+      - name: Acquire original archived ReEDS wind and PV files with source MD5 gates
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/paper-s/wind /tmp/paper-s/pv /tmp/paper-s/eia /tmp/paper-s/original /tmp/paper-s/continuity outputs
+          source_auth() {
+            local record="$1" filename="$2" destination="$3" expected="$4" attempt url
+            for attempt in 1 2 3 4; do
+              for url in "https://zenodo.org/records/${record}/files/${filename}?download=1" \
+                 "https://zenodo.org/api/records/${record}/files/${filename}/content"; do
+                rm -f "$destination"
+                if curl -fLsS --retry 2 --retry-all-errors --retry-delay 15 \
+                  --connect-timeout 30 --max-time 3600 "$url" -o "$destination" \
+                  && echo "$expected  $destination" | md5sum --check; then return 0; fi
+              done
+              if [ "$attempt" -lt 4 ]; then sleep 45; fi
+            done
+            echo "::error::Publisher input rejected: $filename"
+            return 1
+          }
+          source_auth 18422200 cf_wind-ons_reference_county.h5 /tmp/paper-s/wind.h5 0670813d0a18b688d698ca24cf67fb92
+          source_auth 18407660 cf_upv_reference_county.h5 /tmp/paper-s/pv.h5 aba834ea4c592023bca47de2ba79e7ec
+          source_auth 18422200 sc_wind-ons_reference_county.csv /tmp/paper-s/wind_sc.csv 49ab4e41dc386453b5fd32e5810774d4
+          source_auth 18407660 sc_upv_reference_county.csv /tmp/paper-s/pv_sc.csv e10b1a64f3a67d163e739b735938eb78
+      - name: Retrieve original county weights, reference-hour curves and frozen 3x3 versus new 40/60 outputs
+        run: |
+          set -euo pipefail
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+             --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit --dir /tmp/paper-s/wind
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+             --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit --dir /tmp/paper-s/pv
+          gh run download 43124063185 --repo "${GITHUB_REPOSITORY}" \
+             --name paper-s-eia860-2025-observed-fleet-versus-reeds-county-potential-weight-comparison --dir /tmp/paper-s/eia
+          gh run download 44209543001 --repo "${GITHUB_REPOSITORY}" \
+             --name paper-s-nine-design-point-wind-share-penetration-2880-new-lp-results --dir /tmp/paper-s/original
+          gh run download 44449229739 --repo "${GITHUB_REPOSITORY}" \
+             --name paper-s-R2-wind40-60-continuity-720-new-LP --dir /tmp/paper-s/continuity
+          test -s /tmp/paper-s/original/paper_s_design_grid_2880_NEW_lp.csv
+          test -s /tmp/paper-s/continuity/paper_s_R2_wind40_60_720_NEW_lp.csv
+          for attempt in 1 2 3 4; do
+            if curl -fLsS --retry 3 --retry-all-errors --retry-delay 20 \
+               --connect-timeout 30 --max-time 900 \
+               'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+               -o /tmp/paper-s/demand.h5 \
+               && echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/paper-s/demand.h5' | md5sum --check; then
+              break
+            fi
+            if [ "$attempt" -eq 4 ]; then exit 1; fi
+            sleep 45
+          done
+      - name: Resolve Colorado 180 4/8h LPs, retain dual active-set and hourly SOC traces
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_CO_R2_40_50_60_hourly_mechanism \
+            --wind-h5 /tmp/paper-s/wind.h5 --pv-h5 /tmp/paper-s/pv.h5 \
+            --wind-sc /tmp/paper-s/wind_sc.csv --pv-sc /tmp/paper-s/pv_sc.csv \
+            --county-shares /tmp/paper-s/eia/paper_s_eia860_2025_vs_reeds_county_spatial_weights.csv \
+            --wind-ref /tmp/paper-s/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-ref /tmp/paper-s/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --demand-h5 /tmp/paper-s/demand.h5 \
+            --frozen3x3-csv /tmp/paper-s/original/paper_s_design_grid_2880_NEW_lp.csv \
+            --continuity-csv /tmp/paper-s/continuity/paper_s_R2_wind40_60_720_NEW_lp.csv \
+            --out outputs
+      - name: Reconcile model values, input hashes and complete 180-case output
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd,json
+          p=Path('outputs')
+          m=json.loads((p/'CO_R2_hourly_mechanism_manifest.json').read_text())
+          a=pd.read_csv(p/'CO_R2_180_hourly_SOC_curtailment_dual_case_summaries.csv')
+          x=pd.read_csv(p/'CO_R2_90_hourly_input_array_SHA256.csv')
+          assert len(a)==180 and len(x)==90
+          assert m['original_frozen_objective_gate']['matched_cases']==180
+          assert a.max_equality_residual_mwh.max()<1e-5
+          assert a.source_hour_count.eq(8760).all()
+          assert not m['charging_saturation_causality_established']
+          print("PAPER_S_CO_R2_HOURLY_MECHANISM_SOURCE_VERIFIED",m['original_frozen_objective_gate'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-co-r2-wind40-50-60-hourly-soc-duals-180-lps
+          path: outputs/
+          if-no-files-found: warn
