@@ -1,9 +1,6 @@
 name: Paper S full 15-year input-only annual transport source audit
 'on':
   workflow_dispatch:
-  pull_request:
-    paths:
-      - '.github/workflows/paper-s-input-only-annual-all15.yml'
 permissions:
   contents: read
   actions: read
