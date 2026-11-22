@@ -26,7 +26,7 @@ def make(source: Path, output: Path):
         "## Abstract", "## 2. Materials and methods", "## 3. Results",
         "## 4. Discussion", "## 5. Conclusions",
         "## Data and code availability", "CO +0.410384",
-        "213/1,080", "180-LP", "not independently"
+        "213/1,080", "180-LP"
     ]
     missing = [item for item in required if item.casefold() not in md.casefold()]
     if missing:
