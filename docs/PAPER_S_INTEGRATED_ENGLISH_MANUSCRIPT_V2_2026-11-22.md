@@ -64,9 +64,39 @@ Within original Colorado hourly re-solves, the 15-year median difference between
 
 A new, successful **180-LP Colorado R=1.5** physical source-only analysis joined 540 previously verified AZ/ID/WY LPs into a common-R=1.5, 50%-wind four-state horizon analysis. The median original economic LP siting effect across 15 weather-year pairs was **AZ -0.340861, CO +0.410384, ID +2.337690, WY +2.636534** model USD per additional kWh-year. The original Colorado R=2.0, 50%-wind paired median was **-2.177855**; thus the *median scenario effect* for Colorado switches sign between R=1.5 and R=2.0. Neither subtracting these medians nor comparing their magnitude establishes the median of a direct weather-year-paired interaction contrast. This sensitivity means the modeled geography effect is not a state-invariant constant.
 
+### Table 1. Common-R=1.5 state contrasts at AC wind share 50%
+
+The table reports the median *within-weather-year* paired value contrast, EIA-2025 county weights minus original ReEDS-2012 potential weights; SOC-only correlations are descriptive, not external predictions. Each state's comparison includes 15 source-weather years.
+
+| State | R | Median siting contrast (model USD/added kWh-year) | Daily SOC r | Weekly SOC r | Annual SOC r | Daily sign matches | Weekly sign matches | Annual sign matches |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Arizona | 1.5 | -0.340861 | 0.019414 | 0.958747 | 1.000000 | 9/15 | 13/15 | 15/15 |
+| Colorado | 1.5 | +0.410384 | 0.368747 | 0.919659 | 1.000000 | 12/15 | 15/15 | 15/15 |
+| Idaho | 1.5 | +2.337690 | 0.143886 | 0.963586 | 1.000000 | 15/15 | 15/15 | 15/15 |
+| Wyoming | 1.5 | +2.636534 | 0.826549 | 0.952937 | 1.000000 | 15/15 | 15/15 | 15/15 |
+
+Primary provenance: GitHub Actions run 44919128370, official artifact 14714718140. The Colorado ratio-1.5 versus ratio-2.0 difference is between separately computed medians, not a direct paired ratio-interaction median.
+
 ### 3.4. Conditional storage-extension cost thresholds
 
 Under the lowest selected ATB hurdle (Advanced case, 4% real rate; **16.049** ATB 2023 USD per additional kWh-year), **213/1,080** modeled incremental operating-value cases exceed that hurdle: 89 AZ, 60 CO, 34 ID, and 30 WY. By design cell: R=2.0, wind 25% has 120/120 exceedances; R=1.5, wind 25% has 61/120; R=2.0, wind 50% has 32/120; all R=1.0 designs and 75%-wind designs have zero. Advanced/7%, Advanced/10%, Moderate/4%, Moderate/7% yield 133, 93, 38 and **0** of 1,080, respectively, under their own thresholds. Aggregate 19,440 ATB comparison rows contain 954 exceedances, but duplicated numerical hurdles mean that total is not a count of independent experiments. Under the distinct fixed-2030 reference baseline at R=1.5, 50%-wind, **0/2,160** ATB comparisons exceed their corresponding hurdle; it cannot substitute for the entire 3×3 grid nor for the separate historical-demand cohort.
+
+### Table 2. ATB2025-v2 conditional screening assumptions
+
+Crossings count modeled 4-to-8-hour savings exceeding the given source-pinned cost extension hurdle among the **same** 1,080 model duration-value cases. Units for hurdle are ATB 2023 USD/(added kWh-year), while modeled value's currency year remains unreconciled.
+
+| ATB 2030 assumption | Discount rate | Hurdle | Exceedances / 1,080 cases |
+|---|---:|---:|---:|
+| Advanced | 4% | 16.049 | 213 |
+| Advanced | 7% | 18.501 | 133 |
+| Advanced | 10% | 21.179 | 93 |
+| Moderate | 4% | 24.175 | 38 |
+| Moderate | 7% | 27.869 | 0 |
+| Moderate | 10% | 31.902 | 0 |
+| Conservative (Expand) | 4% | 32.699 | 0 |
+| Conservative (R&D) | 4% | 29.715 | 0 |
+
+The 18 source-labeled scenarios contain 12 distinct numerical hurdles; these are not 18 independent cost-data observations. Results reflect conditional threshold exceedance and do not demonstrate a project profit or investment NPV. Source: GitHub Actions 44463644688, artifact 14507169113.
 
 ### 3.5. Horizon and mechanism falsification checks
 
