@@ -19,7 +19,7 @@
 
 The four-year 96/192 subexperiments must not be added as additional years of a 15-year source cohort. A positive or negative median difference is not a claim about an empirically installed 2030 fleet.
 
-## S2. Country/fleet/source-clock definitions
+## S2. County/fleet/source-clock definitions
 
 ReEDS 2022 original wind/utility PV county-class data and county supply curves use authenticated publisher files with MD5 pins in source-backed CI. Resource shapes are historical, and source hourly labels have a native fixed-CST convention requiring careful point-to-hour treatment. Demand is from an authenticated EFS reference HDF5. County potential is based on original resource supply curves; EIA-860 operating-generator county weights refer to the 2025 fleet. Applying them as spatial aggregation alternatives does not reproduce the actual 2023 balancing-authority fleet.
 
