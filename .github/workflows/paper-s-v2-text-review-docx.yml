@@ -33,6 +33,10 @@ jobs:
           doc=Document(d)
           assert d.stat().st_size>20000
           assert len(doc.paragraphs)>35
+          assert len(doc.tables)==2
+          assert len(doc.tables[0].rows)==5
+          assert len(doc.tables[1].rows)==9
+          assert j['tables']==2
           assert j['status']=='TEXT_ONLY_EDITORIAL_REVIEW_NOT_SUBMISSION'
           assert j['journal_visual_and_reference_qa_completed'] is False
           assert j['old_2010_2013_figures_attached'] is False
