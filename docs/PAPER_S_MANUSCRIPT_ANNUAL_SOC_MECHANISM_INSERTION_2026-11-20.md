@@ -1,6 +1,6 @@
 # Paper S — manuscript-ready annual mechanism insertion (2026-11-20)
 
-**Status:** author review draft to insert into the current integrated manuscript and supplementary information (SI). Uses only the source-audited 15 original weather years: four states, 120 state×weather-year×county-weight records and 60 paired within-year spatial contrasts. The original optimization results and economic threshold screening are unchanged. The independent local artifact audit has passed; official aggregation-recovery GitHub Actions status must be verified separately before labeling its output successful.
+**Status:** author review draft to insert into the current integrated manuscript and supplementary information (SI). Uses only the source-audited 15 original weather years: four states, 120 state×weather-year×county-weight records and 60 paired within-year spatial contrasts. The original optimization results and economic threshold screening are unchanged. Official aggregation-recovery GitHub Actions run [44861775851](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/44861775851) completed successfully; official artifact 14692567952 contains 120 year-by-weight source cases and 60 matched siting effects. This document remains a draft insertion pending reconciliation with the integrated Word manuscript.
 
 ## Suggested revised title
 **Weather-dependent battery duration value across renewable resource potential and operating-county spatial weights: a 15-weather-year, four-state optimization study**
@@ -81,3 +81,8 @@ The source-backed original workflow [44849783992](https://github.com/ys30/Energy
 - Do not infer state-to-state differences in economic units from raw shifted MWh because installed battery sizes and denominators differ across states.
 - Keep the supplementary two × 168 h window findings (CO R2: weekly r = −0.056 versus +0.448) as evidence of sampling/horizon sensitivity, not an annual physical counterexample once complete-year results exist.
 - Preserve Original Paper C-1/C-2/Paper T results and the source-pinned 3×3 cost threshold CSV.
+
+
+## 2026-11-22 supplemental common-R=1.5 sensitivity (verified; do not silently replace original CO R=2.0 design)
+
+The separate same-ratio controlled run [44919128370](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/44919128370) succeeded, with official artifact 14714718140. Re-solving **180** Colorado physical transfer LPs at R=1.5 and reusing the 540 source-verified other-state LPs permits a common-R=1.5, 50%-wind four-state comparison (120 source cases, 60 15-year within-state pairs). Median EIA-minus-potential modeled 4-to-8-hour storage-value effects are **AZ -0.340861, CO +0.410384, ID +2.337690, WY +2.636534**, in illustrative model USD/(added kWh-year). The original CO R=2.0 median is **-2.177855** at the same 50%-wind design: this is a **scenario-conditional sign reversal in the median**, not proof of a universal threshold or a median year-by-year R effect. Full provenance, Results/Discussion proposed wording and caution against causal interpretation: [PAPER_S_COMMON_R15_FOUR_STATE_180LP_VERIFIED_AND_MANUSCRIPT_INSERT_2026-11-22.md](PAPER_S_COMMON_R15_FOUR_STATE_180LP_VERIFIED_AND_MANUSCRIPT_INSERT_2026-11-22.md).
