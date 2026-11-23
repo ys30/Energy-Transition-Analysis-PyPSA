@@ -1,0 +1,24 @@
+name: Paper S export 74 references
+'on':
+  pull_request:
+    paths:
+      - docs/PAPER_S_74_BIBLIOGRAPHY_SOURCE_EXTRACT_2026-11-23.md
+      - scripts/export_paper_s_74_references.py
+      - .github/workflows/paper-s-reference-export.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  references:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python scripts/export_paper_s_74_references.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-74-reference-import-candidates
+          path: outputs/
+          if-no-files-found: error
