@@ -1,0 +1,57 @@
+name: Paper S common AC vs source denominator incremental battery value
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_ac_vs_source_incremental_2030.py'
+      - '.github/workflows/paper-s-reeds2022-ac-incremental-comparison.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  compare-original-vs-ac-incremental-storage-frontiers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source-archive analysis dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3'
+      - name: Download verified original and common AC 180 LP records
+        run: |
+          mkdir -p /tmp/legacy /tmp/ac outputs
+          gh run download 43051615043 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-2030-county-180-storage-dimensions-and-hurdles \
+            --dir /tmp/legacy
+          gh run download 43058074434 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-2030-common-ac-pv-ilr-180-original-source-lps \
+            --dir /tmp/ac
+      - name: Audit 144 exact battery size matching and conditional capacity-hurdle differences
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_ac_vs_source_incremental_2030 \
+            --legacy /tmp/legacy/paper_s_reeds2022_2030_180_mix_power_duration_LPs.csv \
+            --ac /tmp/ac/paper_s_reeds2022_2030_ac_normalized_180_LP.csv \
+            --out outputs
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd,json
+          root=Path('outputs')
+          a=pd.read_csv(root/'paper_s_reeds2022_72_ac_vs_original_duration_incremental.csv')
+          b=pd.read_csv(root/'paper_s_reeds2022_72_ac_vs_original_power_incremental.csv')
+          m=json.loads((root/'paper_s_reeds2022_144_ac_source_incremental_basis_manifest.json').read_text())
+          assert len(a)==len(b)==72
+          assert a.incremental_power_kw_common_AC.eq(0).all()
+          assert b.incremental_power_kw_common_AC.gt(0).all()
+          assert m['PV_array_dc_mw_differs_between_scenarios']
+          assert not m['battery_investment_cost_included']
+          print('SOURCE_BASIS_AC_CORRECTED_144_STORAGE_INCREMENTAL_MATCHED_PAIRS_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-ac-versus-original-144-marginal-storage-hurdles
+          path: outputs/
+          if-no-files-found: error

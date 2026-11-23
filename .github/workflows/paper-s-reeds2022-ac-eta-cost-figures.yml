@@ -1,0 +1,54 @@
+name: Paper S ReEDS2022 common AC 108-LP efficiency cost manuscript heatmaps
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_ac_eta_cost_figures_2030.py'
+      - '.github/workflows/paper-s-reeds2022-ac-eta-cost-figures.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  eight-robustness-figures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install graphics and data audit libraries
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7'
+      - name: Retrieve original accepted 108 LP source archive
+        run: |
+          mkdir -p /tmp/source outputs
+          for retry in 1 2 3; do
+            gh run download 43060677031 --repo "${{ github.repository }}" \
+              --name paper-s-reeds2022-2030-ac-108-cost-eta-lp-and-36-storage-hurdles \
+              --dir /tmp/source && break
+            if [ "$retry" -eq 3 ]; then exit 1; fi
+            sleep 6
+          done
+      - name: Create four states x absolute and relative hurdle heatmaps
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_ac_eta_cost_figures_2030 \
+            --source /tmp/source/paper_s_reeds2022_2030_common_ac_36_efficiency_firm_cost_4_to_8h.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('outputs')
+          m=json.loads((p/'paper_s_2030_ac_eta_cost_eight_figures_manifest.json').read_text())
+          assert m['scenario_triplets']==36 and m['figures']==8
+          assert len(list(p.glob('paper_s_2030_*_ac_eta_cost_*.png')))==8
+          assert len(list(p.glob('paper_s_2030_*_ac_eta_cost_*.pdf')))==8
+          assert m['states_over_hypothetical_hurdle']=={'AZ':5,'CO':0,'ID':0,'WY':0}
+          print('PAPER_S_108_LP_SOURCE_EIGHT_ETA_COST_FIGURES_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-reeds2022-ac-108-lp-eight-eta-cost-robustness-figures
+          path: outputs/
+          if-no-files-found: error

@@ -1,0 +1,49 @@
+name: Paper S v2 15-year text-only editorial Word review
+'on':
+  pull_request:
+    paths:
+      - 'docs/PAPER_S_INTEGRATED_ENGLISH_MANUSCRIPT_V2_2026-11-22.md'
+      - 'scripts/build_paper_s_v2_text_review_docx.py'
+      - '.github/workflows/paper-s-v2-text-review-docx.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-v2-text-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Word creator
+        run: python -m pip install 'python-docx>=1.1,<2'
+      - name: Fail-closed integrated 15-year manuscript Word build
+        run: |
+          python scripts/build_paper_s_v2_text_review_docx.py \
+            --source docs/PAPER_S_INTEGRATED_ENGLISH_MANUSCRIPT_V2_2026-11-22.md \
+            --out outputs/Paper_S_Integrated_15Year_V2_Text_Review_2026-11-22.docx
+          python - <<'PY'
+          from pathlib import Path
+          from docx import Document
+          import json
+          d=Path('outputs/Paper_S_Integrated_15Year_V2_Text_Review_2026-11-22.docx')
+          j=json.loads(d.with_suffix('.manifest.json').read_text())
+          doc=Document(d)
+          assert d.stat().st_size>20000
+          assert len(doc.paragraphs)>35
+          assert len(doc.tables)==2
+          assert len(doc.tables[0].rows)==5
+          assert len(doc.tables[1].rows)==9
+          assert j['tables']==2
+          assert j['status']=='TEXT_ONLY_EDITORIAL_REVIEW_NOT_SUBMISSION'
+          assert j['journal_visual_and_reference_qa_completed'] is False
+          assert j['old_2010_2013_figures_attached'] is False
+          print('PAPER_S_V2_MANUSCRIPT_TEXT_ONLY_EDITORIAL_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-15year-v2-text-only-editorial-word-review
+          path: outputs/
+          if-no-files-found: error

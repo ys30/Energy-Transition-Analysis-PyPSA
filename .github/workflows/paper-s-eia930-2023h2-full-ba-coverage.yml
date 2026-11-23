@@ -1,0 +1,68 @@
+name: Paper S authenticated EIA930 2023H2 full BA wind solar coverage audit
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia930_2023h2_full_BA_coverage.py'
+      - 'tests/test_paper_s_eia930_2023h2_full_BA_coverage.py'
+      - '.github/workflows/paper-s-eia930-2023h2-full-ba-coverage.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authenticated-h2-observation-calendar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install analysis/test tools
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Verify 2023 H2 UTC calendar and absent-versus-null logic
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_s_eia930_2023h2_full_BA_coverage.py
+      - name: Download authenticated raw EIA930 2023H2 archive
+        run: |
+          set -euo pipefail
+          mkdir -p inputs outputs
+          for attempt in 1 2 3 4; do
+            rm -f inputs/eia930-2023half2.zip
+            if curl -fL --show-error --silent --retry 2 --retry-all-errors \
+              --retry-delay 12 --connect-timeout 30 --max-time 1200 \
+              'https://zenodo.org/records/22856870/files/eia930-2023half2.zip?download=1' \
+              -o inputs/eia930-2023half2.zip; then
+              if echo '1de4e47693426671123bb08ec0d33995  inputs/eia930-2023half2.zip' | md5sum --check; then
+                break
+              fi
+            fi
+            if [ "$attempt" -eq 4 ]; then echo "::error::Authenticated EIA930 source unavailable"; exit 1; fi
+            sleep 30
+          done
+      - name: Audit six months across four BA times two fuels
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_eia930_2023h2_full_BA_coverage \
+            --archive inputs/eia930-2023half2.zip --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          root=Path("outputs")
+          m=json.loads((root/"paper_s_eia930_2023H2_coverage_manifest.json").read_text())
+          c=pd.read_csv(root/"paper_s_eia930_2023H2_8_BA_fuel_coverage.csv")
+          s=pd.read_csv(root/"paper_s_eia930_2023H2_48_month_BA_fuel_coverage.csv")
+          assert len(c)==8 and len(s)==48
+          assert m["expected_hours_each_BA_fuel"]==4416
+          assert (c.source_timestamp_count+c.missing_source_timestamp_count).eq(4416).all()
+          assert c.reported_mw_present_count.le(c.source_timestamp_count).all()
+          assert m["BA_equals_state"] is False
+          assert m["ReEDS_comparison_performed"] is False
+          print("PAPER_S_EIA930_FULL_H2_COVERAGE_SOURCE_VERIFIED")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-EIA930-2023H2-four-BA-wind-solar-full-hourly-coverage
+          path: outputs/
+          if-no-files-found: warn

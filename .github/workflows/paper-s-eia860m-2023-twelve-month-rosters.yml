@@ -1,0 +1,87 @@
+name: Paper S 2023 twelve official EIA860M monthly BA generator scope audits
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia860m_2023_12_month_BA_roster_audit.py'
+      - 'tests/test_paper_s_eia860m_2023_12_month_BA_roster_audit.py'
+      - '.github/workflows/paper-s-eia860m-2023-twelve-month-rosters.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  official-monthly-operating-roster:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install monthly source and test tools
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'openpyxl>=3.1' 'pytest>=8'
+      - name: Preflight 192 two-version monthly diagnostics
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_s_eia860m_2023_12_month_BA_roster_audit.py
+      - name: Retrieve previously authenticated 2023 full-year EIA930 four-BA observation data
+        run: |
+          set -euo pipefail
+          mkdir -p inputs/monthly outputs
+          gh run download 44246001519 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-2023-full-year-8760-hour-EIA930-BA-wind-solar-observation-coverage \
+            --dir inputs/observed
+          test -s inputs/observed/paper_s_eia930_2023_annual_BA_wind_solar_reported_MW.csv
+      - name: Obtain each 2023 official EIA860M source month independently
+        run: |
+          set -euo pipefail
+          for month in january february march april may june july august september october november december; do
+            name="${month}_generator2023.xlsx"
+            url="https://www.eia.gov/electricity/data/eia860m/archive/xls/${name}"
+            echo "::group::Source ${name}"
+            success=0
+            for attempt in 1 2 3; do
+              rm -f "inputs/monthly/${name}"
+              if curl -fLsS --retry 3 --retry-all-errors --retry-delay 12 \
+                --connect-timeout 30 --max-time 600 "${url}" \
+                -o "inputs/monthly/${name}"; then
+                if [ -s "inputs/monthly/${name}" ]; then success=1;break;fi
+              fi
+              sleep 20
+            done
+            if [ "$success" != 1 ]; then
+              echo "::error::Missing authentic EIA860M 2023 original workbook ${name}"
+              exit 1
+            fi
+            sha256sum "inputs/monthly/${name}"
+            echo "::endgroup::"
+          done
+          echo '9a7b3f4051f1edb55f4d6508a1b963d2b344d687de6ea464ac538f2929122510  inputs/monthly/july_generator2023.xlsx' | sha256sum --check
+      - name: Compute 12 same-month BA-coded generator population audits
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_eia860m_2023_12_month_BA_roster_audit \
+            --monthly-folder inputs/monthly \
+            --observations inputs/observed/paper_s_eia930_2023_annual_BA_wind_solar_reported_MW.csv \
+            --out outputs
+          python - <<'PY'
+          from pathlib import Path
+          import json,pandas as pd
+          p=Path('outputs')
+          m=json.loads((p/'EIA860M_2023_monthly_scope_manifest.json').read_text())
+          s=pd.read_csv(p/'EIA860M_2023_96_month_BA_fuel_candidate_rosters.csv')
+          c=pd.read_csv(p/'EIA930_2023_192_month_BA_capacity_scope_comparisons.csv')
+          h=pd.read_csv(p/'EIA860M_2023_12_source_workbook_SHA256.csv')
+          assert len(s)==96 and len(c)==192 and len(h)==12
+          assert len(s.month.unique())==12 and len(c.month.unique())==12
+          assert c.actual_measured_CF.eq(False).all()
+          assert c.BA_equals_state.eq(False).all()
+          assert not m['EIA930_metered_fleet_coverage_certified']
+          print('PAPER_S_2023_12_MONTH_SOURCE_BA_ROSTER_SCOPE_AUDIT_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-2023-12-month-official-EIA860M-BA-wind-solar-capacity-scope-diagnostics
+          path: outputs/
+          if-no-files-found: warn

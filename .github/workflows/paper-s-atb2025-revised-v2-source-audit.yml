@@ -1,0 +1,48 @@
+name: Paper S official ATB2025 revised v2 workbook provenance audit
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_atb2025_v2_workbook_probe.py'
+      - '.github/workflows/paper-s-atb2025-revised-v2-source-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-workbook-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download exact ATB 2025 revised v2 workbook and reject missing response
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/atb outputs
+          curl -fL --retry 3 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 30 --max-time 900 \
+            'https://data.openei.org/files/8759/2025_v2_Workbook_11-11-2026.xlsx' \
+            -o /tmp/atb/2025_v2_Workbook_11-11-2026.xlsx
+          test "$(wc -c </tmp/atb/2025_v2_Workbook_11-11-2026.xlsx)" -gt 1000000
+          sha256sum /tmp/atb/2025_v2_Workbook_11-11-2026.xlsx
+      - name: Inventory workbook worksheets and official source checksum without inventing cost values
+        run: |
+          PYTHONPATH=src python -m energy_transition.paper_s_atb2025_v2_workbook_probe \
+            --workbook /tmp/atb/2025_v2_Workbook_11-11-2026.xlsx \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path('outputs/paper_s_ATB2025_v2_source_inventory.json').read_text())
+          assert a['sheet_count']>0
+          assert a['official_2030_4h_8h_costs_verified'] is False
+          assert len(a['sha256'])==64
+          print('PAPER_S_ATB2025_V2_MANIFEST_ACCEPTED')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-atb2025-v2-workbook-provenance-inventory
+          path: outputs/
+          if-no-files-found: warn

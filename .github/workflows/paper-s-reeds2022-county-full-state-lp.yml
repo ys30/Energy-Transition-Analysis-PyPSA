@@ -1,0 +1,61 @@
+name: Paper S ReEDS2022 county-native full-state 48 illustrative LP cases
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_county_full_state_lp.py'
+      - '.github/workflows/paper-s-reeds2022-county-full-state-lp.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  solve-source-backed-illustrative-lp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install reproducible solver dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10'
+      - name: Get authenticated county-derived 2012 state CF source artifacts
+        run: |
+          mkdir -p /tmp/reeds/wind /tmp/reeds/pv outputs
+          gh run download 42962740548 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit --dir /tmp/reeds/wind
+          gh run download 42962740548 --repo "${{ github.repository }}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit --dir /tmp/reeds/pv
+      - name: Download independent 2022 source projected demand
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 600 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Solve county-native 4-state x 3-model-year x 2-hour-assumption x 2-storage LP
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_county_full_state_lp \
+            --demand-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --wind-csv /tmp/reeds/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-csv /tmp/reeds/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          df=pd.read_csv('outputs/paper_s_reeds2022_county_full_state_2012_weather_48_LP.csv')
+          m=json.loads(Path('outputs/paper_s_reeds2022_county_full_state_lp_manifest.json').read_text())
+          assert len(df)==48 and m['scenario_count']==48
+          assert df.solver_status.eq('optimal').all()
+          assert df.max_equality_residual_mwh.max()<1e-5
+          assert not m['physical_network_or_reliability_certified']
+          print('COUNTY_NATIVE_REEDS2022_48_ILLUSTRATIVE_LP_ADMITTED')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-reeds2022-county-native-48-LP-real-source-hypothetical-capacity
+          path: outputs/
+          if-no-files-found: warn

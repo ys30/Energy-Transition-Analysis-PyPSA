@@ -1,0 +1,79 @@
+name: Paper S common AC 2030 216 LP hourly approximation robustness
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_common_ac_hour_mode_2030.py'
+      - 'tests/test_reeds2022_common_ac_hour_mode_2030.py'
+      - '.github/workflows/paper-s-reeds2022-common-ac-hour-mode-216.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  solve-source-clock-216:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source, solver and test packages
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+      - name: Test 216 LP layout and paired hour-convention results
+        run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_common_ac_hour_mode_2030.py
+      - name: Download frozen source CFs and original common AC 180 LP
+        run: |
+          mkdir -p /tmp/reeds/wind /tmp/reeds/pv /tmp/reeds/base outputs
+          for tech in wind pv; do
+            for trial in 1 2 3; do
+              gh run download 42962740548 --repo "${{ github.repository }}" \
+                --name "paper-s-reeds2022-original-2012-county-${tech}-hdf5-source-audit" \
+                --dir "/tmp/reeds/${tech}" && break
+              if [ "${trial}" -eq 3 ]; then exit 1; fi
+              sleep 5
+            done
+          done
+          for trial in 1 2 3; do
+            gh run download 43058074434 --repo "${{ github.repository }}" \
+              --name paper-s-reeds2022-2030-common-ac-pv-ilr-180-original-source-lps \
+              --dir /tmp/reeds/base && break
+            if [ "${trial}" -eq 3 ]; then exit 1; fi
+            sleep 5
+          done
+      - name: Authenticate official original HDF5 demand
+        run: |
+          curl -fLsS --retry 3 --connect-timeout 30 --max-time 900 \
+            'https://zenodo.org/records/18461543/files/demand_EFS_REFERENCE.h5?download=1' \
+            -o /tmp/reeds/demand_EFS_REFERENCE.h5
+          echo '7b2055d43200744a16a8c4fed68b1a17  /tmp/reeds/demand_EFS_REFERENCE.h5' | md5sum --check
+      - name: Run 216 original-source common AC LP and verify 108 trapezoid anchors
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_common_ac_hour_mode_2030 \
+            --demand-h5 /tmp/reeds/demand_EFS_REFERENCE.h5 \
+            --wind-csv /tmp/reeds/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-csv /tmp/reeds/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --reference-ac-180 /tmp/reeds/base/paper_s_reeds2022_2030_ac_normalized_180_LP.csv \
+            --out outputs
+          python - <<'PY'
+          import pandas as pd,json
+          from pathlib import Path
+          p=Path('outputs')
+          a=pd.read_csv(p/'paper_s_reeds2022_2030_common_ac_216_hour_assumption_LPs.csv')
+          b=pd.read_csv(p/'paper_s_reeds2022_2030_common_ac_72_hour_storage_pairs.csv')
+          c=pd.read_csv(p/'paper_s_reeds2022_2030_common_ac_36_hour_assumption_comparisons.csv')
+          m=json.loads((p/'paper_s_reeds2022_2030_common_ac_216_hour_assumption_manifest.json').read_text())
+          assert len(a)==216 and len(b)==72 and len(c)==36
+          assert a.solver_status.eq('optimal').all() and a.max_equality_residual_mwh.max()<1e-5
+          assert m['frozen_trapezoid_108_scenario_max_objective_delta_usd']<=.1
+          assert m['not_true_hour_integrated_generation']
+          print('PAPER_S_SOURCE_216_COMMON_AC_CLOCK_LP_AND_FROZEN_ANCHOR_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-reeds2022-2030-common-ac-216-hour-mode-lps-and-36-comparisons
+          path: outputs/
+          if-no-files-found: warn

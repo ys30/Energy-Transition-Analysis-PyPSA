@@ -1,0 +1,173 @@
+name: Paper S CO R1.5 180-LP same-design annual SOC control
+'on':
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/paper-s-co-r15-annual-physical-comparator.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source-year-partition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        state: [CO]
+        years:
+          - '2007 2008 2009 2010 2011'
+          - '2012 2013 2016 2017 2018'
+          - '2019 2020 2021 2022 2023'
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source and optimizer dependencies
+        run: |
+          python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10' 'pytest>=8'
+          PYTHONPATH=src python -m pytest -q tests/test_paper_s_input_only_annual_optimal.py tests/test_paper_s_input_only_weekly_optimal.py
+      - name: Source pin all original 15-weather-year county ReEDS HDF, original curves and 2023 EIA930
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/paper-s/wind /tmp/paper-s/pv /tmp/paper-s/eia /tmp/paper-s/frozen outputs
+          source_auth() {
+            local rec="$1" name="$2" dest="$3" md5="$4" url attempt
+            for attempt in 1 2 3 4; do
+              for url in "https://zenodo.org/records/${rec}/files/${name}?download=1" \
+                "https://zenodo.org/api/records/${rec}/files/${name}/content"; do
+                rm -f "$dest"
+                if curl -fLsS --retry 2 --retry-all-errors --retry-delay 15 \
+                  --connect-timeout 30 --max-time 3600 "$url" -o "$dest" \
+                  && echo "$md5  $dest" | md5sum --check; then return 0; fi
+              done
+              if [ "$attempt" -lt 4 ]; then sleep 45; fi
+            done
+            echo "::error::Publisher source failed pin $name"
+            return 1
+          }
+          source_auth 18422200 cf_wind-ons_reference_county.h5 /tmp/paper-s/wind.h5 0670813d0a18b688d698ca24cf67fb92
+          source_auth 18407660 cf_upv_reference_county.h5 /tmp/paper-s/pv.h5 aba834ea4c592023bca47de2ba79e7ec
+          source_auth 18422200 sc_wind-ons_reference_county.csv /tmp/paper-s/wind_sc.csv 49ab4e41dc386453b5fd32e5810774d4
+          source_auth 18407660 sc_upv_reference_county.csv /tmp/paper-s/pv_sc.csv e10b1a64f3a67d163e739b735938eb78
+          source_auth 18461543 demand_EFS_REFERENCE.h5 /tmp/paper-s/demand.h5 7b2055d43200744a16a8c4fed68b1a17
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-wind-hdf5-source-audit --dir /tmp/paper-s/wind
+          gh run download 42962740548 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-reeds2022-original-2012-county-pv-hdf5-source-audit --dir /tmp/paper-s/pv
+          gh run download 43124063185 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-eia860-2025-observed-fleet-versus-reeds-county-potential-weight-comparison --dir /tmp/paper-s/eia
+          gh run download 44209543001 --repo "${GITHUB_REPOSITORY}" \
+            --name paper-s-nine-design-point-wind-share-penetration-2880-new-lp-results --dir /tmp/paper-s/frozen
+          test -s /tmp/paper-s/frozen/paper_s_design_grid_1080_duration_values.csv
+      - name: Run source-backed annual daily weekly and continuous SOC optima
+        env:
+          YEARS: ${{ matrix.years }}
+          STATE: ${{ matrix.state }}
+        run: |
+          set -euo pipefail
+          read -ra YR <<< "$YEARS"
+          PYTHONPATH=src python -c "from energy_transition import paper_s_input_only_annual_optimal as m; m.STUDIES=(('CO',1.5),); m.main()" \
+            --wind-h5 /tmp/paper-s/wind.h5 --pv-h5 /tmp/paper-s/pv.h5 \
+            --wind-sc /tmp/paper-s/wind_sc.csv --pv-sc /tmp/paper-s/pv_sc.csv \
+            --county-shares /tmp/paper-s/eia/paper_s_eia860_2025_vs_reeds_county_spatial_weights.csv \
+            --wind-ref /tmp/paper-s/wind/reeds2022_wind_2012_four_state_instantaneous_cf.csv \
+            --pv-ref /tmp/paper-s/pv/reeds2022_pv_2012_four_state_instantaneous_cf.csv \
+            --demand-h5 /tmp/paper-s/demand.h5 \
+            --grid /tmp/paper-s/frozen/paper_s_design_grid_1080_duration_values.csv \
+            --states "$STATE" --years "${YR[@]}" --out outputs
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          a=pd.read_csv(Path('outputs')/'Y1_annual_input_only_case_results.csv')
+          assert len(a)==10 and a.source_hours.eq(8760).all() and a.renewable_peak_ratio.eq(1.5).all()
+          assert a.filter(like='balance_residual_mwh').max().max()<1e-5
+          for duration in (4,8):
+              assert (a[f'daily_{duration}h_delivered_mwh']<=a[f'weekly_{duration}h_delivered_mwh']+1e-3).all()
+              assert (a[f'weekly_{duration}h_delivered_mwh']<=a[f'annual_{duration}h_delivered_mwh']+1e-3).all()
+          print('PAPER_S_8760H_SOURCE_PARTITION_10_CASES_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-co-r15-annual-physical-${{ strategy.job-index }}
+          path: outputs/
+          if-no-files-found: error
+  aggregate:
+    needs: source-year-partition
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.11' 'h5py>=3.10'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: paper-s-co-r15-annual-physical-*
+          path: /tmp/co-r15
+      - name: Retrieve immutable economic LP grid and original three-state R1.5 source results
+        run: |
+          mkdir -p /tmp/frozen /tmp/baseline outputs
+          gh run download 44209543001 --repo "${GITHUB_REPOSITORY}" --name paper-s-nine-design-point-wind-share-penetration-2880-new-lp-results --dir /tmp/frozen
+          gh run download 44861775851 --repo "${GITHUB_REPOSITORY}" --name paper-s-annual-full-15year-120-source-mechanism --dir /tmp/baseline
+      - name: Verify CO R1.5 and compare with existing R1.5 state cohorts
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+          from energy_transition.paper_s_input_only_annual_optimal import summarize
+          from energy_transition.reeds2022_all_weather_year_720lp import WEATHER_YEARS
+          from energy_transition.paper_s_input_only_weekly_optimal import KEY
+          files=sorted(Path('/tmp/co-r15').glob('*/Y1_annual_input_only_case_results.csv'))
+          assert len(files)==3,files
+          co=pd.concat([pd.read_csv(f) for f in files],ignore_index=True)
+          assert len(co)==30 and co.state.eq('CO').all() and co.renewable_peak_ratio.eq(1.5).all()
+          assert not co[KEY].duplicated().any()
+          assert set(co.weather_year)==set(WEATHER_YEARS)
+          assert co.source_hours.eq(8760).all()
+          assert np.isfinite(co.select_dtypes('number').to_numpy()).all()
+          assert co.filter(like='balance_residual_mwh').max().max()<1e-5
+          for h in (4,8):
+              assert (co[f'daily_{h}h_delivered_mwh']<=co[f'weekly_{h}h_delivered_mwh']+1e-3).all()
+              assert (co[f'weekly_{h}h_delivered_mwh']<=co[f'annual_{h}h_delivered_mwh']+1e-3).all()
+          original=pd.read_csv('/tmp/baseline/Y1_all15_annual_mechanism_cases.csv')
+          assert len(original)==120
+          other=original.loc[original.state.isin(['AZ','ID','WY'])]
+          assert len(other)==90 and other.renewable_peak_ratio.eq(1.5).all()
+          joined_input=pd.concat([other,co],ignore_index=True)
+          frozen=pd.read_csv('/tmp/frozen/paper_s_design_grid_1080_duration_values.csv')
+          allcases,pairs,summary=summarize(joined_input,frozen)
+          assert len(allcases)==120 and len(pairs)==60 and len(summary)==4
+          assert summary.n_matched_weather_years.eq(15).all()
+          assert allcases.renewable_peak_ratio.eq(1.5).all()
+          out=Path('outputs')
+          co.to_csv(out/'CO_R15_30_annual_source_cases.csv',index=False)
+          allcases.to_csv(out/'Y1_common_R15_all_four_state_120_cases.csv',index=False)
+          pairs.to_csv(out/'Y2_common_R15_60_siting_effect_pairs.csv',index=False)
+          summary.to_csv(out/'Y3_common_R15_four_state_summary.csv',index=False)
+          (out/'Y0_common_R15_manifest.json').write_text(json.dumps({
+              'status':'SOURCE_AUDITED_COMMON_R15_FOUR_STATE_SENSITIVITY',
+              'new_CO_LP_solves':180,'reused_other_state_LP_solves':540,
+              'cases':120,'pairs':60,'all_states_ratio':1.5,
+              'not_independent_causal_validation':True,
+              'original_720_LP_outputs_unchanged':True},indent=2)+'\n')
+          print(summary.to_string(index=False))
+          print('PAPER_S_CO_R15_180LP_COMMON_DESIGN_COMPARATOR_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-CO-R15-180LP-common-design-15-year-4state-comparator
+          path: outputs/
+          if-no-files-found: error

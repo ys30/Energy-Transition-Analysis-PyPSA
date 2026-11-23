@@ -1,0 +1,68 @@
+name: Paper S verified 720x720 fixed vs weather-matched comparison
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_load_weather_coupling_comparison.py'
+      - 'tests/test_reeds2022_load_weather_coupling_comparison.py'
+      - '.github/workflows/paper-s-load-weather-cross-panel-comparison.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  compare-authenticated-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install computation and test dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'h5py>=3.10,<4' 'scipy>=1.11,<2' 'pytest>=8'
+      - name: Test unique-case matching and mode separation
+        run: PYTHONPATH=src python -m pytest -q tests/test_reeds2022_load_weather_coupling_comparison.py
+      - name: Download the two pinned successful authentic-source LP artifacts
+        run: |
+          set -eu
+          mkdir -p /tmp/papers/fixed /tmp/papers/matched outputs
+          gh run download 43651682920 --repo "${{ github.repository }}" \
+            --name paper-s-all15-720lp-fixed2030demand-source-validated \
+            --dir /tmp/papers/fixed
+          gh run download 43665299980 --repo "${{ github.repository }}" \
+            --name paper-s-15-year-matched-historical-load-720-lp \
+            --dir /tmp/papers/matched
+      - name: Pair fixed 2030 2012-weather-reference and historical same-year source LPs
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_load_weather_coupling_comparison \
+            --fixed-720 /tmp/papers/fixed/paper_s_all15_720_lp.csv \
+            --matched-720 /tmp/papers/matched/paper_s_same_weather_720_lp.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          p=Path('outputs')
+          m=json.loads((p/'paper_s_load_match_comparison_manifest.json').read_text())
+          a=pd.read_csv(p/'paper_s_load_match_720_objective_comparison.csv')
+          b=pd.read_csv(p/'paper_s_load_match_240_value_comparison.csv')
+          c=pd.read_csv(p/'paper_s_load_match_120_geography_comparison.csv')
+          assert (len(a),len(b),len(c))==(720,240,120)
+          assert m['LP_pairs']==720 and m['duration_triplets']==240
+          assert m['shape_only_causal_effect_established'] is False
+          assert set(c.load_mode)=={
+            'actual_historical_level',
+            'historical_weather_shape_scaled_to_2030_annual_energy'}
+          assert c.same_spatial_effect_direction.notna().all()
+          print('PAPER_S_720x720_AUTHENTIC_SOURCE_CROSS_PANEL_COMPARISON_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-s-720x720-weather-load-cross-panel-verified-comparison
+          path: outputs/
+          if-no-files-found: warn

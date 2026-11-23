@@ -1,0 +1,53 @@
+name: Paper S EIA2025 observed county siting 24 LP manuscript figure
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/reeds2022_eia2025_siting_paper_figure.py'
+      - '.github/workflows/paper-s-reeds2022-eia2025-siting-figure.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  original-source-24lp-siting-figure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'matplotlib>=3.7'
+      - name: Download original source-backed 24-LP siting output
+        run: |
+          mkdir -p /tmp/source outputs
+          for n in 1 2 3; do
+            gh run download 43159121663 --repo "${{ github.repository }}" \
+              --name paper-s-reeds2022-eia2025-county-siting-24-LP-comparison \
+              --dir /tmp/source && break
+            if [ "$n" -eq 3 ]; then exit 1; fi
+            sleep 8
+          done
+      - name: Create publication 4-state EIA county-siting comparison from only verified CSV
+        run: |
+          PYTHONPATH=src python -m energy_transition.reeds2022_eia2025_siting_paper_figure \
+            --source /tmp/source/paper_s_2030_EIA2025_vs_potential_4_state_storage_value_effects.csv \
+            --out outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=Path('outputs')
+          assert (d/'paper_s_fig_county_siting_24_lp_4_to_8h.png').stat().st_size>5000
+          assert (d/'paper_s_fig_county_siting_24_lp_4_to_8h.pdf').stat().st_size>5000
+          m=json.loads((d/'paper_s_fig_county_siting_24_lp_manifest.json').read_text())
+          assert m['threshold_flip_states']==['AZ']
+          assert not m['not_true_hour_integrated_energy']==False
+          print('PAPER_S_REEDS_EIA_SITING_24LP_ACCEPTED_PAPER_FIGURE_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-s-eia2025-24-lp-source-siting-arizona-threshold-reversal-figure
+          path: outputs/
+          if-no-files-found: error

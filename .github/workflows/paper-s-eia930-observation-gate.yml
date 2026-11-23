@@ -1,0 +1,23 @@
+name: Paper S EIA930 hourly BA-state evidence admission gate
+'on':
+  pull_request:
+    paths:
+      - 'src/energy_transition/paper_s_eia930_observation_gate.py'
+      - 'tests/test_paper_s_eia930_observation_gate.py'
+      - '.github/workflows/paper-s-eia930-observation-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  eia930-admission-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install data-validation and test dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'pytest>=8'
+      - name: Reject unauthorized BA-state equality and missing UTC hour-ending semantics
+        run: PYTHONPATH=src python -m pytest -q tests/test_paper_s_eia930_observation_gate.py
