@@ -1,5 +1,37 @@
 # Western US Energy Transition Modeling | PyPSA + EIA
 
+## Paper S — county renewable siting and 4→8-hour battery duration value (27 November 2026 working manuscript)
+
+**Manuscript:** *Where renewables are built changes the value of longer battery storage: operating-fleet versus resource-potential siting weights across 15 weather years in four Western U.S. states.*
+
+**[Portfolio case study and research charts](https://ys30.github.io/projects/energy-transition-analysis-pypsa.html#paper-s-heading)** · [Paper S verified 3×3 LP run](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/44209543001) · [wind/PV 2×2 factorial](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/44037447284) · [annual transfer](https://github.com/ys30/Energy-Transition-Analysis-PyPSA/actions/runs/44919128370).
+
+![Paper S 36 design-point paired siting-effect medians](https://raw.githubusercontent.com/ys30/ys30.github.io/main/assets/figures/paper-s-median-siting-effects.svg)
+
+### Study design and reproducible findings
+
+The investigation distinguishes **ReEDS 2022 county/resource-class technical-potential weights** from **EIA-860 2025 operating wind/PV county nameplate weights** in four states (AZ, CO, ID, WY). Fifteen source weather years (2007–2013; 2016–2023) feed a **single-node chronological SciPy/HiGHS LP**, with 0/4/8-hour storage, 90% round-trip efficiency, fixed and weather-matched demand variants, and synthetic fixed marginal-cost coefficients. **This LP is not an AC PyPSA network power flow, validated 2030 fleet, or merchant battery valuation.**
+
+| Analysis | Source-grounded result |
+|---|---|
+| County geography | Technical-potential versus operating-fleet county TVD **0.604–0.862** across eight state×technology cells |
+| Baseline fixed-2030-demand, R=1.5/50% wind | Scheme-specific median marginal 4→8h modeled value **ID: 3.47→5.79 (+67%); WY: 3.51→6.19 (+77%)**, model USD/(added kWh-year) |
+| Matched historical demand | Corresponding percentage changes **ID +42.5%, WY +66.6%**; do **not** equate differences of scheme medians with median paired differences |
+| 2×2 wind/PV weight attribution | At baseline, median wind/PV Shapley values **ID +1.204/+1.122; WY +1.880/+0.714** model USD/(added kWh-year); opposite wind vs PV effects partly cancel in AZ |
+| Daily versus weekly storage horizon | Daily SOC reset achieves **18% median** of additional 4→8h transfer, weekly **86% median**; weekly paired direction agrees in **58/60** cases |
+| Common R=1.5, 50% wind | Median year-paired siting effects **AZ −0.341, CO +0.410, ID +2.338, WY +2.637** (illustrative model USD/(added kWh-year)) |
+| Colorado R=2.0, 50% wind | Median paired effect **−2.178**, reversing the Colorado common-R=1.5 median sign; conditional scenario comparison only |
+| IPCO 2023 shape diagnostic | **8,743** matched hours per fuel; after month×fixed-CST-hour deseasonalization, solar r **0.819 potential / 0.906 fleet**, wind **0.699 / 0.698** |
+| ATB 2030 incremental duration cost screening | **0/2,160** matched-demand baseline comparisons above hurdle; a **separate** 3×3 design yielded **213/1,080** cases above the lowest Advanced/4% hurdle |
+
+![Paper S 2023 IPCO observed-shape residual correlation](https://raw.githubusercontent.com/ys30/ys30.github.io/main/assets/figures/paper-s-ipco-deseasonalized.svg)
+
+**Evidence and scope:** [fixed 720-LP and matched historical 720-LP cohort audit](docs/PAPER_S_2026_11_17_Q1_INTEGRATED_MANUSCRIPT_SI_AND_EIA930_GATE.md) · [complete 3×3 cost screen](docs/PAPER_S_VERIFIED_3X3_ATB_DAILY_MECHANISM_IPCO_RESULTS_2026-11-19.md) · [Colorado common-R control](docs/PAPER_S_COMMON_R15_FOUR_STATE_180LP_VERIFIED_AND_MANUSCRIPT_INSERT_2026-11-22.md) · [2023 IPCO residuals](docs/PAPER_S_IPCO_2023_DESEASONALIZED_RESIDUALS_VERIFIED_2026-11-23.md). The experimental source is a set of authenticated source series and scenario results, not directly verified EIA-owned fleet dispatch. Observed-BA footprints differ from the Idaho state model. The ATB screen is conditional on model-cost and 2023-dollar comparability, and the optimization ignores transmission, capacity/adequacy value and actual revenue. The annual storage-transfer LP's near-perfect correlation with objective differences is **a structural identity, not independent causal validation**.
+
+**Manuscript state:** author-supplied 27 Nov 2026 main text and 26 Nov SI are **working drafts**, not published articles; externally licensed publisher input files are not represented as redistributed. Paper S is **distinct** from the earlier **540-LP / 20-zone synthetic EFS 2030–2050** study and the **2024 two-BA $315.993M hypothetical storage-savings** test. The Paper T source-index research and network-engineering tracks remain separate research programs.
+
+---
+
 ## Paper T — verified temporal-provenance research (manuscript v20.8.3, 11 Nov 2026)
 
 **Annual agreement does not establish hourly equivalence.** In 11 Western states across 2030/2040/2050 (**289,080 state-hour source values**), the original EFS2020 and ReEDS2022 published demand products agree closely on annual energy yet show **67–3,974 MW** unshifted hourly MAE. A reproducible **nonwrapping** ±12 h screen identifies **−2 h for six Mountain states** and **−3 h for four Pacific states**; all 30 state-years then reach approximately **0.25 MW MAE**, consistent with integer rounding. **Idaho remains anomalous** (17.3–22.1 MW at its best single lag); a half-year-trained **frozen −2/−3 h mixture reduces error 62%**, but leaves 6.5–8.3 MW. This is *numeric source-index comparability*, **not** certified physical UTC time.
